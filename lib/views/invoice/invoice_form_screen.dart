@@ -55,10 +55,8 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
             label: 'بيع',
             icon: Icons.arrow_upward_rounded,
             color: Colors.green,
-            selected:
-            controller.draftType.value == InvoiceType.sale,
-            onTap: () =>
-                controller.setDraftType(InvoiceType.sale),
+            selected: controller.draftType.value == InvoiceType.sale,
+            onTap: () => controller.setDraftType(InvoiceType.sale), // ← صح
           ),
         ),
         const SizedBox(width: 12),
@@ -67,10 +65,8 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
             label: 'شراء',
             icon: Icons.arrow_downward_rounded,
             color: Colors.orange,
-            selected:
-            controller.draftType.value == InvoiceType.purchase,
-            onTap: () =>
-                controller.setDraftType(InvoiceType.purchase),
+            selected: controller.draftType.value == InvoiceType.purchase,
+            onTap: () => controller.setDraftType(InvoiceType.purchase), // ← صح
           ),
         ),
       ],
@@ -699,30 +695,58 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                     itemCount: list.length,
                     itemBuilder: (context, index) {
                       final product = list[index];
-                      return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: Color(0xFFE3F2FD),
-                          child: Icon(Icons.inventory_2_outlined,
-                              color: Colors.blue, size: 20),
-                        ),
-                        title: Text(product.name),
-                        subtitle: Text('SKU: ${product.sku}'),
-                        trailing: Text(
-                          '${product.salePrice}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
+
+                      return Obx(() {
+                        final isSale =
+                            controller.draftType.value == InvoiceType.sale;
+                        final price =
+                            isSale ? product.salePrice : product.costPrice;
+                        final priceColor =
+                            isSale ? Colors.green : Colors.orange;
+                        final priceLabel =
+                            isSale ? 'سعر البيع' : 'سعر التكلفة';
+
+                        return ListTile(
+                          leading: const CircleAvatar(
+                            backgroundColor: Color(0xFFE3F2FD),
+                            child: Icon(
+                              Icons.inventory_2_outlined,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
                           ),
-                        ),
-                        onTap: () {
-                          controller.addDraftItem(
-                            product: product,
-                            quantity: 1,
-                            unitPrice: product.salePrice,
-                          );
-                          Get.back();
-                        },
-                      );
+                          title: Text(product.name),
+                          subtitle: Text('SKU: ${product.sku}'),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '$price',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: priceColor,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              Text(
+                                priceLabel,
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            controller.addDraftItem(
+                              product: product,
+                              quantity: 1,
+                            );
+                            Get.back();
+                          },
+                        );
+                      });
                     },
                   );
                 }),

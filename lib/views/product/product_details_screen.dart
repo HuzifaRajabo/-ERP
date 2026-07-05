@@ -1,15 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/product_controller.dart';
+import '../../core/services/app_event_bus.dart';
 import '../../models/product_model.dart';
 
-class ProductDetailsScreen extends GetView<ProductController> {
+class ProductDetailsScreen extends StatefulWidget {
   const ProductDetailsScreen({super.key});
 
-  ProductModel get product => Get.arguments as ProductModel;
+  @override
+  State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
+}
+
+class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  late ProductModel product;
+  final controller = Get.find<ProductController>();
 
   @override
+  void initState() {
+    super.initState();
+    product = Get.arguments as ProductModel;
+
+    // عند أي تغيير في المنتجات أعد جلب هذا المنتج
+    AppEventBus.instance.listenToProducts(() async {
+      final updated = await controller.repo.getProductById(product.id!);
+      if (updated != null && mounted) {
+        setState(() => product = updated);
+      }
+    });
+  }
+  @override
   Widget build(BuildContext context) {
+    final margin = product.salePrice - product.costPrice;
+    final isLoss = margin < 0;
+    final marginColor = isLoss ? Colors.red : Colors.green;
+    final marginIcon = isLoss ? Icons.trending_down : Icons.trending_up;
     return Scaffold(
       appBar: AppBar(
         title: Text(product.name),
@@ -90,10 +114,10 @@ class ProductDetailsScreen extends GetView<ProductController> {
           ),
           const SizedBox(height: 12),
           _InfoCard(
-            label: 'هامش الربح',
-            value: '${product.salePrice - product.costPrice}',
-            icon: Icons.trending_up,
-            color: Colors.blue,
+            label: isLoss ? 'خسارة' : 'هامش الربح',
+            value: margin.abs().toString(),
+            icon: marginIcon,
+            color: marginColor,
           ),
           const SizedBox(height: 12),
 

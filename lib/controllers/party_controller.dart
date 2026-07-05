@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../repositories/party_repository.dart';
 import '../models/party_model.dart';
+import '../core/services/app_event_bus.dart';
+import '../core/utils/db_error_handler.dart';
 
 enum PartyLoadState { idle, loading, loadingMore, error }
 
@@ -9,43 +11,29 @@ class PartyController extends GetxController {
 
   PartyController(this.repo);
 
-  // ==============================
-  // State
-  // ==============================
-
   final RxList<PartyModel> parties = <PartyModel>[].obs;
   final Rx<PartyLoadState> state = PartyLoadState.idle.obs;
   final RxBool hasMore = true.obs;
   final RxnString errorMessage = RxnString();
   final RxString searchKeyword = ''.obs;
-  final Rxn<PartyType> selectedType = Rxn<PartyType>();
+  final Rxn<PartyType> selectedType = Rxn<PartyType>(); // ← جديد
 
   int? _cursor;
-
-  // ==============================
-  // Getters
-  // ==============================
 
   bool get isLoading => state.value == PartyLoadState.loading;
   bool get isLoadingMore => state.value == PartyLoadState.loadingMore;
   bool get hasError => state.value == PartyLoadState.error;
   bool get isEmpty => parties.isEmpty && state.value == PartyLoadState.idle;
 
-  // ==============================
-  // Lifecycle
-  // ==============================
-
   @override
   void onInit() {
     super.onInit();
-
-    // تشغيل البحث تلقائياً عند تغيير الكلمة مع debounce
     debounce(
       searchKeyword,
           (_) => loadInitial(),
       time: const Duration(milliseconds: 500),
     );
-
+    AppEventBus.instance.listenToParties(loadInitial);
     loadInitial();
   }
 
@@ -68,16 +56,14 @@ class PartyController extends GetxController {
   Future<void> _fetchPage() async {
     try {
       final page = await repo.getParties(
-        keyword: searchKeyword.value,
-        type: selectedType.value,
+        keyword: searchKeyword.value.isEmpty ? null : searchKeyword.value,
+        type: selectedType.value, // ← فلتر النوع
         lastId: _cursor,
       );
 
       parties.addAll(page.parties);
-
       _cursor = page.nextCursor;
       hasMore.value = page.hasNextPage;
-
       state.value = PartyLoadState.idle;
       errorMessage.value = null;
     } catch (e) {
@@ -87,12 +73,11 @@ class PartyController extends GetxController {
   }
 
   // ==============================
-  // Search
+  // Search & Filter
   // ==============================
 
   void search(String keyword) {
     searchKeyword.value = keyword.trim();
-    // debounce في onInit تتولى الباقي تلقائياً
   }
 
   void clearSearch() {
@@ -111,52 +96,42 @@ class PartyController extends GetxController {
   Future<void> addParty(PartyModel party) async {
     try {
       await repo.insertParty(party);
-      refreshParties();
+      AppEventBus.instance.notifyPartyChanged();
     } catch (e) {
       state.value = PartyLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = DbErrorHandler.handle(e, entityName: 'الطرف');
     }
   }
 
   Future<void> updateParty(PartyModel party) async {
     try {
       await repo.updateParty(party);
-      final index = parties.indexWhere((p) => p.id == party.id);
-      if (index != -1) {
-        parties[index] = party;
-        parties.refresh();
-      }
+      AppEventBus.instance.notifyPartyChanged();
     } catch (e) {
       state.value = PartyLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = DbErrorHandler.handle(e, entityName: 'الطرف');
     }
   }
 
   Future<void> deleteParty(int id) async {
     try {
       await repo.deleteParty(id);
-      parties.removeWhere((p) => p.id == id);
+      AppEventBus.instance.notifyPartyChanged();
     } catch (e) {
       state.value = PartyLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = DbErrorHandler.handle(e, entityName: 'الطرف');
     }
   }
 
-  Future<PartyModel?> getPartyById(int id) {
-    return repo.getPartyById(id);
-  }
-
-  Future<PartyModel?> getPartyByPhone(String phone) {
-    return repo.getPartyByPhone(phone);
-  }
+  Future<PartyModel?> getPartyById(int id) => repo.getPartyById(id);
+  Future<PartyModel?> getPartyByPhone(String phone) =>
+      repo.getPartyByPhone(phone);
 
   // ==============================
   // Helpers
   // ==============================
 
-  Future<void> refreshParties() async {
-    await loadInitial();
-  }
+  Future<void> refreshParties() async => loadInitial();
 
   void _reset() {
     parties.clear();
@@ -170,5 +145,4 @@ class PartyController extends GetxController {
     state.value = PartyLoadState.idle;
     errorMessage.value = null;
   }
-
 }

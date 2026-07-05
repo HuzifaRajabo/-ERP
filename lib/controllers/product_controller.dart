@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../repositories/product_repository.dart';
 import '../models/product_model.dart';
+import '../core/services/app_event_bus.dart';
+import '../core/utils/db_error_handler.dart';
 
 enum ProductLoadState { idle, loading, loadingMore, error }
 
@@ -44,6 +46,8 @@ class ProductController extends GetxController {
           (_) => loadInitial(),
       time: const Duration(milliseconds: 500),
     );
+
+    AppEventBus.instance.listenToProducts(loadInitial);
 
     loadInitial();
   }
@@ -104,7 +108,8 @@ class ProductController extends GetxController {
   Future<void> addProduct(ProductModel product) async {
     try {
       await repo.insertProduct(product);
-      refreshProducts();
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
     } catch (e) {
       state.value = ProductLoadState.error;
       errorMessage.value = e.toString();
@@ -114,11 +119,8 @@ class ProductController extends GetxController {
   Future<void> updateProduct(ProductModel product) async {
     try {
       await repo.updateProduct(product);
-      final index = products.indexWhere((p) => p.id == product.id);
-      if (index != -1) {
-        products[index] = product;
-        products.refresh();
-      }
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
     } catch (e) {
       state.value = ProductLoadState.error;
       errorMessage.value = e.toString();
@@ -128,10 +130,11 @@ class ProductController extends GetxController {
   Future<void> deleteProduct(int id) async {
     try {
       await repo.deleteProduct(id);
-      products.removeWhere((p) => p.id == id);
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
     } catch (e) {
       state.value = ProductLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = DbErrorHandler.handle(e, entityName: 'المنتج');
     }
   }
 

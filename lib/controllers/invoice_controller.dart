@@ -6,6 +6,7 @@ import '../models/invoice_model.dart';
 import '../models/product_model.dart';
 import '../models/party_model.dart';
 import '../models/Invoice_draft.dart';
+import '../core/services/app_event_bus.dart';
 
 enum InvoiceLoadState { idle, loading, loadingMore, error }
 
@@ -62,6 +63,8 @@ class InvoiceController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    AppEventBus.instance.listenToInvoices(loadInitial);
+    AppEventBus.instance.listenToInventory(loadInitial);
     loadInitial();
   }
 
@@ -115,7 +118,8 @@ class InvoiceController extends GetxController {
   Future<void> deleteInvoice(int id) async {
     try {
       await repo.deleteInvoice(id);
-      invoices.removeWhere((inv) => inv.id == id);
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
     } catch (e) {
       state.value = InvoiceLoadState.error;
       errorMessage.value = e.toString();
@@ -144,7 +148,7 @@ class InvoiceController extends GetxController {
     invoiceFormError.value = null;
 
     await loadAvailableProducts();
-    await loadAvailableParties();
+    await _loadPartiesForType(InvoiceType.sale); // ← فلترة من البداية
   }
 
   Future<void> loadAvailableProducts() async {
@@ -157,8 +161,14 @@ class InvoiceController extends GetxController {
     availableParties.assignAll(page.parties);
   }
 
+  // ==============================
+  // تغيير نوع الفاتورة
+  // ==============================
+
   void setDraftType(InvoiceType type) {
     draftType.value = type;
+    draftParty.value = null; // إعادة تعيين الطرف لأن النوع تغيّر
+    _loadPartiesForType(type);
   }
 
   void setDraftParty(PartyModel party) {
@@ -169,19 +179,42 @@ class InvoiceController extends GetxController {
     draftNotes.value = notes;
   }
 
+  Future<void> _loadPartiesForType(InvoiceType type) async {
+    try {
+      // بيع   → عملاء + كليهما
+      // شراء  → موردين + كليهما
+      final typeFilter =
+      type == InvoiceType.sale ? PartyType.customer : PartyType.supplier;
+
+      final page = await partyRepo.getParties(
+        type: typeFilter,
+        pageSize: 1000,
+      );
+      availableParties.assignAll(page.parties);
+    } catch (e) {
+      invoiceFormError.value = 'فشل تحميل الأطراف: $e';
+    }
+  }
+
   /// إضافة سطر جديد للفاتورة الحالية
   void addDraftItem({
-    required ProductModel product,
-    required double quantity,
-    required int unitPrice,
-  }) {
-    draftItems.add(InvoiceItemDraft(
-      productId: product.id!,
-      productNameSnapshot: product.name,
-      quantity: quantity,
-      unitPrice: unitPrice,
-    ));
-  }
+  required ProductModel product,
+  required double quantity,
+  int? unitPrice,
+}) {
+  // بيع → سعر البيع | شراء → سعر التكلفة
+  final price = unitPrice ??
+      (draftType.value == InvoiceType.sale
+          ? product.salePrice
+          : product.costPrice);
+
+  draftItems.add(InvoiceItemDraft(
+    productId: product.id!,
+    productNameSnapshot: product.name,
+    quantity: quantity,
+    unitPrice: price,
+  ));
+}
 
   void removeDraftItem(int index) {
     draftItems.removeAt(index);
@@ -217,6 +250,7 @@ class InvoiceController extends GetxController {
         salePrice: product.salePrice,
       );
       availableProducts.insert(0, created);
+      AppEventBus.instance.notifyInventoryChanged();
       return created;
     } catch (e) {
       invoiceFormError.value = 'فشل إضافة المنتج: $e';
@@ -239,6 +273,7 @@ class InvoiceController extends GetxController {
         address: party.address,
       );
       availableParties.insert(0, created);
+      AppEventBus.instance.notifyProductChanged();
       return created;
     } catch (e) {
       invoiceFormError.value = 'فشل إضافة الطرف: $e';
@@ -280,9 +315,9 @@ class InvoiceController extends GetxController {
       );
 
       await repo.createInvoice(draft);
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
 
-      // تحديث قائمة الفواتير لتظهر الفاتورة الجديدة فوراً
-      await loadInitial();
 
       isSavingInvoice.value = false;
       return true;

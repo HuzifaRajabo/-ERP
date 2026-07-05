@@ -1,17 +1,67 @@
-# erp
+# ERP
 
-A new Flutter project.
+نظام إدارة موارد المؤسسة (ERP) مبني بـ Flutter ويدعم:
+- إدارة المنتجات
+- إدارة الأطراف (عملاء / موردين)
+- إدارة الفواتير (مبيعات / مشتريات)
+- تتبع حركة المخزون والمستودع
 
-## Getting Started
+## الميزات الرئيسية
 
-This project is a starting point for a Flutter application.
+- واجهة باللغة العربية مع اتجاه من اليمين إلى اليسار
+- تخزين محلي باستخدام قاعدة بيانات SQLite
+- استخدام GetX لإدارة الحالة والتنقل
+- فلاتر بحث وعرض متقدم للبيانات
+- تتبع عمليات المخزون وحساب الملخصات لكل منتج
 
-A few resources to get you started if this is your first Flutter project:
+## بنية المشروع
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- `lib/main.dart`: نقطة الدخول للتطبيق
+- `lib/views/`: شاشات العرض الرئيسية
+- `lib/controllers/`: منطق التطبيق وstate management
+- `lib/repositories/`: الوصول إلى البيانات وعمليات CRUD
+- `lib/models/`: نماذج البيانات
+- `lib/core/database/`: إعداد قاعدة البيانات SQLite
+- `lib/core/services/`: خدمات مساعدة مثل حدث التطبيق
+- `lib/bindings/`: ربط التحكم مع الشاشات عبر GetX
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## المتطلبات
+
+- Flutter SDK
+- Dart SDK
+- Android أو iOS simulator / جهاز فعلي
+
+## إعداد المشروع وتشغيله
+
+1. افتح المشروع في محرر VS Code أو Android Studio
+2. ثبت الحزم:
+
+```bash
+flutter pub get
+```
+
+3. شغل التطبيق:
+
+```bash
+flutter run
+```
+
+أو لتجميع نسخة إصدارية لأندرويد:
+
+```bash
+flutter build apk
+```
+
+## الاعتمادات
+
+- `flutter`
+- `get`
+- `sqflite`
+- `path`
+- `cupertino_icons`
+
+## ملاحظات
+
+- قاعدة البيانات تُهيأ تلقائياً عند بدء التطبيق لأول مرة.
+- يمكن تعديل أو إضافة شاشات جديدة عبر `lib/views/` و `lib/controllers/`.
+- إذا أردت توسيع النظام، يمكن إضافة وحدات مثل إدارة المشتريات، تقارير المبيعات، أو حسابات.

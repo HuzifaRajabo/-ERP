@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../repositories/inventory_repository.dart';
 import '../models/inventory_transaction_model.dart';
+import '../core/services/app_event_bus.dart';
 
 enum InventoryLoadState { idle, loading, loadingMore, error }
 
@@ -54,6 +55,7 @@ class InventoryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    AppEventBus.instance.listenToInventory(refreshAll);
     loadInitial();
     loadStockSummaries();
   }

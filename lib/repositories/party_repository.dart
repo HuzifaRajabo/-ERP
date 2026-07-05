@@ -39,21 +39,41 @@ class PartyRepository {
   }) async {
     try {
       final db = await _db;
+
       final List<String> conditions = [];
       final List<dynamic> args = [];
 
-      if (keyword != null && keyword.isNotEmpty) {
+      // البحث بالاسم
+      if (keyword != null && keyword.trim().isNotEmpty) {
         conditions.add('name LIKE ?');
-        args.add('%$keyword%');
+        args.add('%${keyword.trim()}%');
       }
 
+      // الفلترة حسب النوع
       if (type != null) {
-        conditions.add('type = ?');
-        args.add(type.name.toUpperCase());
+        switch (type) {
+          case PartyType.customer:
+            conditions.add("(type = ? OR type = ?)");
+            args.add("CUSTOMER");
+            args.add("BOTH");
+            break;
+
+          case PartyType.supplier:
+            conditions.add("(type = ? OR type = ?)");
+            args.add("SUPPLIER");
+            args.add("BOTH");
+            break;
+
+          case PartyType.both:
+            conditions.add("type = ?");
+            args.add("BOTH");
+            break;
+        }
       }
 
+      // Pagination
       if (lastId != null) {
-        conditions.add('id < ?');
+        conditions.add("id < ?");
         args.add(lastId);
       }
 
@@ -71,7 +91,7 @@ class PartyRepository {
       return PartyPage(
         parties: items.map((e) => PartyModel.fromMap(e)).toList(),
         hasNextPage: hasNextPage,
-        nextCursor: hasNextPage
+        nextCursor: hasNextPage && items.isNotEmpty
             ? items.last['id'] as int
             : null,
       );

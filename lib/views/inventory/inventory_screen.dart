@@ -91,12 +91,24 @@ class _StockCard extends GetView<InventoryController> {
 
   @override
   Widget build(BuildContext context) {
-    // تحديد لون المخزون بناء على الكمية المتاحة
-    final stockColor = summary.available <= 0
-        ? Colors.red
-        : summary.available <= 5
-        ? Colors.orange
-        : Colors.green;
+    // المؤثرات اللونية حسب الكمية المتاحة
+    final Color stockColor;
+    final IconData stockIcon;
+    final String stockLabel;
+
+    if (summary.available <= 0) {
+      stockColor = Colors.red;
+      stockIcon = Icons.warning_amber_rounded;
+      stockLabel = 'نفد المخزون';
+    } else if (summary.available <= 5) {
+      stockColor = Colors.orange;
+      stockIcon = Icons.info_outline;
+      stockLabel = 'مخزون منخفض';
+    } else {
+      stockColor = Colors.green;
+      stockIcon = Icons.check_circle_outline;
+      stockLabel = 'متوفر';
+    }
 
     return Card(
       elevation: 2,
@@ -106,118 +118,81 @@ class _StockCard extends GetView<InventoryController> {
         onTap: () => controller.filterByProduct(summary.productId),
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(
+          child: Row(
             children: [
-              Row(
-                children: [
-                  // أيقونة المنتج
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: stockColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.inventory_2_outlined,
-                        color: stockColor),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // اسم المنتج والـ SKU
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          summary.productName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        Text(
-                          'SKU: ${summary.productSku}',
-                          style: TextStyle(
-                              color: Colors.grey[500], fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // الكمية المتاحة
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        _formatQty(summary.available),
-                        style: TextStyle(
-                          color: stockColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 22,
-                        ),
-                      ),
-                      Text(
-                        'متاح',
-                        style: TextStyle(
-                            color: Colors.grey[400], fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ],
+              // أيقونة المنتج
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: stockColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: stockColor,
+                  size: 26,
+                ),
               ),
-              const SizedBox(height: 10),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
+              const SizedBox(width: 14),
 
-              // مشتريات ومبيعات
-              Row(
-                children: [
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'مشتريات',
-                      value: _formatQty(summary.totalPurchased),
-                      icon: Icons.arrow_downward_rounded,
-                      color: Colors.orange,
+              // اسم المنتج والـ SKU وحالة المخزون
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      summary.productName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'مبيعات',
-                      value: _formatQty(summary.totalSold),
-                      icon: Icons.arrow_upward_rounded,
-                      color: Colors.blue,
+                    const SizedBox(height: 2),
+                    Text(
+                      'SKU: ${summary.productSku}',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  // شريط التقدم (نسبة المباع)
-                  Expanded(
-                    child: summary.totalPurchased > 0
-                        ? Column(
+                    const SizedBox(height: 4),
+                    Row(
                       children: [
+                        Icon(stockIcon, size: 13, color: stockColor),
+                        const SizedBox(width: 4),
                         Text(
-                          '${((summary.totalSold / summary.totalPurchased) * 100).toStringAsFixed(0)}%',
+                          stockLabel,
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
                             color: stockColor,
-                            fontSize: 13,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: (summary.totalSold /
-                              summary.totalPurchased)
-                              .clamp(0, 1),
-                          color: stockColor,
-                          backgroundColor:
-                          stockColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        Text(
-                          'نسبة المباع',
-                          style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 10),
-                        ),
                       ],
-                    )
-                        : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // الكمية المتاحة فقط
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _formatQty(summary.available),
+                    style: TextStyle(
+                      color: stockColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 28,
+                    ),
+                  ),
+                  Text(
+                    'وحدة',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -230,44 +205,6 @@ class _StockCard extends GetView<InventoryController> {
 
   String _formatQty(double qty) =>
       qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _MiniStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 4),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: color)),
-            Text(label,
-                style:
-                TextStyle(color: Colors.grey[400], fontSize: 10)),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 // ==============================
