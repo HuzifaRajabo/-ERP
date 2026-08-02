@@ -20,7 +20,7 @@ class InventoryTransactionModel {
     return {
       'id': id,
       'product_id': productId,
-      'type': type.name.toUpperCase(), // SALE / PURCHASE
+      'type': type.dbValue,
       'quantity': quantity,
       'invoice_id': invoiceId,
       'created_at': createdAt,
@@ -31,9 +31,7 @@ class InventoryTransactionModel {
     return InventoryTransactionModel(
       id: map['id'],
       productId: map['product_id'],
-      type: InventoryTransactionType.values.byName(
-        map['type'].toString().toLowerCase(), // SALE → sale
-      ),
+      type: InventoryTransactionType.fromDb(map['type']),
       quantity: (map['quantity'] as num).toDouble(),
       invoiceId: map['invoice_id'],
       createdAt: map['created_at'],
@@ -59,4 +57,41 @@ class InventoryTransactionModel {
   }
 }
 
-enum InventoryTransactionType { sale, purchase }
+// تحديث InventoryTransactionType enum
+enum InventoryTransactionType {
+  sale,
+  purchase,
+  saleReturn,
+  purchaseReturn;
+
+  String get label => switch (this) {
+    InventoryTransactionType.sale            => 'بيع',
+    InventoryTransactionType.purchase        => 'شراء',
+    InventoryTransactionType.saleReturn      => 'مرتجع مبيعات',
+    InventoryTransactionType.purchaseReturn  => 'مرتجع مشتريات',
+  };
+
+  String get dbValue => switch (this) {
+    InventoryTransactionType.sale            => 'SALE',
+    InventoryTransactionType.purchase        => 'PURCHASE',
+    InventoryTransactionType.saleReturn      => 'SALE_RETURN',
+    InventoryTransactionType.purchaseReturn  => 'PURCHASE_RETURN',
+  };
+
+  static InventoryTransactionType fromDb(String value) =>
+      switch (value.toUpperCase()) {
+        'SALE'             => InventoryTransactionType.sale,
+        'PURCHASE'         => InventoryTransactionType.purchase,
+        'SALE_RETURN'      => InventoryTransactionType.saleReturn,
+        'PURCHASE_RETURN'  => InventoryTransactionType.purchaseReturn,
+        _ => throw Exception('Unknown type: $value'),
+      };
+
+  // يزيد المخزون أم يقلله؟
+  bool get increasesStock => switch (this) {
+    InventoryTransactionType.sale            => false,
+    InventoryTransactionType.purchase        => true,
+    InventoryTransactionType.saleReturn      => true,
+    InventoryTransactionType.purchaseReturn  => false,
+  };
+}

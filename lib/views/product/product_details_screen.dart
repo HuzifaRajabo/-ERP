@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../core/utils/money_utils.dart';
 import '../../controllers/product_controller.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../models/product_model.dart';
@@ -28,6 +29,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       }
     });
   }
+
   @override
   Widget build(BuildContext context) {
     final margin = product.salePrice - product.costPrice;
@@ -51,11 +53,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-
           // ==============================
           // Header
           // ==============================
-
           Center(
             child: Container(
               width: 80,
@@ -90,13 +90,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           // ==============================
           // Info Cards
           // ==============================
-
           Row(
             children: [
               Expanded(
                 child: _InfoCard(
                   label: 'سعر التكلفة',
-                  value: '${product.costPrice}',
+                  value: MoneyUtils.formatMoney(product.costPrice),
                   icon: Icons.price_change_outlined,
                   color: Colors.orange,
                 ),
@@ -105,7 +104,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               Expanded(
                 child: _InfoCard(
                   label: 'سعر البيع',
-                  value: '${product.salePrice}',
+                  value: MoneyUtils.formatMoney(product.salePrice),
                   icon: Icons.sell_outlined,
                   color: Colors.green,
                 ),
@@ -115,7 +114,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           const SizedBox(height: 12),
           _InfoCard(
             label: isLoss ? 'خسارة' : 'هامش الربح',
-            value: margin.abs().toString(),
+            value: MoneyUtils.formatMoney(margin.abs()),
             icon: marginIcon,
             color: marginColor,
           ),
@@ -134,7 +133,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           // ==============================
           // Edit Button
           // ==============================
-
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -155,10 +153,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         title: const Text('حذف المنتج'),
         content: Text('هل تريد حذف "${product.name}"؟'),
         actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: const Text('إلغاء'),
-          ),
+          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
           TextButton(
             onPressed: () async {
               Get.back();
@@ -206,7 +201,10 @@ class _InfoCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
               const SizedBox(height: 2),
               Text(
                 value,

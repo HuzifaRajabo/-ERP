@@ -212,32 +212,40 @@ class InventoryRepository {
     final db = await _db;
 
     final result = await db.rawQuery('''
-      SELECT
-        p.id   AS product_id,
-        p.name AS product_name,
-        p.sku  AS product_sku,
-        COALESCE(SUM(
-          CASE WHEN it.type = 'PURCHASE' THEN it.quantity ELSE 0 END
-        ), 0) AS total_purchased,
-        COALESCE(SUM(
-          CASE WHEN it.type = 'SALE' THEN it.quantity ELSE 0 END
-        ), 0) AS total_sold
-      FROM products p
-      LEFT JOIN inventory_transactions it ON it.product_id = p.id
-      GROUP BY p.id, p.name, p.sku
-      ORDER BY p.name ASC
-    ''');
+    SELECT
+      p.id   AS product_id,
+      p.name AS product_name,
+      p.sku  AS product_sku,
+      COALESCE(SUM(
+        CASE
+          WHEN it.type = 'PURCHASE'       THEN it.quantity
+          WHEN it.type = 'SALE_RETURN'    THEN it.quantity
+          ELSE 0
+        END
+      ), 0) AS total_in,
+      COALESCE(SUM(
+        CASE
+          WHEN it.type = 'SALE'            THEN it.quantity
+          WHEN it.type = 'PURCHASE_RETURN' THEN it.quantity
+          ELSE 0
+        END
+      ), 0) AS total_out
+    FROM products p
+    LEFT JOIN inventory_transactions it ON it.product_id = p.id
+    GROUP BY p.id, p.name, p.sku
+    ORDER BY p.name ASC
+  ''');
 
     return result.map((row) {
-      final purchased = (row['total_purchased'] as num).toDouble();
-      final sold = (row['total_sold'] as num).toDouble();
+      final totalIn = (row['total_in'] as num).toDouble();
+      final totalOut = (row['total_out'] as num).toDouble();
       return ProductStockSummary(
         productId: row['product_id'] as int,
         productName: row['product_name'] as String,
         productSku: row['product_sku'] as String,
-        totalPurchased: purchased,
-        totalSold: sold,
-        available: purchased - sold, // المخزون المتاح الحالي
+        totalPurchased: totalIn,
+        totalSold: totalOut,
+        available: totalIn - totalOut,
       );
     }).toList();
   }
@@ -250,35 +258,43 @@ class InventoryRepository {
     final db = await _db;
 
     final result = await db.rawQuery('''
-      SELECT
-        p.id   AS product_id,
-        p.name AS product_name,
-        p.sku  AS product_sku,
-        COALESCE(SUM(
-          CASE WHEN it.type = 'PURCHASE' THEN it.quantity ELSE 0 END
-        ), 0) AS total_purchased,
-        COALESCE(SUM(
-          CASE WHEN it.type = 'SALE' THEN it.quantity ELSE 0 END
-        ), 0) AS total_sold
-      FROM products p
-      LEFT JOIN inventory_transactions it ON it.product_id = p.id
-      WHERE p.id = ?
-      GROUP BY p.id, p.name, p.sku
-    ''', [productId]);
+    SELECT
+      p.id   AS product_id,
+      p.name AS product_name,
+      p.sku  AS product_sku,
+      COALESCE(SUM(
+        CASE
+          WHEN it.type = 'PURCHASE'       THEN it.quantity
+          WHEN it.type = 'SALE_RETURN'    THEN it.quantity
+          ELSE 0
+        END
+      ), 0) AS total_in,
+      COALESCE(SUM(
+        CASE
+          WHEN it.type = 'SALE'            THEN it.quantity
+          WHEN it.type = 'PURCHASE_RETURN' THEN it.quantity
+          ELSE 0
+        END
+      ), 0) AS total_out
+    FROM products p
+    LEFT JOIN inventory_transactions it ON it.product_id = p.id
+    WHERE p.id = ?
+    GROUP BY p.id, p.name, p.sku
+  ''', [productId]);
 
     if (result.isEmpty) return null;
 
     final row = result.first;
-    final purchased = (row['total_purchased'] as num).toDouble();
-    final sold = (row['total_sold'] as num).toDouble();
+    final totalIn = (row['total_in'] as num).toDouble();
+    final totalOut = (row['total_out'] as num).toDouble();
 
     return ProductStockSummary(
       productId: row['product_id'] as int,
       productName: row['product_name'] as String,
       productSku: row['product_sku'] as String,
-      totalPurchased: purchased,
-      totalSold: sold,
-      available: purchased - sold,
+      totalPurchased: totalIn,
+      totalSold: totalOut,
+      available: totalIn - totalOut,
     );
   }
 

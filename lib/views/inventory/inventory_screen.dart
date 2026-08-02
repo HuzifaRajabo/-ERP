@@ -400,17 +400,28 @@ class _TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSale =
-        view.transaction.type == InventoryTransactionType.sale;
-    final color = isSale ? Colors.blue : Colors.orange;
-    final icon = isSale
-        ? Icons.arrow_upward_rounded
-        : Icons.arrow_downward_rounded;
-    final label = isSale ? 'بيع' : 'شراء';
+    final type = view.transaction.type;
     final qty = view.transaction.quantity;
     final qtyStr = qty % 1 == 0
         ? qty.toInt().toString()
         : qty.toStringAsFixed(2);
+
+    final Color color = switch (type) {
+      InventoryTransactionType.sale            => Colors.blue,
+      InventoryTransactionType.purchase        => Colors.orange,
+      InventoryTransactionType.saleReturn      => Colors.purple,
+      InventoryTransactionType.purchaseReturn  => Colors.teal,
+    };
+
+    final IconData icon = switch (type) {
+      InventoryTransactionType.sale            => Icons.arrow_upward_rounded,
+      InventoryTransactionType.purchase        => Icons.arrow_downward_rounded,
+      InventoryTransactionType.saleReturn      => Icons.undo_rounded,
+      InventoryTransactionType.purchaseReturn  => Icons.redo_rounded,
+    };
+
+    final String label = type.label;
+    final String qtyPrefix = type.increasesStock ? '+' : '-';
 
     return Card(
       elevation: 1,
@@ -482,16 +493,17 @@ class _TransactionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  isSale ? '-$qtyStr' : '+$qtyStr',
+                  '$qtyPrefix$qtyStr',
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
-                Text('وحدة',
-                    style: TextStyle(
-                        color: Colors.grey[400], fontSize: 11)),
+                Text(
+                  'وحدة',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                ),
               ],
             ),
           ],

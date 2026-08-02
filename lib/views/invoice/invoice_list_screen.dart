@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../core/utils/money_utils.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../models/invoice_model.dart';
 
@@ -48,35 +49,36 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() => SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          _Chip(
-            label: 'الكل',
-            selected: controller.selectedType.value == null,
-            color: Colors.blueGrey,
-            onTap: () => controller.filterByType(null),
-          ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'مبيعات',
-            selected: controller.selectedType.value == InvoiceType.sale,
-            color: Colors.green,
-            onTap: () => controller.filterByType(InvoiceType.sale),
-          ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'مشتريات',
-            selected:
-            controller.selectedType.value == InvoiceType.purchase,
-            color: Colors.orange,
-            onTap: () => controller.filterByType(InvoiceType.purchase),
-          ),
-        ],
+    return Obx(
+      () => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            _Chip(
+              label: 'الكل',
+              selected: controller.selectedType.value == null,
+              color: Colors.blueGrey,
+              onTap: () => controller.filterByType(null),
+            ),
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'مبيعات',
+              selected: controller.selectedType.value == InvoiceType.sale,
+              color: Colors.green,
+              onTap: () => controller.filterByType(InvoiceType.sale),
+            ),
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'مشتريات',
+              selected: controller.selectedType.value == InvoiceType.purchase,
+              color: Colors.orange,
+              onTap: () => controller.filterByType(InvoiceType.purchase),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }
 
@@ -154,8 +156,8 @@ class _InvoiceList extends GetView<InvoiceController> {
           onRefresh: controller.refreshInvoices,
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
-            itemCount: controller.invoices.length +
-                (controller.hasMore.value ? 1 : 0),
+            itemCount:
+                controller.invoices.length + (controller.hasMore.value ? 1 : 0),
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               if (index == controller.invoices.length) {
@@ -187,15 +189,16 @@ class _InvoiceCard extends GetView<InvoiceController> {
     final isSale = invoice.type == InvoiceType.sale;
     final color = isSale ? Colors.green : Colors.orange;
     final typeLabel = isSale ? 'بيع' : 'شراء';
-    final typeIcon =
-    isSale ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
+    final typeIcon = isSale
+        ? Icons.arrow_upward_rounded
+        : Icons.arrow_downward_rounded;
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => Get.toNamed('/invoice-details', arguments: invoice.id),
+        onTap: () => Get.toNamed('/invoice-details', arguments: invoice),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -229,7 +232,9 @@ class _InvoiceCard extends GetView<InvoiceController> {
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: color.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
@@ -253,8 +258,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
                     if (invoice.createdAt != null)
                       Text(
                         invoice.createdAt!,
-                        style:
-                        TextStyle(color: Colors.grey[400], fontSize: 11),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
                       ),
                   ],
                 ),
@@ -265,7 +269,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '${invoice.totalAmount}',
+                    MoneyUtils.formatMoney(invoice.totalAmount),
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.bold,
@@ -273,8 +277,11 @@ class _InvoiceCard extends GetView<InvoiceController> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: Colors.red, size: 20),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                      size: 20,
+                    ),
                     onPressed: () => _confirmDelete(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -289,23 +296,25 @@ class _InvoiceCard extends GetView<InvoiceController> {
   }
 
   void _confirmDelete(BuildContext context) {
-    Get.dialog(AlertDialog(
-      title: const Text('حذف الفاتورة'),
-      content: Text(
-        'سيتم حذف الفاتورة ${invoice.invoiceNumber} '
-            'وإعادة حركات المخزون المرتبطة بها.\nهل تريد المتابعة؟',
-      ),
-      actions: [
-        TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-        TextButton(
-          onPressed: () {
-            Get.back();
-            controller.deleteInvoice(invoice.id!);
-          },
-          child: const Text('حذف', style: TextStyle(color: Colors.red)),
+    Get.dialog(
+      AlertDialog(
+        title: const Text('حذف الفاتورة'),
+        content: Text(
+          'سيتم حذف الفاتورة ${invoice.invoiceNumber} '
+          'وإعادة حركات المخزون المرتبطة بها.\nهل تريد المتابعة؟',
         ),
-      ],
-    ));
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.deleteInvoice(invoice.id!);
+            },
+            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -324,8 +333,10 @@ class _EmptyView extends StatelessWidget {
         children: [
           Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          Text('لا توجد فواتير',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+          Text(
+            'لا توجد فواتير',
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+          ),
         ],
       ),
     );
@@ -346,9 +357,11 @@ class _ErrorView extends StatelessWidget {
         children: [
           const Icon(Icons.error_outline, size: 64, color: Colors.red),
           const SizedBox(height: 12),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600])),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: onRetry,

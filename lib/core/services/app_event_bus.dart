@@ -11,19 +11,19 @@ class AppEventBus {
   AppEventBus._();
   static final AppEventBus instance = AppEventBus._();
 
-  // أنواع الأحداث
   final _productChanged = false.obs;
   final _partyChanged = false.obs;
   final _invoiceChanged = false.obs;
   final _inventoryChanged = false.obs;
+  final _expenseChanged = false.obs;
 
-  // إطلاق الأحداث
   void notifyProductChanged() => _productChanged.toggle();
   void notifyPartyChanged() => _partyChanged.toggle();
   void notifyInvoiceChanged() => _invoiceChanged.toggle();
   void notifyInventoryChanged() => _inventoryChanged.toggle();
+  void notifyExpenseChanged() => _expenseChanged.toggle();
 
-  // الاستماع للأحداث
+  // ← تُرجع Worker حتى يمكن التخلص منها في dispose()
   Worker listenToProducts(VoidCallback callback) =>
       ever(_productChanged, (_) => callback());
 
@@ -35,4 +35,7 @@ class AppEventBus {
 
   Worker listenToInventory(VoidCallback callback) =>
       ever(_inventoryChanged, (_) => callback());
+
+  Worker listenToExpenses(VoidCallback callback) =>
+      ever(_expenseChanged, (_) => callback());
 }

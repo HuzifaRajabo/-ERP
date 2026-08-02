@@ -26,6 +26,7 @@ class InvoiceController extends GetxController {
   final RxBool hasMore = true.obs;
   final RxnString errorMessage = RxnString();
   final Rxn<InvoiceType> selectedType = Rxn<InvoiceType>();
+  final RxInt draftInitialPayment = 0.obs;
 
   int? _cursor;
 
@@ -64,7 +65,6 @@ class InvoiceController extends GetxController {
   void onInit() {
     super.onInit();
     AppEventBus.instance.listenToInvoices(loadInitial);
-    AppEventBus.instance.listenToInventory(loadInitial);
     loadInitial();
   }
 
@@ -89,9 +89,9 @@ class InvoiceController extends GetxController {
       final page = selectedType.value == null
           ? await repo.getAllInvoices(lastId: _cursor)
           : await repo.getInvoicesByType(
-        type: selectedType.value!,
-        lastId: _cursor,
-      );
+              type: selectedType.value!,
+              lastId: _cursor,
+            );
 
       invoices.addAll(page.invoices);
       _cursor = page.nextCursor;
@@ -120,6 +120,7 @@ class InvoiceController extends GetxController {
       await repo.deleteInvoice(id);
       AppEventBus.instance.notifyProductChanged();
       AppEventBus.instance.notifyInventoryChanged();
+      AppEventBus.instance.notifyInvoiceChanged();
     } catch (e) {
       state.value = InvoiceLoadState.error;
       errorMessage.value = e.toString();
@@ -145,6 +146,7 @@ class InvoiceController extends GetxController {
     draftParty.value = null;
     draftNotes.value = '';
     draftItems.clear();
+    draftInitialPayment.value = 0;
     invoiceFormError.value = null;
 
     await loadAvailableProducts();
@@ -183,13 +185,11 @@ class InvoiceController extends GetxController {
     try {
       // بيع   → عملاء + كليهما
       // شراء  → موردين + كليهما
-      final typeFilter =
-      type == InvoiceType.sale ? PartyType.customer : PartyType.supplier;
+      final typeFilter = type == InvoiceType.sale
+          ? PartyType.customer
+          : PartyType.supplier;
 
-      final page = await partyRepo.getParties(
-        type: typeFilter,
-        pageSize: 1000,
-      );
+      final page = await partyRepo.getParties(type: typeFilter, pageSize: 1000);
       availableParties.assignAll(page.parties);
     } catch (e) {
       invoiceFormError.value = 'فشل تحميل الأطراف: $e';
@@ -198,33 +198,32 @@ class InvoiceController extends GetxController {
 
   /// إضافة سطر جديد للفاتورة الحالية
   void addDraftItem({
-  required ProductModel product,
-  required double quantity,
-  int? unitPrice,
-}) {
-  // بيع → سعر البيع | شراء → سعر التكلفة
-  final price = unitPrice ??
-      (draftType.value == InvoiceType.sale
-          ? product.salePrice
-          : product.costPrice);
+    required ProductModel product,
+    required double quantity,
+    int? unitPrice,
+  }) {
+    // بيع → سعر البيع | شراء → سعر التكلفة
+    final price =
+        unitPrice ??
+        (draftType.value == InvoiceType.sale
+            ? product.salePrice
+            : product.costPrice);
 
-  draftItems.add(InvoiceItemDraft(
-    productId: product.id!,
-    productNameSnapshot: product.name,
-    quantity: quantity,
-    unitPrice: price,
-  ));
-}
+    draftItems.add(
+      InvoiceItemDraft(
+        productId: product.id!,
+        productNameSnapshot: product.name,
+        quantity: quantity,
+        unitPrice: price,
+      ),
+    );
+  }
 
   void removeDraftItem(int index) {
     draftItems.removeAt(index);
   }
 
-  void updateDraftItem(
-      int index, {
-        double? quantity,
-        int? unitPrice,
-      }) {
+  void updateDraftItem(int index, {double? quantity, int? unitPrice}) {
     final old = draftItems[index];
     draftItems[index] = InvoiceItemDraft(
       productId: old.productId,
@@ -292,13 +291,19 @@ class InvoiceController extends GetxController {
   Future<bool> saveInvoice() async {
     invoiceFormError.value = null;
 
-    // تحققات أولية على مستوى الواجهة قبل حتى الوصول لقاعدة البيانات
     if (draftParty.value == null) {
-      invoiceFormError.value = 'يجب اختيار الطرف (العميل/المورد)';
+      invoiceFormError.value = 'يجب اختيار الطرف';
       return false;
     }
     if (draftItems.isEmpty) {
       invoiceFormError.value = 'يجب إضافة سطر واحد على الأقل';
+      return false;
+    }
+
+    // التحقق من المبلغ المدفوع قبل الإرسال
+    if (draftInitialPayment.value > draftTotal) {
+      invoiceFormError.value =
+          'المبلغ المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة ($draftTotal)';
       return false;
     }
 
@@ -312,23 +317,24 @@ class InvoiceController extends GetxController {
         partyAddressSnapshot: draftParty.value!.address ?? '',
         notes: draftNotes.value.trim().isEmpty ? null : draftNotes.value.trim(),
         items: List.from(draftItems),
+        initialPayment: draftInitialPayment.value, // ← جديد
       );
 
       await repo.createInvoice(draft);
-      AppEventBus.instance.notifyProductChanged();
       AppEventBus.instance.notifyInventoryChanged();
-
+      AppEventBus.instance.notifyInvoiceChanged();
 
       isSavingInvoice.value = false;
       return true;
     } catch (e) {
-      // الرسائل هنا تأتي مباشرة من الـ Exceptions المخصصة
-      // (InsufficientStockException, PartyNotFoundException, إلخ)
-      // وهي بالفعل بصيغة عربية واضحة بفضل toString() المُعرَّف في كل منها
       invoiceFormError.value = e.toString().replaceFirst('Exception: ', '');
       isSavingInvoice.value = false;
       return false;
     }
+  }
+
+  void setInitialPayment(int amount) {
+    draftInitialPayment.value = amount;
   }
 
   // ==============================

@@ -8,6 +8,7 @@ class InvoiceDraft {
   final String partyAddressSnapshot;
   final String? notes;
   final List<InvoiceItemDraft> items;
+  final int initialPayment; // ← المبلغ المدفوع عند الإنشاء (0 = غير مدفوع)
 
   InvoiceDraft({
     required this.type,
@@ -16,13 +17,19 @@ class InvoiceDraft {
     required this.partyAddressSnapshot,
     this.notes,
     required this.items,
+    this.initialPayment = 0,
   });
 
-  /// المبلغ الإجمالي يُحسب تلقائياً من مجموع أسطر الفاتورة
-  /// لمنع أي تضارب بين القيمة المُدخلة يدوياً والقيمة الحقيقية
   int get totalAmount => items.fold(0, (sum, item) => sum + item.lineTotal);
-}
 
+  int get remaining => totalAmount - initialPayment;
+
+  PaymentStatus get paymentStatus {
+    if (initialPayment <= 0) return PaymentStatus.unpaid;
+    if (initialPayment >= totalAmount) return PaymentStatus.paid;
+    return PaymentStatus.partial;
+  }
+}
 /// سطر فاتورة قبل الحفظ (بدون id أو invoiceId لأنهما غير معروفين بعد)
 class InvoiceItemDraft {
   final int productId;

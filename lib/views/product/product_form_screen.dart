@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../core/utils/money_utils.dart';
 import '../../controllers/product_controller.dart';
 import '../../models/product_model.dart';
 
@@ -14,28 +15,24 @@ class ProductFormScreen extends GetView<ProductController> {
     final nameController = TextEditingController(text: product?.name);
     final skuController = TextEditingController(text: product?.sku);
     final costController = TextEditingController(
-      text: product?.costPrice.toString(),
+      text: product != null ? MoneyUtils.formatInput(product!.costPrice) : null,
     );
     final saleController = TextEditingController(
-      text: product?.salePrice.toString(),
+      text: product != null ? MoneyUtils.formatInput(product!.salePrice) : null,
     );
     final formKey = GlobalKey<FormState>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'تعديل منتج' : 'إضافة منتج'),
-      ),
+      appBar: AppBar(title: Text(isEditing ? 'تعديل منتج' : 'إضافة منتج')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: formKey,
           child: Column(
             children: [
-
               // ==============================
               // Name
               // ==============================
-
               _FormField(
                 controller: nameController,
                 label: 'اسم المنتج',
@@ -47,7 +44,6 @@ class ProductFormScreen extends GetView<ProductController> {
               // ==============================
               // SKU
               // ==============================
-
               _FormField(
                 controller: skuController,
                 label: 'SKU',
@@ -59,7 +55,6 @@ class ProductFormScreen extends GetView<ProductController> {
               // ==============================
               // Prices
               // ==============================
-
               Row(
                 children: [
                   Expanded(
@@ -67,10 +62,13 @@ class ProductFormScreen extends GetView<ProductController> {
                       controller: costController,
                       label: 'سعر التكلفة',
                       icon: Icons.price_change_outlined,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       validator: (v) {
                         if (v!.trim().isEmpty) return 'مطلوب';
-                        if (int.tryParse(v) == null) return 'أدخل رقماً صحيحاً';
+                        if (MoneyUtils.parseAmount(v) == null)
+                          return 'أدخل مبلغاً صحيحاً';
                         return null;
                       },
                     ),
@@ -81,10 +79,13 @@ class ProductFormScreen extends GetView<ProductController> {
                       controller: saleController,
                       label: 'سعر البيع',
                       icon: Icons.sell_outlined,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       validator: (v) {
                         if (v!.trim().isEmpty) return 'مطلوب';
-                        if (int.tryParse(v) == null) return 'أدخل رقماً صحيحاً';
+                        if (MoneyUtils.parseAmount(v) == null)
+                          return 'أدخل مبلغاً صحيحاً';
                         return null;
                       },
                     ),
@@ -96,57 +97,63 @@ class ProductFormScreen extends GetView<ProductController> {
               // ==============================
               // Submit Button
               // ==============================
+              Obx(
+                () => SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: controller.isLoading
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
 
-              Obx(() => SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: controller.isLoading
-                      ? null
-                      : () async {
-                    if (!formKey.currentState!.validate()) return;
+                            final newProduct = ProductModel(
+                              id: product?.id,
+                              name: nameController.text.trim(),
+                              sku: skuController.text.trim(),
+                              costPrice:
+                                  MoneyUtils.parseAmount(costController.text) ??
+                                  0,
+                              salePrice:
+                                  MoneyUtils.parseAmount(saleController.text) ??
+                                  0,
+                            );
 
-                    final newProduct = ProductModel(
-                      id: product?.id,
-                      name: nameController.text.trim(),
-                      sku: skuController.text.trim(),
-                      costPrice: int.parse(costController.text),
-                      salePrice: int.parse(saleController.text),
-                    );
+                            if (isEditing) {
+                              await controller.updateProduct(newProduct);
+                            } else {
+                              await controller.addProduct(newProduct);
+                            }
 
-                    if (isEditing) {
-                      await controller.updateProduct(newProduct);
-                    } else {
-                      await controller.addProduct(newProduct);
-                    }
-
-                    if (!controller.hasError) Get.back();
-                  },
-                  icon: controller.isLoading
-                      ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                      : Icon(isEditing ? Icons.save : Icons.add),
-                  label: Text(isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'),
+                            if (!controller.hasError) Get.back();
+                          },
+                    icon: controller.isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(isEditing ? Icons.save : Icons.add),
+                    label: Text(isEditing ? 'حفظ التعديلات' : 'إضافة المنتج'),
+                  ),
                 ),
-              )),
+              ),
 
               // ==============================
               // Error Message
               // ==============================
-
-              Obx(() => controller.hasError
-                  ? Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  controller.errorMessage.value ?? '',
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
-                ),
-              )
-                  : const SizedBox.shrink()),
+              Obx(
+                () => controller.hasError
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          controller.errorMessage.value ?? '',
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),
@@ -185,7 +192,10 @@ class _FormField extends StatelessWidget {
         labelText: label,
         prefixIcon: Icon(icon),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
