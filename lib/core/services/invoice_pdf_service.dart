@@ -1,6 +1,4 @@
 // lib/core/services/invoice_pdf_service.dart
-
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,6 +7,7 @@ import '../../models/invoice_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
+import '../utils/money_utils.dart';
 
 class InvoicePdfService {
   // ====================================================================
@@ -255,8 +254,12 @@ class InvoicePdfService {
                   : item.quantity.toStringAsFixed(2),
               ttf,
             ),
-            _tableCell('${item.unitPrice}', ttf),
-            _tableCell('${item.lineTotal}', ttf, isBold: true),
+            _tableCell(MoneyUtils.formatMoney(item.unitPrice), ttf),
+            _tableCell(
+              MoneyUtils.formatMoney(item.lineTotal),
+              ttf,
+              isBold: true,
+            ),
           ],
         )),
       ],
@@ -327,7 +330,7 @@ class InvoicePdfService {
             ),
             ...payments.map((p) => pw.TableRow(
               children: [
-                _tableCell('${p.amount}', ttf,
+                _tableCell(' ${MoneyUtils.formatMoney(p.amount)}', ttf,
                     color: PdfColors.green700),
                 _tableCell(p.notes ?? '-', ttf),
                 _tableCell(p.createdAt ?? '-', ttf),
@@ -374,7 +377,7 @@ class InvoicePdfService {
             ...returns.map((r) => pw.TableRow(
               children: [
                 _tableCell(r.returnNumber, ttf),
-                _tableCell('- ${r.totalAmount}', ttf,
+                _tableCell('- ${MoneyUtils.formatMoney(r.totalAmount)}', ttf,
                     color: PdfColors.purple700),
                 _tableCell(r.createdAt ?? '-', ttf),
               ],
@@ -420,34 +423,34 @@ class InvoicePdfService {
           // الإجمالي الأصلي
           _totalRow(
             'إجمالي الفاتورة الأصلي',
-            '${invoice.originalTotalAmount}',
+            ' ${MoneyUtils.formatMoney(invoice.originalTotalAmount)}',
             ttf, bold,
           ),
           if (totalReturns > 0)
             _totalRow(
               'إجمالي المرتجعات',
-              '- $totalReturns',
+              '- ${MoneyUtils.formatMoney(totalReturns)}',
               ttf, bold,
               valueColor: PdfColors.purple700,
             ),
           pw.Divider(color: PdfColors.grey400, thickness: 1),
           _totalRow(
             'صافي الفاتورة',
-            '$netTotal',
+            ' ${MoneyUtils.formatMoney(netTotal)}',
             ttf, bold,
             isBold: true,
             valueColor: isSale ? PdfColors.green700 : PdfColors.orange700,
           ),
           _totalRow(
             'المدفوع',
-            '${invoice.paidAmount}',
+            ' ${MoneyUtils.formatMoney(invoice.paidAmount)}',
             ttf, bold,
             valueColor: PdfColors.green600,
           ),
           pw.Divider(color: PdfColors.grey400, thickness: 1.5),
           _totalRow(
             balanceLabel,
-            '${balance.abs()}',
+            ' ${MoneyUtils.formatMoney(balance.abs())}',
             ttf, bold,
             isBold: true,
             valueColor: balanceColor,

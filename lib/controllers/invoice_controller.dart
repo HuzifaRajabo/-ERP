@@ -202,12 +202,28 @@ class InvoiceController extends GetxController {
     required double quantity,
     int? unitPrice,
   }) {
-    // بيع → سعر البيع | شراء → سعر التكلفة
-    final price =
-        unitPrice ??
+    if (product.id == null) {
+      invoiceFormError.value =
+      'لا يمكن إضافة منتج بدون رقم تعريف';
+      return;
+    }
+
+    if (quantity <= 0) {
+      invoiceFormError.value =
+      'الكمية يجب أن تكون أكبر من صفر';
+      return;
+    }
+
+    final price = unitPrice ??
         (draftType.value == InvoiceType.sale
             ? product.salePrice
             : product.costPrice);
+
+    if (price < 0) {
+      invoiceFormError.value =
+      'سعر المنتج غير صالح';
+      return;
+    }
 
     draftItems.add(
       InvoiceItemDraft(
@@ -217,6 +233,8 @@ class InvoiceController extends GetxController {
         unitPrice: price,
       ),
     );
+
+    draftItems.refresh();
   }
 
   void removeDraftItem(int index) {
@@ -240,19 +258,34 @@ class InvoiceController extends GetxController {
 
   Future<ProductModel?> quickAddProduct(ProductModel product) async {
     try {
+      invoiceFormError.value = null;
+
       final id = await productRepo.insertProduct(product);
+
+      if (id <= 0) {
+        throw Exception('لم يتم إنشاء المنتج بشكل صحيح');
+      }
+
       final created = ProductModel(
         id: id,
         name: product.name,
-        sku: product.sku,
+        description: product.description,
         costPrice: product.costPrice,
         salePrice: product.salePrice,
       );
+
+      // تحديث قائمة المنتجات الموجودة في شاشة الفاتورة.
       availableProducts.insert(0, created);
+
+      // إشعار باقي أجزاء التطبيق.
+      AppEventBus.instance.notifyProductChanged();
       AppEventBus.instance.notifyInventoryChanged();
+
       return created;
     } catch (e) {
-      invoiceFormError.value = 'فشل إضافة المنتج: $e';
+      invoiceFormError.value =
+          e.toString().replaceFirst('Exception: ', '');
+
       return null;
     }
   }

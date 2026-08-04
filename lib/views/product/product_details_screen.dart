@@ -81,7 +81,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           const SizedBox(height: 4),
           Center(
             child: Text(
-              'SKU: ${product.sku}',
+              'Description: ${product.description}',
               style: TextStyle(color: Colors.grey[600]),
             ),
           ),

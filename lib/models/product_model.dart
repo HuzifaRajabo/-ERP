@@ -1,7 +1,7 @@
 class ProductModel {
   final int? id;
   final String name;
-  final String sku;
+  final String description;
   final int costPrice;
   final int salePrice;
   final String? createdAt;
@@ -9,7 +9,7 @@ class ProductModel {
   ProductModel({
     this.id,
     required this.name,
-    required this.sku,
+    required this.description,
     required this.costPrice,
     required this.salePrice,
     this.createdAt,
@@ -19,7 +19,7 @@ class ProductModel {
     return{
       'id':id,
       'name':name,
-      'sku':sku,
+      'description':description,
       'cost_price':costPrice,
       'sale_price':salePrice,
       'created_at':createdAt,
@@ -30,7 +30,7 @@ class ProductModel {
     return ProductModel(
       id: map['id'],
       name: map['name'],
-      sku: map['sku'],
+      description: map['description'],
       costPrice: map['cost_price'],
       salePrice: map['sale_price'],
       createdAt: map['created_at'],

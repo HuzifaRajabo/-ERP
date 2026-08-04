@@ -27,7 +27,7 @@ class DebtsScreen extends GetView<PaymentController> {
               Tab(icon: Icon(Icons.person_outline), text: 'على الزبائن'),
               Tab(
                 icon: Icon(Icons.local_shipping_outlined),
-                text: 'على الموردين',
+                text: 'للموردين',
               ),
             ],
           ),
@@ -349,10 +349,7 @@ class _DebtCard extends GetView<PaymentController> {
     Get.bottomSheet(
       _GeneralPaymentSheet(debt: debt, paymentType: config.paymentType),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
     );
   }
 }
@@ -361,237 +358,755 @@ class _DebtCard extends GetView<PaymentController> {
 // BottomSheet الدفعة العامة مع التوزيع
 // ==============================
 
-class _GeneralPaymentSheet extends GetView<PaymentController> {
+class _GeneralPaymentSheet extends StatefulWidget {
   final PartyDebtSummary debt;
   final PaymentType paymentType;
 
-  const _GeneralPaymentSheet({required this.debt, required this.paymentType});
+  const _GeneralPaymentSheet({
+    required this.debt,
+    required this.paymentType,
+  });
+
+  @override
+  State<_GeneralPaymentSheet> createState() =>
+      _GeneralPaymentSheetState();
+}
+
+class _GeneralPaymentSheetState
+    extends State<_GeneralPaymentSheet> {
+  late final TextEditingController amountCtrl;
+  late final TextEditingController notesCtrl;
+
+  bool amountEntered = false;
+
+  PaymentController get controller =>
+      Get.find<PaymentController>();
+
+  @override
+  void initState() {
+    super.initState();
+
+    amountCtrl = TextEditingController();
+    notesCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+    super.dispose();
+  }
+
+  // =========================================================
+  // توزيع المبلغ
+  // =========================================================
+
+  Future<void> _distributeAmount(
+      ScrollController scrollController,
+      ) async {
+    // إخفاء لوحة المفاتيح
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final amount = MoneyUtils.parseAmount(
+      amountCtrl.text,
+    );
+
+    // التحقق من المبلغ
+    if (amount == null || amount <= 0) {
+      controller.formError.value =
+      'يرجى إدخال مبلغ صحيح';
+      return;
+    }
+
+    controller.formError.value = null;
+
+    try {
+      await controller.initGeneralPayment(
+        partyId: widget.debt.partyId,
+        amount: amount,
+        type: widget.paymentType,
+      );
+
+      if (!mounted) return;
+
+      // في حال وجود خطأ من Controller
+      if (controller.formError.value != null) {
+        return;
+      }
+
+      setState(() {
+        amountEntered = true;
+      });
+
+      // ننتظر تحديث الواجهة
+      await Future.delayed(
+        const Duration(milliseconds: 150),
+      );
+
+      if (!mounted) return;
+
+      // الانتقال إلى قسم التوزيع
+      if (scrollController.hasClients) {
+        await scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
+    } catch (e) {
+      controller.formError.value =
+          e.toString().replaceFirst(
+            'Exception: ',
+            '',
+          );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final amountCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final amountEntered = false.obs;
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.75,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      expand: false,
-      builder: (context, scrollController) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+    return MediaQuery.removeViewInsets(
+      context: context,
+      removeBottom: true,
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+            ),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: ListView(
+                controller: scrollController,
+                keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  24,
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // العنوان
-              Text(
-                'دفعة عامة — ${debt.partyName}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              Text(
-                'إجمالي المستحق: ${MoneyUtils.formatMoney(debt.totalRemaining)}',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-
-              // حقل المبلغ
-              Row(
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: amountCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'المبلغ المدفوع',
-                        prefixIcon: const Icon(Icons.attach_money),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  // =================================================
+                  // Handle
+                  // =================================================
+
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius:
+                        BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final amount = int.tryParse(amountCtrl.text) ?? 0;
-                      if (amount <= 0) return;
-                      await controller.initGeneralPayment(
-                        partyId: debt.partyId,
-                        amount: amount,
-                        type: paymentType,
-                      );
-                      amountEntered.value = true;
-                    },
-                    child: const Text('توزيع'),
+
+                  const SizedBox(height: 20),
+
+                  // =================================================
+                  // العنوان
+                  // =================================================
+
+                  Text(
+                    'دفعة عامة — ${widget.debt.partyName}',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
 
-              // خطأ
-              Obx(
-                () => controller.formError.value != null
-                    ? _ErrorBox(message: controller.formError.value!)
-                    : const SizedBox.shrink(),
-              ),
+                  const SizedBox(height: 8),
 
-              // قسم التوزيع
-              Obx(() {
-                if (!amountEntered.value) return const SizedBox.shrink();
-                if (controller.isLoadingDistribution.value) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (controller.distributionList.isEmpty) {
-                  return const SizedBox.shrink();
-                }
+                  // =================================================
+                  // إجمالي المستحق
+                  // =================================================
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // تبديل التوزيع
-                    Row(
-                      children: [
-                        const Text(
-                          'طريقة التوزيع:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'إجمالي المستحق',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
                         ),
-                        const SizedBox(width: 12),
-                        Obx(
-                          () => SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment(value: true, label: Text('تلقائي')),
-                              ButtonSegment(value: false, label: Text('يدوي')),
-                            ],
-                            selected: {controller.isAutoDistribute.value},
-                            onSelectionChanged: (v) =>
-                                controller.toggleDistributionMode(v.first),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // قائمة التوزيع
-                    ...controller.distributionList.asMap().entries.map(
-                      (entry) => _DistributionRow(
-                        index: entry.key,
-                        info: entry.value,
-                        isAuto: controller.isAutoDistribute.value,
                       ),
-                    ),
-
-                    const Divider(),
-
-                    // ملخص التوزيع
-                    Obx(
-                      () => Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'الموزَّع: ${MoneyUtils.formatMoney(controller.totalDistributed)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          '${MoneyUtils.formatInput(widget.debt.totalRemaining)} \$',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Text(
-                            'المتبقي: ${MoneyUtils.formatMoney(controller.undistributed)}',
-                            style: TextStyle(
-                              color: controller.undistributed > 0
-                                  ? Colors.orange
-                                  : Colors.green,
-                              fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // =================================================
+                  // المبلغ المدفوع
+                  // =================================================
+
+                  Row(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: amountCtrl,
+
+                          textDirection:
+                          TextDirection.ltr,
+                          textAlign: TextAlign.left,
+
+                          keyboardType:
+                          const TextInputType
+                              .numberWithOptions(
+                            decimal: true,
+                            signed: false,
+                          ),
+
+                          textInputAction:
+                          TextInputAction.done,
+
+                          decoration: InputDecoration(
+                            labelText: 'المبلغ المدفوع',
+                            hintText: '0.00',
+
+                            suffixIcon: Padding(
+                              padding:
+                              const EdgeInsetsDirectional
+                                  .only(
+                                end: 14,
+                              ),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Text(
+                                  '\$',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight:
+                                    FontWeight.bold,
+                                    color:
+                                    Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            border: OutlineInputBorder(
+                              borderRadius:
+                              BorderRadius.circular(14),
+                            ),
+
+                            focusedBorder:
+                            OutlineInputBorder(
+                              borderRadius:
+                              BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
+                                width: 2,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
 
-                    // ملاحظات
-                    TextField(
-                      controller: notesCtrl,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        labelText: 'ملاحظات (اختياري)',
-                        prefixIcon: const Icon(Icons.notes_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          onSubmitted: (_) {
+                            _distributeAmount(
+                              scrollController,
+                            );
+                          },
                         ),
                       ),
-                    ),
+
+                      const SizedBox(width: 10),
+
+                      SizedBox(
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            _distributeAmount(
+                              scrollController,
+                            );
+                          },
+                          style:
+                          ElevatedButton.styleFrom(
+                            padding:
+                            const EdgeInsets.symmetric(
+                              horizontal: 18,
+                            ),
+                            shape:
+                            RoundedRectangleBorder(
+                              borderRadius:
+                              BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'توزيع',
+                            style: TextStyle(
+                              fontWeight:
+                              FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // =================================================
+                  // رسالة الخطأ
+                  // =================================================
+
+                  Obx(
+                        () =>
+                    controller.formError.value !=
+                        null
+                        ? _ErrorBox(
+                      message: controller
+                          .formError.value!,
+                    )
+                        : const SizedBox.shrink(),
+                  ),
+
+                  // =================================================
+                  // قسم التوزيع
+                  // =================================================
+
+                  if (amountEntered) ...[
                     const SizedBox(height: 16),
 
-                    // زر الحفظ
-                    Obx(
-                      () => SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: controller.isSaving.value
-                              ? null
-                              : () async {
-                                  final success = await controller
+                    Obx(() {
+                      // ==========================================
+                      // جاري التحميل
+                      // ==========================================
+
+                      if (controller
+                          .isLoadingDistribution
+                          .value) {
+                        return const Center(
+                          child: Padding(
+                            padding:
+                            EdgeInsets.all(20),
+                            child:
+                            CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      // ==========================================
+                      // لا توجد فواتير
+                      // ==========================================
+
+                      if (controller
+                          .distributionList
+                          .isEmpty) {
+                        return Container(
+                          padding:
+                          const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color:
+                            Colors.orange.shade50,
+                            borderRadius:
+                            BorderRadius.circular(
+                              12,
+                            ),
+                          ),
+                          child: const Text(
+                            'لا توجد فواتير مستحقة لتوزيع الدفعة عليها.',
+                            textAlign:
+                            TextAlign.center,
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                        children: [
+                          // ========================================
+                          // طريقة التوزيع
+                          // ========================================
+
+                          Row(
+                            children: [
+                              const Text(
+                                'طريقة التوزيع:',
+                                style: TextStyle(
+                                  fontWeight:
+                                  FontWeight.bold,
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child: Obx(
+                                      () =>
+                                      SegmentedButton<bool>(
+                                        segments: const [
+                                          ButtonSegment<bool>(
+                                            value: true,
+                                            label:
+                                            Text('تلقائي'),
+                                          ),
+                                          ButtonSegment<bool>(
+                                            value: false,
+                                            label:
+                                            Text('يدوي'),
+                                          ),
+                                        ],
+                                        selected: {
+                                          controller
+                                              .isAutoDistribute
+                                              .value
+                                        },
+                                        onSelectionChanged:
+                                            (value) {
+                                          controller
+                                              .toggleDistributionMode(
+                                            value.first,
+                                          );
+                                        },
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // ========================================
+                          // قائمة التوزيع
+                          // ========================================
+
+                          ...controller
+                              .distributionList
+                              .asMap()
+                              .entries
+                              .map(
+                                (entry) =>
+                                _DistributionRow(
+                                  index: entry.key,
+                                  info: entry.value,
+                                  isAuto: controller
+                                      .isAutoDistribute
+                                      .value,
+                                ),
+                          ),
+
+                          const Divider(),
+
+                          // ========================================
+                          // ملخص التوزيع
+                          // ========================================
+
+                          Obx(() {
+                            final distributed =
+                                controller
+                                    .totalDistributed;
+
+                            final undistributed =
+                                controller
+                                    .undistributed;
+
+                            final remainingDebt =
+                            (widget.debt
+                                .totalRemaining -
+                                distributed)
+                                .clamp(
+                              0,
+                              widget.debt.totalRemaining,
+                            );
+
+                            return Container(
+                              padding:
+                              const EdgeInsets.all(12),
+                              decoration:
+                              BoxDecoration(
+                                color:
+                                Colors.grey.shade50,
+                                borderRadius:
+                                BorderRadius.circular(
+                                  12,
+                                ),
+                                border: Border.all(
+                                  color: Colors
+                                      .grey.shade200,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  // ==================================
+                                  // الموزع
+                                  // ==================================
+
+                                  Row(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment
+                                        .spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'الموزع',
+                                        style: TextStyle(
+                                          fontWeight:
+                                          FontWeight
+                                              .w600,
+                                        ),
+                                      ),
+                                      Directionality(
+                                        textDirection:
+                                        TextDirection
+                                            .ltr,
+                                        child: Text(
+                                          '${MoneyUtils.formatInput(distributed)} \$',
+                                          style:
+                                          const TextStyle(
+                                            fontWeight:
+                                            FontWeight
+                                                .bold,
+                                            color:
+                                            Colors
+                                                .green,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
+
+                                  // ==================================
+                                  // المتبقي على العميل
+                                  // ==================================
+
+                                  Row(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment
+                                        .spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'المتبقي على العميل',
+                                        style: TextStyle(
+                                          fontWeight:
+                                          FontWeight
+                                              .w600,
+                                        ),
+                                      ),
+                                      Directionality(
+                                        textDirection:
+                                        TextDirection
+                                            .ltr,
+                                        child: Text(
+                                          '${MoneyUtils.formatInput(remainingDebt)} \$',
+                                          style: TextStyle(
+                                            fontWeight:
+                                            FontWeight
+                                                .bold,
+                                            color:
+                                            remainingDebt >
+                                                0
+                                                ? Colors
+                                                .orange
+                                                : Colors
+                                                .green,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
+
+                                  // ==================================
+                                  // غير موزع من الدفعة
+                                  // ==================================
+
+                                  Row(
+                                    mainAxisAlignment:
+                                    MainAxisAlignment
+                                        .spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'غير موزع من الدفعة',
+                                        style: TextStyle(
+                                          fontWeight:
+                                          FontWeight
+                                              .w600,
+                                        ),
+                                      ),
+                                      Directionality(
+                                        textDirection:
+                                        TextDirection
+                                            .ltr,
+                                        child: Text(
+                                          '${MoneyUtils.formatInput(undistributed)} \$',
+                                          style: TextStyle(
+                                            fontWeight:
+                                            FontWeight
+                                                .bold,
+                                            color:
+                                            undistributed >
+                                                0
+                                                ? Colors
+                                                .orange
+                                                : Colors
+                                                .green,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+
+                          const SizedBox(height: 12),
+
+                          // ==========================================
+                          // الملاحظات
+                          // ==========================================
+
+                          TextField(
+                            controller: notesCtrl,
+                            maxLines: 2,
+                            textDirection:
+                            TextDirection.rtl,
+                            decoration: InputDecoration(
+                              labelText:
+                              'ملاحظات (اختياري)',
+                              prefixIcon: const Icon(
+                                Icons.notes_outlined,
+                              ),
+                              border:
+                              OutlineInputBorder(
+                                borderRadius:
+                                BorderRadius.circular(
+                                  12,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // ==========================================
+                          // حفظ الدفعة
+                          // ==========================================
+
+                          Obx(
+                                () => SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child:
+                              ElevatedButton.icon(
+                                onPressed: controller
+                                    .isSaving
+                                    .value
+                                    ? null
+                                    : () async {
+                                  FocusManager
+                                      .instance
+                                      .primaryFocus
+                                      ?.unfocus();
+
+                                  final success =
+                                  await controller
                                       .saveGeneralPayment(
-                                        partyId: debt.partyId,
-                                        type: paymentType,
-                                        notes: notesCtrl.text.trim().isEmpty
-                                            ? null
-                                            : notesCtrl.text.trim(),
-                                      );
+                                    partyId: widget
+                                        .debt
+                                        .partyId,
+                                    type: widget
+                                        .paymentType,
+                                    notes: notesCtrl
+                                        .text
+                                        .trim()
+                                        .isEmpty
+                                        ? null
+                                        : notesCtrl
+                                        .text
+                                        .trim(),
+                                  );
+
+                                  if (!mounted) {
+                                    return;
+                                  }
+
                                   if (success) {
                                     Get.back();
+
                                     Get.snackbar(
                                       'تم',
                                       'تم تسجيل الدفعة بنجاح',
-                                      snackPosition: SnackPosition.BOTTOM,
-                                      backgroundColor: Colors.green,
-                                      colorText: Colors.white,
+                                      snackPosition:
+                                      SnackPosition
+                                          .BOTTOM,
+                                      backgroundColor:
+                                      Colors.green,
+                                      colorText:
+                                      Colors.white,
                                     );
                                   }
                                 },
-                          icon: const Icon(Icons.check),
-                          label: Text(
-                            controller.isSaving.value
-                                ? 'جاري الحفظ...'
-                                : 'حفظ الدفعة',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                icon: const Icon(
+                                  Icons.check,
+                                ),
+                                label: Text(
+                                  controller
+                                      .isSaving
+                                      .value
+                                      ? 'جاري الحفظ...'
+                                      : 'حفظ الدفعة',
+                                ),
+                                style:
+                                ElevatedButton
+                                    .styleFrom(
+                                  backgroundColor:
+                                  Colors.green,
+                                  foregroundColor:
+                                  Colors.white,
+                                  shape:
+                                  RoundedRectangleBorder(
+                                    borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                      12,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
+                        ],
+                      );
+                    }),
                   ],
-                );
-              }),
-            ],
-          ),
-        );
-      },
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -609,79 +1124,131 @@ class _DistributionRow extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
+    // المبلغ المتبقي على الفاتورة بعد الدفعة الحالية.
+    //
+    // info.remaining:
+    // المبلغ المستحق على الفاتورة قبل التوزيع.
+    //
+    // info.suggestedPayment:
+    // المبلغ الذي سيتم توزيعه حاليًا على هذه الفاتورة.
+    final remainingAfterPayment =
+    (info.remaining - info.suggestedPayment).clamp(0, info.remaining);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
       ),
       child: Row(
         children: [
+          // =========================================================
           // معلومات الفاتورة
+          // =========================================================
+
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
               children: [
                 Text(
                   info.invoiceNumber,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                Text(
-                  'المتبقي: ${MoneyUtils.formatMoney(info.remaining)}',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+
+                const SizedBox(height: 3),
+
+                // المتبقي الحقيقي بعد الدفعة الحالية
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    'المتبقي: ${MoneyUtils.formatInput(remainingAfterPayment)} \$',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
 
-          // حقل المبلغ (يدوي) أو نص (تلقائي)
+          const SizedBox(width: 10),
+
+          // =========================================================
+          // المبلغ الموزع
+          // =========================================================
+
           isAuto
               ? Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${info.suggestedPayment}',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                )
-              : SizedBox(
-                  width: 90,
-                  child: TextFormField(
-                    initialValue: info.suggestedPayment > 0
-                        ? MoneyUtils.formatInput(info.suggestedPayment)
-                        : '',
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    textAlign: TextAlign.center,
-                    onChanged: (v) {
-                      final amount = MoneyUtils.parseAmount(v) ?? 0;
-                      controller.updateDistributionItem(index, amount);
-                    },
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius:
+              BorderRadius.circular(8),
+            ),
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(
+                '${MoneyUtils.formatInput(info.suggestedPayment)} \$',
+                style: const TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
                 ),
+              ),
+            ),
+          )
+              : SizedBox(
+            width: 90,
+            child: TextFormField(
+              initialValue:
+              info.suggestedPayment > 0
+                  ? MoneyUtils.formatInput(
+                info.suggestedPayment,
+              )
+                  : '',
+              keyboardType:
+              const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: false,
+              ),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+
+              onChanged: (value) {
+                final amount =
+                    MoneyUtils.parseAmount(value) ?? 0;
+
+                controller.updateDistributionItem(
+                  index,
+                  amount,
+                );
+              },
+
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding:
+                const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius:
+                  BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -136,7 +136,7 @@ class _StockCard extends GetView<InventoryController> {
               ),
               const SizedBox(width: 14),
 
-              // اسم المنتج والـ SKU وحالة المخزون
+              // اسم المنتج والـ description وحالة المخزون
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,7 +150,7 @@ class _StockCard extends GetView<InventoryController> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'SKU: ${summary.productSku}',
+                      'Description: ${summary.productDescription}',
                       style: TextStyle(
                         color: Colors.grey[500],
                         fontSize: 12,

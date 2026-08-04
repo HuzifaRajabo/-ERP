@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 
 import '../models/report_model.dart';
 import '../repositories/report_repository.dart';
+import '../core/utils/money_utils.dart';
 
 class ReportController extends GetxController {
   final ReportRepository repo;
@@ -176,34 +177,34 @@ class ReportController extends GetxController {
             pw.SizedBox(height: 16),
             _buildSection('المبيعات', [
               'عدد الفواتير: ${currentOverview.saleInvoiceCount}',
-              'إجمالي المبيعات: ${currentOverview.saleTotal}',
-              'المدفوع: ${currentOverview.salePaid}',
-              'المتبقي: ${currentOverview.saleRemaining}',
+              'إجمالي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleTotal)}',
+              'المدفوع: ${MoneyUtils.formatMoney(currentOverview.salePaid)}',
+              'المتبقي: ${MoneyUtils.formatMoney(currentOverview.saleRemaining)}',
             ]),
             _buildSection('المشتريات', [
               'عدد الفواتير: ${currentOverview.purchaseInvoiceCount}',
-              'إجمالي المشتريات: ${currentOverview.purchaseTotal}',
-              'المدفوع: ${currentOverview.purchasePaid}',
-              'المتبقي: ${currentOverview.purchaseRemaining}',
+              'إجمالي المشتريات: ${MoneyUtils.formatMoney(currentOverview.purchaseTotal)}',
+              'المدفوع: ${MoneyUtils.formatMoney(currentOverview.purchasePaid)}',
+              'المتبقي: ${MoneyUtils.formatMoney(currentOverview.purchaseRemaining)}',
             ]),
             _buildSection('المرتجعات', [
               'عدد مرتجعات المبيعات: ${currentOverview.saleReturnCount}',
-              'قيمة مرتجعات المبيعات: ${currentOverview.saleReturnTotal}',
+              'قيمة مرتجعات المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleReturnTotal)}',
               'عدد مرتجعات المشتريات: ${currentOverview.purchaseReturnCount}',
-              'قيمة مرتجعات المشتريات: ${currentOverview.purchaseReturnTotal}',
+              'قيمة مرتجعات المشتريات: ${MoneyUtils.formatMoney(currentOverview.purchaseReturnTotal)}',
             ]),
             _buildSection('المصاريف', [
               'عدد العمليات: ${currentOverview.expenseCount}',
-              'إجمالي المصاريف: ${currentOverview.expenseTotal}',
+              'إجمالي المصاريف: ${MoneyUtils.formatMoney(currentOverview.expenseTotal)}',
             ]),
             _buildSection('الديون', [
-              'الديون المستحقة لنا: ${currentOverview.debtsOwedToUs}',
-              'الديون المستحقة علينا: ${currentOverview.debtsOwedByUs}',
+              'الديون المستحقة لنا: ${MoneyUtils.formatMoney(currentOverview.debtsOwedToUs)}',
+              'الديون المستحقة علينا: ${MoneyUtils.formatMoney(currentOverview.debtsOwedByUs)}',
             ]),
             _buildSection('الأرباح', [
-              'الإيرادات الصافية: ${currentOverview.revenue}',
-              'التكاليف الصافية: ${currentOverview.cost}',
-              'صافي الربح: ${currentOverview.profit}',
+              'الإيرادات الصافية: ${MoneyUtils.formatMoney(currentOverview.revenue)}',
+              'التكاليف الصافية: ${MoneyUtils.formatMoney(currentOverview.cost)}',
+              'صافي الربح: ${MoneyUtils.formatMoney(currentOverview.profit)}',
             ]),
           ];
         },

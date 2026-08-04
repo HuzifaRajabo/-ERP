@@ -13,7 +13,7 @@ class ProductFormScreen extends GetView<ProductController> {
   @override
   Widget build(BuildContext context) {
     final nameController = TextEditingController(text: product?.name);
-    final skuController = TextEditingController(text: product?.sku);
+    final descriptionController = TextEditingController(text: product?.description);
     final costController = TextEditingController(
       text: product != null ? MoneyUtils.formatInput(product!.costPrice) : null,
     );
@@ -42,13 +42,12 @@ class ProductFormScreen extends GetView<ProductController> {
               const SizedBox(height: 16),
 
               // ==============================
-              // SKU
+              // description
               // ==============================
               _FormField(
-                controller: skuController,
-                label: 'SKU',
+                controller: descriptionController,
+                label: 'الوصف (اختياري)',
                 icon: Icons.qr_code,
-                validator: (v) => v!.trim().isEmpty ? 'مطلوب' : null,
               ),
               const SizedBox(height: 16),
 
@@ -110,7 +109,7 @@ class ProductFormScreen extends GetView<ProductController> {
                             final newProduct = ProductModel(
                               id: product?.id,
                               name: nameController.text.trim(),
-                              sku: skuController.text.trim(),
+                              description: descriptionController.text.trim(),
                               costPrice:
                                   MoneyUtils.parseAmount(costController.text) ??
                                   0,

@@ -1,51 +1,95 @@
 class MoneyUtils {
   MoneyUtils._();
 
-  /// Parses user-entered money text into cents.
-  ///
-  /// Supported input formats:
-  /// - 12.50
-  /// - 12,50
-  /// - 0.75
-  /// - 125
-  /// Returns null for invalid input.
   static int? parseAmount(String? input) {
     if (input == null) return null;
-    final normalized = input.trim().replaceAll(',', '.');
-    if (normalized.isEmpty) return null;
 
-    final regex = RegExp(r'^-?\d+(\.\d{0,2})?\$');
-    if (!regex.hasMatch(normalized)) return null;
+    var normalized = input.trim();
 
-    final parts = normalized.split('.');
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    const arabicDigits = {
+      '٠': '0',
+      '١': '1',
+      '٢': '2',
+      '٣': '3',
+      '٤': '4',
+      '٥': '5',
+      '٦': '6',
+      '٧': '7',
+      '٨': '8',
+      '٩': '9',
+    };
+
+    for (final entry in arabicDigits.entries) {
+      normalized = normalized.replaceAll(
+        entry.key,
+        entry.value,
+      );
+    }
+
+    normalized = normalized
+        .replaceAll('٫', '.')
+        .replaceAll(',', '.')
+        .replaceAll(' ', '');
+
+    final regex = RegExp(
+      r'^-?\d+(\.\d{1,2})?$',
+    );
+
+    if (!regex.hasMatch(normalized)) {
+      return null;
+    }
+
+    final isNegative = normalized.startsWith('-');
+
+    final unsigned = isNegative
+        ? normalized.substring(1)
+        : normalized;
+
+    final parts = unsigned.split('.');
+
     final whole = int.tryParse(parts[0]);
-    if (whole == null) return null;
 
-    var cents = whole.abs() * 100;
+    if (whole == null) {
+      return null;
+    }
+
+    var cents = whole * 100;
+
     if (parts.length == 2) {
       final fraction = parts[1].padRight(2, '0');
-      if (fraction.length > 2) return null;
+
       final fractionValue = int.tryParse(fraction);
-      if (fractionValue == null) return null;
+
+      if (fractionValue == null) {
+        return null;
+      }
+
       cents += fractionValue;
     }
 
-    return whole < 0 ? -cents : cents;
+    return isNegative ? -cents : cents;
   }
 
-  /// Formats cents to a display string with two decimals.
-  /// Example: 1250 -> 12.50
   static String formatInput(int cents) {
     final isNegative = cents < 0;
     final absCents = cents.abs();
-    final dollars = absCents ~/ 100;
+
+    final whole = absCents ~/ 100;
     final remainder = absCents % 100;
-    return '${isNegative ? '-' : ''}$dollars.${remainder.toString().padLeft(2, '0')}';
+
+    return '${isNegative ? '-' : ''}'
+        '$whole.'
+        '${remainder.toString().padLeft(2, '0')}';
   }
 
-  /// Formats cents with currency symbol.
-  /// Example: 1250 -> 12.50 $
-  static String formatMoney(int cents, {String symbol = r'$'}) {
+  static String formatMoney(
+      int cents, {
+        String symbol = r'$',
+      }) {
     return '${formatInput(cents)} $symbol';
   }
 }

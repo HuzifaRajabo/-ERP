@@ -46,7 +46,7 @@ class DatabaseHelper {
     CREATE TABLE products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      sku TEXT UNIQUE NOT NULL,
+      description TEXT,
       cost_price INTEGER NOT NULL,
       sale_price INTEGER NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))

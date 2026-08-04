@@ -766,7 +766,7 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                             ),
                           ),
                           title: Text(product.name),
-                          subtitle: Text('SKU: ${product.sku}'),
+                          subtitle: Text('الوصف: ${product.description}'),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -810,7 +810,7 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
 
   void _showQuickAddProductDialog() {
     final nameCtrl = TextEditingController();
-    final skuCtrl = TextEditingController();
+    final descriptionCtrl = TextEditingController();
     final costCtrl = TextEditingController();
     final saleCtrl = TextEditingController();
 
@@ -827,8 +827,8 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
               ),
               const SizedBox(height: 8),
               TextField(
-                controller: skuCtrl,
-                decoration: const InputDecoration(labelText: 'SKU *'),
+                controller: descriptionCtrl,
+                decoration: const InputDecoration(labelText: 'الوصف *'),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -853,23 +853,120 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
           TextButton(onPressed: Get.back, child: const Text('إلغاء')),
           TextButton(
             onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty || skuCtrl.text.trim().isEmpty)
+              final name = nameCtrl.text.trim();
+              final description = descriptionCtrl.text.trim();
+
+              // ==============================
+              // Validate name
+              // ==============================
+
+              if (name.isEmpty) {
+                Get.snackbar(
+                  'تنبيه',
+                  'يرجى إدخال اسم المنتج',
+                );
                 return;
-              final product = await controller.quickAddProduct(
-                ProductModel(
-                  name: nameCtrl.text.trim(),
-                  sku: skuCtrl.text.trim(),
-                  costPrice: MoneyUtils.parseAmount(costCtrl.text) ?? 0,
-                  salePrice: MoneyUtils.parseAmount(saleCtrl.text) ?? 0,
+              }
+
+              // ==============================
+              // Validate description
+              // ==============================
+
+              if (description.isEmpty) {
+                Get.snackbar(
+                  'تنبيه',
+                  'يرجى إدخال وصف المنتج',
+                );
+                return;
+              }
+
+              // ==============================
+              // Parse money using MoneyUtils
+              // ==============================
+
+              final costPrice = MoneyUtils.parseAmount(costCtrl.text);
+              final salePrice = MoneyUtils.parseAmount(saleCtrl.text);
+
+              if (costPrice == null) {
+                Get.snackbar(
+                  'تنبيه',
+                  'سعر التكلفة غير صحيح',
+                );
+                return;
+              }
+
+              if (salePrice == null) {
+                Get.snackbar(
+                  'تنبيه',
+                  'سعر البيع غير صحيح',
+                );
+                return;
+              }
+
+              // ==============================
+              // Prevent double click
+              // ==============================
+
+              Get.dialog(
+                const Center(
+                  child: CircularProgressIndicator(),
                 ),
+                barrierDismissible: false,
               );
-              if (product != null) {
+
+              try {
+                final product = await controller.quickAddProduct(
+                  ProductModel(
+                    name: name,
+                    description: description,
+                    costPrice: costPrice,
+                    salePrice: salePrice,
+                  ),
+                );
+
+                // أغلق loading
+                if (Get.isDialogOpen == true) {
+                  Get.back();
+                }
+
+                if (product == null) {
+                  Get.snackbar(
+                    'فشل الإضافة',
+                    controller.invoiceFormError.value ??
+                        'تعذر إضافة المنتج',
+                  );
+                  return;
+                }
+
+                // ==============================
+                // Add directly to invoice
+                // ==============================
+
                 controller.addDraftItem(
                   product: product,
                   quantity: 1,
-                  unitPrice: product.salePrice,
+                  // لا نحدد السعر هنا.
+                  // Controller سيختار:
+                  // Sale  → salePrice
+                  // Purchase → costPrice
                 );
+
+                // إغلاق نافذة إضافة المنتج
                 Get.back();
+
+                Get.snackbar(
+                  'تمت الإضافة',
+                  'تمت إضافة المنتج إلى الفاتورة',
+                );
+              } catch (e) {
+                if (Get.isDialogOpen == true) {
+                  Get.back();
+                }
+
+                Get.snackbar(
+                  'خطأ',
+                  e.toString().replaceFirst('Exception: ', ''),
+                );
               }
             },
             child: const Text('إضافة'),

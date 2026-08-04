@@ -12,14 +12,28 @@ class ProductRepository {
   // Insert
   // ==============================
 
-  Future<int> insertProduct(ProductModel product,) async {
+  Future<int> insertProduct(ProductModel product) async {
     try {
       final db = await _db;
-      return await db.insert(
+
+      final data = product.toMap();
+
+      // لا نرسل ID عند إنشاء منتج جديد.
+      data.remove('id');
+
+      final id = await db.insert(
         'products',
-        product.toMap(),
+        data,
         conflictAlgorithm: ConflictAlgorithm.abort,
       );
+
+      if (id <= 0) {
+        throw Exception('لم يتم الحصول على ID صالح للمنتج');
+      }
+
+      return id;
+    } on DatabaseException catch (e) {
+      throw Exception('خطأ في قاعدة البيانات أثناء إضافة المنتج: $e');
     } catch (e) {
       throw Exception('Failed to insert product: $e');
     }
@@ -101,21 +115,6 @@ class ProductRepository {
     }
   }
 
-  Future<ProductModel?> getProductBySku(String sku) async {
-    try {
-      final db = await _db;
-      final result = await db.query(
-        'products',
-        where: 'sku = ?',
-        whereArgs: [sku],
-        limit: 1,
-      );
-
-      return result.isEmpty ? null : ProductModel.fromMap(result.first);
-    } catch (e) {
-      throw Exception('Failed to fetch product by sku: $e');
-    }
-  }
 
   Future<ProductPage> searchProductsByName(
       String keyword, {

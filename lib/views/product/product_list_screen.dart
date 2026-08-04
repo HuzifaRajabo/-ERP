@@ -151,7 +151,7 @@ class _ProductCard extends GetView<ProductController> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          'SKU: ${product.sku}',
+          'الوصف: ${product.description}',
           style: TextStyle(color: Colors.grey[600], fontSize: 12),
         ),
         trailing: Row(

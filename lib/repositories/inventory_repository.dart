@@ -32,7 +32,7 @@ class InventoryTransactionPage {
 class ProductStockSummary {
   final int productId;
   final String productName;
-  final String productSku;
+  final String productDescription;
   final double totalPurchased;
   final double totalSold;
   final double available;
@@ -40,7 +40,7 @@ class ProductStockSummary {
   ProductStockSummary({
     required this.productId,
     required this.productName,
-    required this.productSku,
+    required this.productDescription,
     required this.totalPurchased,
     required this.totalSold,
     required this.available,
@@ -215,7 +215,7 @@ class InventoryRepository {
     SELECT
       p.id   AS product_id,
       p.name AS product_name,
-      p.sku  AS product_sku,
+      p.description  AS product_description,
       COALESCE(SUM(
         CASE
           WHEN it.type = 'PURCHASE'       THEN it.quantity
@@ -232,7 +232,7 @@ class InventoryRepository {
       ), 0) AS total_out
     FROM products p
     LEFT JOIN inventory_transactions it ON it.product_id = p.id
-    GROUP BY p.id, p.name, p.sku
+    GROUP BY p.id, p.name, p.description
     ORDER BY p.name ASC
   ''');
 
@@ -242,7 +242,7 @@ class InventoryRepository {
       return ProductStockSummary(
         productId: row['product_id'] as int,
         productName: row['product_name'] as String,
-        productSku: row['product_sku'] as String,
+        productDescription: row['product_description'] as String,
         totalPurchased: totalIn,
         totalSold: totalOut,
         available: totalIn - totalOut,
@@ -261,7 +261,7 @@ class InventoryRepository {
     SELECT
       p.id   AS product_id,
       p.name AS product_name,
-      p.sku  AS product_sku,
+      p.description  AS product_description,
       COALESCE(SUM(
         CASE
           WHEN it.type = 'PURCHASE'       THEN it.quantity
@@ -279,7 +279,7 @@ class InventoryRepository {
     FROM products p
     LEFT JOIN inventory_transactions it ON it.product_id = p.id
     WHERE p.id = ?
-    GROUP BY p.id, p.name, p.sku
+    GROUP BY p.id, p.name, p.description
   ''', [productId]);
 
     if (result.isEmpty) return null;
@@ -291,7 +291,7 @@ class InventoryRepository {
     return ProductStockSummary(
       productId: row['product_id'] as int,
       productName: row['product_name'] as String,
-      productSku: row['product_sku'] as String,
+      productDescription: row['product_description'] as String,
       totalPurchased: totalIn,
       totalSold: totalOut,
       available: totalIn - totalOut,
