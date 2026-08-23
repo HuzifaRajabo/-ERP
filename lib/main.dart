@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'bindings/app_binding.dart';
 import 'core/database/database_helper.dart';
 import 'views/main_screen.dart';
+import 'views/product/category_list_screen.dart';
 import 'views/product/product_details_screen.dart';
 import 'views/product/product_form_screen.dart';
 import 'views/party/party_details_screen.dart';
@@ -45,6 +46,10 @@ class MyApp extends StatelessWidget {
           // ← لا binding هنا
         ),
         GetPage(name: '/product-form', page: () => const ProductFormScreen()),
+        GetPage(
+          name: '/product-categories',
+          page: () => const ProductCategoryListScreen(),
+        ),
         GetPage(
           name: '/product-details',
           page: () => const ProductDetailsScreen(),

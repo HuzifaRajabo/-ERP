@@ -9,6 +9,7 @@ class InvoiceModel {
   final int originalTotalAmount; // ← لا يتغير أبداً (للتقارير)
   final int paidAmount;
   final PaymentStatus paymentStatus;
+  final int? warehouseId;
   final String? notes;
   final String? createdAt;
 
@@ -23,6 +24,7 @@ class InvoiceModel {
     required this.originalTotalAmount,
     this.paidAmount = 0,
     this.paymentStatus = PaymentStatus.unpaid,
+    this.warehouseId,
     this.notes,
     this.createdAt,
   });
@@ -43,6 +45,7 @@ class InvoiceModel {
     'original_total_amount': originalTotalAmount,
     'paid_amount': paidAmount,
     'payment_status': paymentStatus.name.toUpperCase(),
+    'warehouse_id': warehouseId,
     'notes': notes,
     'created_at': createdAt,
   };
@@ -61,6 +64,7 @@ class InvoiceModel {
     paymentStatus: PaymentStatus.values.byName(
       (map['payment_status'] ?? 'UNPAID').toString().toLowerCase(),
     ),
+    warehouseId: map['warehouse_id'],
     notes: map['notes'],
     createdAt: map['created_at'],
   );

@@ -178,10 +178,14 @@ class ReturnRepository {
       //           + حركات المخزون
       // ----------------------------------------------------------------
       for (final item in activeItems) {
+        final baseReturnedQuantity = item.selectedQuantity * item.conversionFactor;
+        final originBatchId = item.batchId;
+
         // سطر المرتجع
         await txn.insert('return_items', {
           'return_id': returnId,
           'product_id': item.productId,
+          'batch_id': originBatchId,
           'product_name_snapshot': item.productName,
           'quantity': item.selectedQuantity,
           'unit_price': item.unitPrice,
@@ -198,15 +202,36 @@ class ReturnRepository {
           [item.selectedQuantity, item.invoiceItemId],
         );
 
-        // حركة مخزون عكسية
+        // حركة مخزون عكسية بالوحدة الأساسية
         // مرتجع مبيعات → يزيد المخزون (SALE_RETURN)
         // مرتجع مشتريات → يقلل المخزون (PURCHASE_RETURN)
+        //
+        // نبحث عن أصل الحركة المخزنية المرتبطة بالنفس المنتج والفاتورة،
+        // مع مراعاة تعدد الدفعات/المستودعات عند نفس المنتج.
+        final originalTxns = await txn.query(
+          'inventory_transactions',
+          columns: ['warehouse_id', 'batch_id'],
+          where: 'invoice_id = ? AND product_id = ?',
+          whereArgs: [originalInvoiceId, item.productId],
+          orderBy: 'id DESC',
+        );
+
+        int? origWarehouseId;
+        int? origBatchId;
+        for (final row in originalTxns) {
+          origWarehouseId ??= row['warehouse_id'] as int?;
+          origBatchId ??= row['batch_id'] as int?;
+          if (origWarehouseId != null && origBatchId != null) break;
+        }
+
         await txn.insert('inventory_transactions', {
           'product_id': item.productId,
           'type': type.inventoryType,
-          'quantity': item.selectedQuantity,
+          'quantity': baseReturnedQuantity,
           'invoice_id': originalInvoiceId,
           'return_id': returnId,
+          'warehouse_id': origWarehouseId,
+          'batch_id': origBatchId,
         });
       }
       return returnId;
@@ -228,13 +253,26 @@ class ReturnRepository {
         ii.product_name_snapshot AS product_name,
         ii.quantity     AS original_quantity,
         ii.returned_quantity,
-        ii.unit_price
+        ii.unit_price,
+        ii.unit_id,
+        ii.unit_name_snapshot,
+        ii.conversion_factor_snapshot,
+        COALESCE(
+          (SELECT it.batch_id
+           FROM inventory_transactions it
+           WHERE it.invoice_id = ?
+             AND it.product_id = ii.product_id
+             AND it.batch_id IS NOT NULL
+           ORDER BY it.id DESC
+           LIMIT 1),
+          NULL
+        ) AS batch_id
       FROM invoice_items ii
       WHERE ii.invoice_id = ?
         AND (ii.quantity - ii.returned_quantity) > 0
       ORDER BY ii.id ASC
     ''',
-      [invoiceId],
+      [invoiceId, invoiceId],
     );
 
     return result
@@ -242,10 +280,14 @@ class ReturnRepository {
           (row) => ReturnableItem(
             invoiceItemId: row['invoice_item_id'] as int,
             productId: row['product_id'] as int,
+            batchId: row['batch_id'] as int?,
             productName: row['product_name'] as String,
             originalQuantity: (row['original_quantity'] as num).toDouble(),
             returnedSoFar: (row['returned_quantity'] as num).toDouble(),
             unitPrice: row['unit_price'] as int,
+            conversionFactor: (row['conversion_factor_snapshot'] as num?)?.toDouble() ?? 1,
+            unitId: row['unit_id'] as int?,
+            unitName: row['unit_name_snapshot'] as String?,
           ),
         )
         .toList();

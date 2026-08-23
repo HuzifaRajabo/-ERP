@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../repositories/product_repository.dart';
+import '../repositories/category_repository.dart';
 import '../models/product_model.dart';
+import '../models/category_model.dart';
 import '../core/services/app_event_bus.dart';
 import '../core/utils/db_error_handler.dart';
 
@@ -8,18 +10,21 @@ enum ProductLoadState { idle, loading, loadingMore, error }
 
 class ProductController extends GetxController {
   final ProductRepository repo;
+  final CategoryRepository categoryRepo;
 
-  ProductController(this.repo);
+  ProductController(this.repo, this.categoryRepo);
 
   // ==============================
   // State
   // ==============================
 
   final RxList<ProductModel> products = <ProductModel>[].obs;
+  final RxList<CategoryModel> categories = <CategoryModel>[].obs;
   final Rx<ProductLoadState> state = ProductLoadState.idle.obs;
   final RxBool hasMore = true.obs;
   final RxnString errorMessage = RxnString();
   final RxString searchKeyword = ''.obs;
+  final Rxn<int> selectedCategoryId = Rxn<int>();
 
   int? _cursor;
 
@@ -50,6 +55,7 @@ class ProductController extends GetxController {
     AppEventBus.instance.listenToProducts(loadInitial);
 
     loadInitial();
+    loadCategories();
   }
 
   // ==============================
@@ -71,11 +77,13 @@ class ProductController extends GetxController {
   Future<void> _fetchPage() async {
     try {
       final page = searchKeyword.value.isEmpty
-          ? await repo.getAllProducts(lastId: _cursor)
+          ? await repo.getAllProducts(
+              lastId: _cursor,
+            )
           : await repo.searchProductsByName(
-        searchKeyword.value,
-        lastId: _cursor,
-      );
+              searchKeyword.value,
+              lastId: _cursor,
+            );
 
       products.addAll(page.products);
       _cursor = page.nextCursor;
@@ -89,7 +97,7 @@ class ProductController extends GetxController {
   }
 
   // ==============================
-  // Search
+  // Search & Filter
   // ==============================
 
   void search(String keyword) {
@@ -99,6 +107,61 @@ class ProductController extends GetxController {
 
   void clearSearch() {
     searchKeyword.value = '';
+  }
+
+  void filterByCategory(int? categoryId) {
+    selectedCategoryId.value = categoryId;
+    loadInitial();
+  }
+
+  void clearCategoryFilter() {
+    selectedCategoryId.value = null;
+    loadInitial();
+  }
+
+  // ==============================
+  // Categories
+  // ==============================
+
+  Future<void> loadCategories() async {
+    try {
+      categories.value = await categoryRepo.getAllCategories();
+    } catch (_) {
+      // الأصناف اختيارية — أي خطأ لا يوقف التطبيق
+    }
+  }
+
+  Future<void> addCategory(String name, {String? description}) async {
+    try {
+      await categoryRepo.insertCategory(
+        CategoryModel(name: name.trim()),
+      );
+      await loadCategories();
+    } catch (e) {
+      errorMessage.value = e.toString();
+    }
+  }
+
+  Future<void> updateCategory(CategoryModel category) async {
+    try {
+      await categoryRepo.updateCategory(category);
+      await loadCategories();
+    } catch (e) {
+      errorMessage.value = e.toString();
+    }
+  }
+
+  Future<void> deleteCategory(int id) async {
+    try {
+      final category = categories.firstWhereOrNull((c) => c.id == id);
+      if (category != null) {
+        await categoryRepo.deleteOrDeactivateCategory(category);
+      }
+      if (selectedCategoryId.value == id) clearCategoryFilter();
+      await loadCategories();
+    } catch (e) {
+      errorMessage.value = e.toString();
+    }
   }
 
   // ==============================

@@ -84,6 +84,7 @@ class ReturnItemModel {
   final int? id;
   final int returnId;
   final int productId;
+  final int? batchId;
   final String productNameSnapshot;
   final double quantity;
   final int unitPrice;
@@ -93,6 +94,7 @@ class ReturnItemModel {
     this.id,
     required this.returnId,
     required this.productId,
+    this.batchId,
     required this.productNameSnapshot,
     required this.quantity,
     required this.unitPrice,
@@ -103,6 +105,7 @@ class ReturnItemModel {
     'id': id,
     'return_id': returnId,
     'product_id': productId,
+    'batch_id': batchId,
     'product_name_snapshot': productNameSnapshot,
     'quantity': quantity,
     'unit_price': unitPrice,
@@ -113,6 +116,7 @@ class ReturnItemModel {
     id: map['id'],
     returnId: map['return_id'],
     productId: map['product_id'],
+    batchId: map['batch_id'],
     productNameSnapshot: map['product_name_snapshot'],
     quantity: (map['quantity'] as num).toDouble(),
     unitPrice: map['unit_price'],
@@ -128,23 +132,32 @@ class ReturnItemModel {
 class ReturnableItem {
   final int invoiceItemId;
   final int productId;
+  final int? batchId;
   final String productName;
   final double originalQuantity;   // الكمية الأصلية في الفاتورة
   final double returnedSoFar;      // ما أُرجع مسبقاً
   final double availableToReturn;  // ما يمكن إرجاعه الآن
   final int unitPrice;
+  final double conversionFactor;   // معامل تحويل الوحدة المختارة إلى الوحدة الأساسية
+  final int? unitId;
+  final String? unitName;
   double selectedQuantity;         // ما يريد المستخدم إرجاعه الآن
 
   ReturnableItem({
     required this.invoiceItemId,
     required this.productId,
+    this.batchId,
     required this.productName,
     required this.originalQuantity,
     required this.returnedSoFar,
     required this.unitPrice,
+    this.conversionFactor = 1,
+    this.unitId,
+    this.unitName,
     this.selectedQuantity = 0,
   }) : availableToReturn = originalQuantity - returnedSoFar;
 
+  double get baseQuantity => selectedQuantity * conversionFactor;
   int get lineTotal => (selectedQuantity * unitPrice).round();
 }
 

@@ -3,8 +3,11 @@ class InventoryTransactionModel {
   final int? id;
   final int productId;
   final InventoryTransactionType type; // ← String إلى enum
-  final double quantity;
+  final double quantity; // ← دائماً بالوحدة الأساسية (القطعة)
   final int invoiceId;
+  final int? warehouseId;
+  final int? batchId;
+  final int? unitId;
   final String? createdAt;
 
   InventoryTransactionModel({
@@ -13,6 +16,9 @@ class InventoryTransactionModel {
     required this.type,
     required this.quantity,
     required this.invoiceId,
+    this.warehouseId,
+    this.batchId,
+    this.unitId,
     this.createdAt,
   });
 
@@ -23,6 +29,9 @@ class InventoryTransactionModel {
       'type': type.dbValue,
       'quantity': quantity,
       'invoice_id': invoiceId,
+      'warehouse_id': warehouseId,
+      'batch_id': batchId,
+      'unit_id': unitId,
       'created_at': createdAt,
     };
   }
@@ -34,6 +43,9 @@ class InventoryTransactionModel {
       type: InventoryTransactionType.fromDb(map['type']),
       quantity: (map['quantity'] as num).toDouble(),
       invoiceId: map['invoice_id'],
+      warehouseId: map['warehouse_id'],
+      batchId: map['batch_id'],
+      unitId: map['unit_id'],
       createdAt: map['created_at'],
     );
   }
@@ -44,6 +56,9 @@ class InventoryTransactionModel {
     InventoryTransactionType? type,
     double? quantity,
     int? invoiceId,
+    int? warehouseId,
+    int? batchId,
+    int? unitId,
     String? createdAt,
   }) {
     return InventoryTransactionModel(
@@ -52,6 +67,9 @@ class InventoryTransactionModel {
       type: type ?? this.type,
       quantity: quantity ?? this.quantity,
       invoiceId: invoiceId ?? this.invoiceId,
+      warehouseId: warehouseId ?? this.warehouseId,
+      batchId: batchId ?? this.batchId,
+      unitId: unitId ?? this.unitId,
       createdAt: createdAt ?? this.createdAt,
     );
   }

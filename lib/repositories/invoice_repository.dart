@@ -2,7 +2,8 @@ import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
 import '../models/invoice_model.dart';
 import '../models/invoice_item_model.dart';
-import '../models/Invoice_draft.dart';
+import '../models/invoice_draft.dart';
+import 'batch_repository.dart';
 
 class InvoiceRepository {
   Future<Database> get _db async => DatabaseHelper.instance.database;
@@ -14,7 +15,6 @@ class InvoiceRepository {
       throw Exception('لا يمكن إنشاء فاتورة بدون أسطر');
     }
 
-    // التحقق من أن المبلغ المدفوع لا يتجاوز الإجمالي
     if (draft.initialPayment > draft.totalAmount) {
       throw Exception(
         'المبلغ المدفوع (${draft.initialPayment}) '
@@ -34,7 +34,20 @@ class InvoiceRepository {
       );
       if (partyExists.isEmpty) throw PartyNotFoundException(draft.partyId);
 
-      // الخطوة 0.5: التحقق من وجود المنتجات
+      // الخطوة 0.5: التحقق من وجود المستودع إذا حُدِّد
+      if (draft.warehouseId != null) {
+        final warehouseExists = await txn.query(
+          'warehouses',
+          where: 'id = ?',
+          whereArgs: [draft.warehouseId],
+          limit: 1,
+        );
+        if (warehouseExists.isEmpty) {
+          throw Exception('المستودع المحدد (#${draft.warehouseId}) غير موجود');
+        }
+      }
+
+      // الخطوة 0.6: التحقق من وجود المنتجات
       for (final item in draft.items) {
         final productExists = await txn.query(
           'products',
@@ -43,22 +56,41 @@ class InvoiceRepository {
           limit: 1,
         );
         if (productExists.isEmpty) {
-          throw ProductNotFoundException(
-            item.productId,
-            item.productNameSnapshot,
-          );
+          throw ProductNotFoundException(item.productId, item.productNameSnapshot);
         }
       }
 
       // الخطوة 1: التحقق من المخزون (للبيع فقط)
+      final batchRepo = BatchRepository();
       if (draft.type == InvoiceType.sale) {
         for (final item in draft.items) {
-          final available = await _getAvailableQuantity(txn, item.productId);
-          if (available < item.quantity) {
+          final requestedBaseQty = item.baseQuantity;
+          final available = await _getAvailableQuantity(
+            txn,
+            item.productId,
+            warehouseId: draft.warehouseId,
+          );
+          if (available < requestedBaseQty) {
             throw InsufficientStockException(
               productId: item.productId,
               productName: item.productNameSnapshot,
-              requested: item.quantity,
+              requested: requestedBaseQty,
+              available: available,
+            );
+          }
+
+          final allocations = await batchRepo.allocateAvailableQuantity(
+            item.productId,
+            requestedBaseQty,
+            warehouseId: draft.warehouseId,
+          );
+
+          final allocated = allocations.fold<double>(0, (sum, e) => sum + e.quantity);
+          if ((allocated - requestedBaseQty).abs() > 0.0001) {
+            throw InsufficientStockException(
+              productId: item.productId,
+              productName: item.productNameSnapshot,
+              requested: requestedBaseQty,
               available: available,
             );
           }
@@ -68,7 +100,7 @@ class InvoiceRepository {
       // الخطوة 2: توليد رقم الفاتورة
       final invoiceNumber = await _generateNextInvoiceNumber(txn);
 
-      // الخطوة 3: إدراج الفاتورة مع بيانات الدفع الأولية
+      // الخطوة 3: إدراج الفاتورة
       final invoiceId = await txn.insert('invoices', {
         'invoice_number': invoiceNumber,
         'type': draft.type.name.toUpperCase(),
@@ -76,13 +108,14 @@ class InvoiceRepository {
         'party_name_snapshot': draft.partyNameSnapshot,
         'party_address_snapshot': draft.partyAddressSnapshot,
         'total_amount': draft.totalAmount,
-        'original_total_amount': draft.totalAmount, // ← نفس القيمة عند الإنشاء
+        'original_total_amount': draft.totalAmount,
         'paid_amount': draft.initialPayment,
         'payment_status': draft.paymentStatus.name.toUpperCase(),
+        'warehouse_id': draft.warehouseId,
         'notes': draft.notes,
       });
 
-      // سجل الحركة المالية للفاتورة (أثر على الذمم)
+      // سجل الحركة المالية للفاتورة
       await txn.insert('financial_transactions', {
         'invoice_id': invoiceId,
         'party_id': draft.partyId,
@@ -92,8 +125,9 @@ class InvoiceRepository {
         'notes': 'فاتورة ${draft.type == InvoiceType.sale ? 'بيع' : 'شراء'}',
       });
 
-      // الخطوة 4: إدراج أسطر الفاتورة + حركات المخزون
+      // الخطوة 4: أسطر الفاتورة + حركات المخزون
       for (final item in draft.items) {
+        // السطر يُخزَّن بالوحدة المختارة (قطعة/باكيت/كرتون)
         await txn.insert('invoice_items', {
           'invoice_id': invoiceId,
           'product_id': item.productId,
@@ -101,17 +135,52 @@ class InvoiceRepository {
           'quantity': item.quantity,
           'unit_price': item.unitPrice,
           'line_total': item.lineTotal,
+          'unit_id': item.unitId,
+          'unit_name_snapshot': item.unitNameSnapshot,
+          'conversion_factor_snapshot': item.conversionFactorSnapshot,
         });
 
-        await txn.insert('inventory_transactions', {
-          'product_id': item.productId,
-          'type': draft.type.name.toUpperCase(),
-          'quantity': item.quantity,
-          'invoice_id': invoiceId,
-        });
+        final allocations = item.batchAllocations.isNotEmpty
+            ? item.batchAllocations
+            : (draft.type == InvoiceType.sale
+                ? (await batchRepo.allocateAvailableQuantity(
+                    item.productId,
+                    item.baseQuantity,
+                    warehouseId: draft.warehouseId,
+                  )).map((allocation) => BatchAllocationSnapshot(
+                    batchId: allocation.batchId,
+                    quantity: allocation.quantity,
+                    batchNumber: allocation.batchNumber,
+                    expiryDate: allocation.expiryDate,
+                  )).toList()
+                : const <BatchAllocationSnapshot>[]);
+
+        if (draft.type == InvoiceType.sale) {
+          for (final allocation in allocations) {
+            await txn.insert('inventory_transactions', {
+              'product_id': item.productId,
+              'type': draft.type.name.toUpperCase(),
+              'quantity': allocation.quantity,
+              'invoice_id': invoiceId,
+              'warehouse_id': draft.warehouseId,
+              'batch_id': allocation.batchId,
+              'unit_id': item.unitId,
+            });
+          }
+        } else {
+          await txn.insert('inventory_transactions', {
+            'product_id': item.productId,
+            'type': draft.type.name.toUpperCase(),
+            'quantity': item.baseQuantity,
+            'invoice_id': invoiceId,
+            'warehouse_id': draft.warehouseId,
+            'batch_id': item.batchId,
+            'unit_id': item.unitId,
+          });
+        }
       }
 
-      // الخطوة 5: إذا كان هناك دفعة أولية سجّلها في جدول payments
+      // الخطوة 5: الدفعة الأولية
       if (draft.initialPayment > 0) {
         final paymentId = await txn.insert('payments', {
           'party_id': draft.partyId,
@@ -148,14 +217,8 @@ class InvoiceRepository {
       );
       if (invoiceResult.isEmpty) return false;
 
-      // حذف الدفعات المرتبطة أولاً لضمان عدم بقاء دفعات مع invoice_id فارغ
-      await txn.delete(
-        'payments',
-        where: 'invoice_id = ?',
-        whereArgs: [invoiceId],
-      );
+      await txn.delete('payments', where: 'invoice_id = ?', whereArgs: [invoiceId]);
 
-      // حذف المرتجعات المرتبطة بالفاتورة الأصلية
       final returnRows = await txn.query(
         'returns',
         columns: ['id'],
@@ -172,8 +235,6 @@ class InvoiceRepository {
         );
       }
 
-      // حذف الفاتورة نفسها. سيؤدي هذا أيضاً إلى حذف أي حركات مخزون
-      // وحركات مالية مرتبطة عبر علاقة invoice_id.
       final rows = await txn.delete(
         'invoices',
         where: 'id = ?',
@@ -183,21 +244,29 @@ class InvoiceRepository {
     });
   }
 
+  // الكمية المتاحة — اختيارياً مفلترة حسب المستودع
   Future<double> _getAvailableQuantity(
     DatabaseExecutor txn,
-    int productId,
-  ) async {
+    int productId, {
+    int? warehouseId,
+  }) async {
+    final warehouseFilter =
+        warehouseId != null ? 'AND warehouse_id = $warehouseId' : '';
+
     final result = await txn.rawQuery(
       '''
       SELECT
         COALESCE(SUM(
-          CASE WHEN type = 'PURCHASE' THEN quantity ELSE 0 END
-        ), 0) -
-        COALESCE(SUM(
-          CASE WHEN type = 'SALE' THEN quantity ELSE 0 END
+          CASE
+            WHEN type = 'PURCHASE'       THEN quantity
+            WHEN type = 'SALE_RETURN'    THEN quantity
+            WHEN type = 'SALE'            THEN -quantity
+            WHEN type = 'PURCHASE_RETURN' THEN -quantity
+            ELSE 0
+          END
         ), 0) AS available
       FROM inventory_transactions
-      WHERE product_id = ?
+      WHERE product_id = ? $warehouseFilter
     ''',
       [productId],
     );
@@ -205,9 +274,12 @@ class InvoiceRepository {
     return (result.first['available'] as num).toDouble();
   }
 
-  Future<double> getAvailableQuantity(int productId) async {
+  Future<double> getAvailableQuantity(
+    int productId, {
+    int? warehouseId,
+  }) async {
     final db = await _db;
-    return _getAvailableQuantity(db, productId);
+    return _getAvailableQuantity(db, productId, warehouseId: warehouseId);
   }
 
   Future<String> _generateNextInvoiceNumber(DatabaseExecutor txn) async {
@@ -225,7 +297,6 @@ class InvoiceRepository {
       whereArgs: [invoiceId],
       limit: 1,
     );
-
     if (invoiceResult.isEmpty) return null;
 
     final itemsResult = await db.query(
@@ -243,70 +314,57 @@ class InvoiceRepository {
   Future<InvoicePage> getAllInvoices({
     int? lastId,
     int pageSize = _defaultPageSize,
+    int? warehouseId,
   }) async {
     final db = await _db;
+    final where = <String>[];
+    final args = <dynamic>[];
+
+    if (lastId != null) { where.add('id < ?'); args.add(lastId); }
+    if (warehouseId != null) { where.add('warehouse_id = ?'); args.add(warehouseId); }
+
     final result = await db.query(
       'invoices',
-      where: lastId != null ? 'id < ?' : null,
-      whereArgs: lastId != null ? [lastId] : null,
+      where: where.isEmpty ? null : where.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
       orderBy: 'id DESC',
       limit: pageSize + 1,
     );
-
-    final hasNextPage = result.length > pageSize;
-    final items = hasNextPage ? result.sublist(0, pageSize) : result;
-
-    return InvoicePage(
-      invoices: items.map((e) => InvoiceModel.fromMap(e)).toList(),
-      hasNextPage: hasNextPage,
-      nextCursor: hasNextPage && items.isNotEmpty
-          ? items.last['id'] as int?
-          : null,
-    );
+    return _buildPage(result, pageSize);
   }
 
   Future<InvoicePage> getInvoicesByType({
     required InvoiceType type,
     int? lastId,
     int pageSize = _defaultPageSize,
+    int? warehouseId,
   }) async {
     final db = await _db;
+    final where = <String>['type = ?'];
+    final args = <dynamic>[type.name.toUpperCase()];
+
+    if (lastId != null) { where.add('id < ?'); args.add(lastId); }
+    if (warehouseId != null) { where.add('warehouse_id = ?'); args.add(warehouseId); }
+
     final result = await db.query(
       'invoices',
-      where: lastId != null ? 'type = ? AND id < ?' : 'type = ?',
-      whereArgs: lastId != null
-          ? [type.name.toUpperCase(), lastId]
-          : [type.name.toUpperCase()],
+      where: where.join(' AND '),
+      whereArgs: args,
       orderBy: 'id DESC',
       limit: pageSize + 1,
     );
-
-    final hasNextPage = result.length > pageSize;
-    final items = hasNextPage ? result.sublist(0, pageSize) : result;
-
-    return InvoicePage(
-      invoices: items.map((e) => InvoiceModel.fromMap(e)).toList(),
-      hasNextPage: hasNextPage,
-      nextCursor: hasNextPage && items.isNotEmpty
-          ? items.last['id'] as int?
-          : null,
-    );
+    return _buildPage(result, pageSize);
   }
 
   Future<InvoiceModel?> getInvoiceById(int id) async {
-    try {
-      final db = await _db;
-      final result = await db.query(
-        'invoices',
-        where: 'id = ?',
-        whereArgs: [id],
-        limit: 1,
-      );
-
-      return result.isEmpty ? null : InvoiceModel.fromMap(result.first);
-    } catch (e) {
-      throw Exception('Failed to fetch invoice by id: $e');
-    }
+    final db = await _db;
+    final result = await db.query(
+      'invoices',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return result.isEmpty ? null : InvoiceModel.fromMap(result.first);
   }
 
   Future<InvoicePage> getInvoicesByParty({
@@ -315,17 +373,24 @@ class InvoiceRepository {
     int pageSize = _defaultPageSize,
   }) async {
     final db = await _db;
+    final where = <String>['party_id = ?'];
+    final args = <dynamic>[partyId];
+
+    if (lastId != null) { where.add('id < ?'); args.add(lastId); }
+
     final result = await db.query(
       'invoices',
-      where: lastId != null ? 'party_id = ? AND id < ?' : 'party_id = ?',
-      whereArgs: lastId != null ? [partyId, lastId] : [partyId],
+      where: where.join(' AND '),
+      whereArgs: args,
       orderBy: 'id DESC',
       limit: pageSize + 1,
     );
+    return _buildPage(result, pageSize);
+  }
 
+  InvoicePage _buildPage(List<Map<String, dynamic>> result, int pageSize) {
     final hasNextPage = result.length > pageSize;
     final items = hasNextPage ? result.sublist(0, pageSize) : result;
-
     return InvoicePage(
       invoices: items.map((e) => InvoiceModel.fromMap(e)).toList(),
       hasNextPage: hasNextPage,
@@ -337,7 +402,7 @@ class InvoiceRepository {
 }
 
 // ==============================
-// InvoicePage Model
+// InvoicePage
 // ==============================
 
 class InvoicePage {
@@ -353,7 +418,7 @@ class InvoicePage {
 }
 
 // ==============================
-// Exceptions مخصصة برسائل عربية واضحة
+// Exceptions
 // ==============================
 
 class InsufficientStockException implements Exception {
@@ -370,10 +435,9 @@ class InsufficientStockException implements Exception {
   });
 
   @override
-  String toString() {
-    return 'الكمية غير متوفرة لـ "$productName": '
-        'المطلوب $requested، المتوفر $available فقط';
-  }
+  String toString() =>
+      'الكمية غير متوفرة لـ "$productName": '
+      'المطلوب $requested، المتوفر $available فقط';
 }
 
 class PartyNotFoundException implements Exception {

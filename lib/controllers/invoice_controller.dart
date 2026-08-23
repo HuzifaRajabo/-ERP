@@ -5,7 +5,8 @@ import '../repositories/party_repository.dart';
 import '../models/invoice_model.dart';
 import '../models/product_model.dart';
 import '../models/party_model.dart';
-import '../models/Invoice_draft.dart';
+import '../models/invoice_draft.dart';
+import '../controllers/warehouse_controller.dart';
 import '../core/services/app_event_bus.dart';
 
 enum InvoiceLoadState { idle, loading, loadingMore, error }
@@ -44,6 +45,7 @@ class InvoiceController extends GetxController {
 
   final Rx<InvoiceType> draftType = InvoiceType.sale.obs;
   final Rxn<PartyModel> draftParty = Rxn<PartyModel>();
+  final RxnInt draftWarehouseId = RxnInt();
   final RxString draftNotes = ''.obs;
   final RxList<InvoiceItemDraft> draftItems = <InvoiceItemDraft>[].obs;
 
@@ -144,10 +146,14 @@ class InvoiceController extends GetxController {
   Future<void> startNewInvoice() async {
     draftType.value = InvoiceType.sale;
     draftParty.value = null;
+    draftWarehouseId.value = null;
     draftNotes.value = '';
     draftItems.clear();
     draftInitialPayment.value = 0;
     invoiceFormError.value = null;
+
+    final defaultWarehouse = await Get.find<WarehouseController>().repo.getDefaultWarehouse();
+    draftWarehouseId.value = defaultWarehouse?.id;
 
     await loadAvailableProducts();
     await _loadPartiesForType(InvoiceType.sale); // ← فلترة من البداية
@@ -177,6 +183,10 @@ class InvoiceController extends GetxController {
     draftParty.value = party;
   }
 
+  void setDraftWarehouse(int? warehouseId) {
+    draftWarehouseId.value = warehouseId;
+  }
+
   void setDraftNotes(String notes) {
     draftNotes.value = notes;
   }
@@ -201,6 +211,9 @@ class InvoiceController extends GetxController {
     required ProductModel product,
     required double quantity,
     int? unitPrice,
+    int? unitId,
+    String? unitName,
+    double conversionFactor = 1,
   }) {
     if (product.id == null) {
       invoiceFormError.value =
@@ -231,6 +244,9 @@ class InvoiceController extends GetxController {
         productNameSnapshot: product.name,
         quantity: quantity,
         unitPrice: price,
+        unitId: unitId,
+        unitNameSnapshot: unitName ?? 'قطعة',
+        conversionFactorSnapshot: conversionFactor,
       ),
     );
 
@@ -241,16 +257,38 @@ class InvoiceController extends GetxController {
     draftItems.removeAt(index);
   }
 
-  void updateDraftItem(int index, {double? quantity, int? unitPrice}) {
+  void updateDraftItem(int index, {double? quantity, int? unitPrice, int? unitId, String? unitNameSnapshot, double? conversionFactorSnapshot}) {
     final old = draftItems[index];
     draftItems[index] = InvoiceItemDraft(
       productId: old.productId,
       productNameSnapshot: old.productNameSnapshot,
       quantity: quantity ?? old.quantity,
       unitPrice: unitPrice ?? old.unitPrice,
-    );
-    draftItems.refresh();
-  }
+      unitId: unitId ?? old.unitId,
+      unitNameSnapshot: unitNameSnapshot ?? old.unitNameSnapshot,
+      conversionFactorSnapshot: conversionFactorSnapshot ?? old.conversionFactorSnapshot,
+        batchId: old.batchId,
+        batchAllocations: old.batchAllocations,
+      );
+      draftItems.refresh();
+    }
+
+    /// تحديث دفعات السطر في الـ Draft (يُستخدم بعد تعديل توزيع الدفعات يدوياً)
+    void setDraftItemBatchAllocations(int index, List<BatchAllocationSnapshot> allocations, {int? batchId}) {
+      final old = draftItems[index];
+      draftItems[index] = InvoiceItemDraft(
+        productId: old.productId,
+        productNameSnapshot: old.productNameSnapshot,
+        quantity: old.quantity,
+        unitPrice: old.unitPrice,
+        unitId: old.unitId,
+        unitNameSnapshot: old.unitNameSnapshot,
+        conversionFactorSnapshot: old.conversionFactorSnapshot,
+        batchId: batchId ?? (allocations.isNotEmpty ? allocations.first.batchId : old.batchId),
+        batchAllocations: allocations,
+      );
+      draftItems.refresh();
+    }
 
   // ==============================
   // الإضافة السريعة: منتج جديد بدون مغادرة شاشة الفاتورة
@@ -350,7 +388,8 @@ class InvoiceController extends GetxController {
         partyAddressSnapshot: draftParty.value!.address ?? '',
         notes: draftNotes.value.trim().isEmpty ? null : draftNotes.value.trim(),
         items: List.from(draftItems),
-        initialPayment: draftInitialPayment.value, // ← جديد
+        initialPayment: draftInitialPayment.value,
+        warehouseId: draftWarehouseId.value,
       );
 
       await repo.createInvoice(draft);

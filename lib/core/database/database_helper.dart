@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     final database = await openDatabase(
       path,
-      version: 3,
+      version: 5,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -42,6 +42,32 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    // ==============================
+    // أصناف المنتجات — يجب أن تُنشأ قبل products لأنها مرجع FK
+    // ==============================
+    await db.execute('''
+    CREATE TABLE product_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      is_preset INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  ''');
+
+    // إدراج الأصناف الجاهزة
+    const presetCategories = [
+      'شيبس', 'سناكات', 'مشروبات غازية', 'عصائر', 'مياه',
+      'حلويات وشوكولاتة', 'بسكويت وكيك', 'مكسرات',
+    ];
+    for (final name in presetCategories) {
+      await db.insert('product_categories', {
+        'name': name,
+        'is_preset': 1,
+        'is_active': 1,
+      });
+    }
+
     await db.execute('''
     CREATE TABLE products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,9 +75,65 @@ class DatabaseHelper {
       description TEXT,
       cost_price INTEGER NOT NULL,
       sale_price INTEGER NOT NULL,
+      category_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL
+    )
+  ''');
+
+    // ==============================
+    // المستودعات (مستودع رئيسي / سيارة توزيع / فرع)
+    // ==============================
+    await db.execute('''
+    CREATE TABLE warehouses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      type TEXT CHECK(type IN ('MAIN','VAN','BRANCH')) NOT NULL DEFAULT 'MAIN',
+      address TEXT,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
     )
   ''');
+
+    // ==============================
+    // وحدات المنتج (قطعة / باكيت / كرتون...)
+    // الوحدة الأساسية دائماً conversion_factor = 1
+    // ==============================
+    await db.execute('''
+    CREATE TABLE product_units (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      unit_name TEXT NOT NULL,
+      conversion_factor REAL NOT NULL DEFAULT 1,
+      sale_price INTEGER NOT NULL,
+      cost_price INTEGER,
+      is_base_unit INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )
+  ''');
+
+    // ==============================
+    // دفعات المنتج (لتتبع تاريخ الصلاحية وتكلفة كل دفعة شراء)
+    // الكمية المتاحة لكل دفعة تُحسب من inventory_transactions
+    // (نفس نمط حساب المخزون الحالي)، وليست عمود مخزّن، لتفادي
+    // تعارض التحديثات المتزامنة.
+    // ==============================
+    await db.execute('''
+    CREATE TABLE batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      batch_number TEXT,
+      production_date TEXT,
+      expiry_date TEXT,
+      cost_price INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )
+  ''' );
 
     await db.execute('''
     CREATE TABLE parties (
@@ -77,9 +159,11 @@ class DatabaseHelper {
     paid_amount INTEGER NOT NULL DEFAULT 0,
     payment_status TEXT CHECK(payment_status IN ('UNPAID','PARTIAL','PAID'))
       NOT NULL DEFAULT 'UNPAID',
+    warehouse_id INTEGER,
     notes TEXT,
     created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (party_id) REFERENCES parties(id)
+    FOREIGN KEY (party_id) REFERENCES parties(id),
+    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
     )
   ''');
 
@@ -93,8 +177,12 @@ class DatabaseHelper {
       returned_quantity REAL NOT NULL DEFAULT 0,
       unit_price INTEGER NOT NULL,
       line_total INTEGER NOT NULL,
+      unit_id INTEGER,
+      unit_name_snapshot TEXT,
+      conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
       FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
-      FOREIGN KEY (product_id) REFERENCES products(id)
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (unit_id) REFERENCES product_units(id)
     )
   ''');
 
@@ -106,13 +194,19 @@ class DatabaseHelper {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
       type TEXT NOT NULL,
-      quantity REAL NOT NULL,
+      quantity REAL NOT NULL, -- ← دائماً بالوحدة الأساسية (القطعة)
       invoice_id INTEGER NOT NULL,
       return_id INTEGER,
+      warehouse_id INTEGER,
+      batch_id INTEGER,
+      unit_id INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id),
       FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
-      FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE
+      FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE,
+      FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+      FOREIGN KEY (batch_id) REFERENCES batches(id),
+      FOREIGN KEY (unit_id) REFERENCES product_units(id)
     )
   ''');
 
@@ -138,14 +232,16 @@ class DatabaseHelper {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       return_id INTEGER NOT NULL,
       product_id INTEGER NOT NULL,
+      batch_id INTEGER,
       product_name_snapshot TEXT NOT NULL,
       quantity REAL NOT NULL,
       unit_price INTEGER NOT NULL,
       line_total INTEGER NOT NULL,
       FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE,
-      FOREIGN KEY (product_id) REFERENCES products(id)
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
     )
-  ''');
+  ''' );
 
     await db.execute('''
     CREATE TABLE payments (
@@ -245,6 +341,35 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX idx_financial_transactions_date ON financial_transactions(created_at)',
     );
+    await db.execute(
+      'CREATE INDEX idx_products_category ON products(category_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_product_units_product ON product_units(product_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_batches_product ON batches(product_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_batches_expiry ON batches(expiry_date)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_inv_warehouse ON inventory_transactions(warehouse_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_inv_batch ON inventory_transactions(batch_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_invoices_warehouse ON invoices(warehouse_id)',
+    );
+
+    // مستودع افتراضي عند أول تثبيت
+    await db.insert('warehouses', {
+      'name': 'المستودع الرئيسي',
+      'type': 'MAIN',
+      'is_default': 1,
+      'is_active': 1,
+    });
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -298,7 +423,155 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 4) {
-      await db.execute('ALTER TABLE payments ADD COLUMN return_id INTEGER');
+      // ملاحظة: كانت هذه الكتلة معطّلة سابقاً لأن رقم الإصدار كان متوقفاً
+      // عند 3. تم إبقاؤها بأمان (try/catch) تحسباً لأي قاعدة بيانات
+      // وصلت فعلياً للإصدار 3 دون هذا العمود.
+      try {
+        await db.execute('ALTER TABLE payments ADD COLUMN return_id INTEGER');
+      } catch (_) {
+        // العمود موجود مسبقاً، لا شيء يُفعل
+      }
+    }
+
+    if (oldVersion < 5) {
+      // ==============================
+      // دعم: وحدات متعددة + تواريخ صلاحية + تعدد مستودعات
+      // ==============================
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS warehouses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          type TEXT CHECK(type IN ('MAIN','VAN','BRANCH')) NOT NULL DEFAULT 'MAIN',
+          address TEXT,
+          is_default INTEGER NOT NULL DEFAULT 0,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS product_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          is_preset INTEGER NOT NULL DEFAULT 0,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      ''');
+
+      // إدراج الأصناف الجاهزة (INSERT OR IGNORE تتجاهل المكررات بأمان)
+      const presetCategories = [
+        'شيبس', 'سناكات', 'مشروبات غازية', 'عصائر', 'مياه',
+        'حلويات وشوكولاتة', 'بسكويت وكيك', 'مكسرات',
+        'مربيات وزيوت', 'منتجات ألبان', 'أخرى',
+      ];
+      for (final name in presetCategories) {
+        await db.rawInsert(
+          'INSERT OR IGNORE INTO product_categories(name, is_preset, is_active) VALUES(?,1,1)',
+          [name],
+        );
+      }
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS product_units (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          product_id INTEGER NOT NULL,
+          unit_name TEXT NOT NULL,
+          conversion_factor REAL NOT NULL DEFAULT 1,
+          sale_price INTEGER NOT NULL,
+          cost_price INTEGER,
+          is_base_unit INTEGER NOT NULL DEFAULT 0,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS batches (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          product_id INTEGER NOT NULL,
+          batch_number TEXT,
+          production_date TEXT,
+          expiry_date TEXT,
+          cost_price INTEGER,
+          notes TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+      ''' );
+
+      // إضافة الأعمدة الجديدة (كل واحد بمحاولة منفصلة لتفادي فشل الكل
+      // إذا كان أحدها مضافاً مسبقاً من تشغيل جزئي سابق)
+      for (final stmt in [
+        'ALTER TABLE products ADD COLUMN category_id INTEGER',
+        'ALTER TABLE invoices ADD COLUMN warehouse_id INTEGER',
+        'ALTER TABLE inventory_transactions ADD COLUMN warehouse_id INTEGER',
+        'ALTER TABLE inventory_transactions ADD COLUMN batch_id INTEGER',
+        'ALTER TABLE inventory_transactions ADD COLUMN unit_id INTEGER',
+        'ALTER TABLE invoice_items ADD COLUMN unit_id INTEGER',
+        'ALTER TABLE invoice_items ADD COLUMN unit_name_snapshot TEXT',
+        'ALTER TABLE invoice_items ADD COLUMN conversion_factor_snapshot REAL NOT NULL DEFAULT 1',
+        'ALTER TABLE batches ADD COLUMN production_date TEXT',
+        'ALTER TABLE return_items ADD COLUMN batch_id INTEGER',
+      ]) {
+        try {
+          await db.execute(stmt);
+        } catch (_) {
+          // العمود موجود مسبقاً
+        }
+      }
+
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_product_units_product ON product_units(product_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_batches_product ON batches(product_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_batches_expiry ON batches(expiry_date)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_inv_warehouse ON inventory_transactions(warehouse_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_inv_batch ON inventory_transactions(batch_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_invoices_warehouse ON invoices(warehouse_id)',
+      );
+
+      // إنشاء مستودع افتراضي وربط كل البيانات القديمة به،
+      // حتى لا تُفقد بيانات المخزون والفواتير السابقة من الحسابات
+      int defaultWarehouseId;
+      final existing = await db.query(
+        'warehouses',
+        where: 'is_default = 1',
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        defaultWarehouseId = existing.first['id'] as int;
+      } else {
+        defaultWarehouseId = await db.insert('warehouses', {
+          'name': 'المستودع الرئيسي',
+          'type': 'MAIN',
+          'is_default': 1,
+          'is_active': 1,
+        });
+      }
+
+      await db.rawUpdate(
+        'UPDATE invoices SET warehouse_id = ? WHERE warehouse_id IS NULL',
+        [defaultWarehouseId],
+      );
+      await db.rawUpdate(
+        'UPDATE inventory_transactions SET warehouse_id = ? WHERE warehouse_id IS NULL',
+        [defaultWarehouseId],
+      );
     }
   }
 
