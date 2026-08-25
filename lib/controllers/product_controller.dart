@@ -1,21 +1,25 @@
 import 'package:get/get.dart';
 import '../repositories/product_repository.dart';
+import '../repositories/product_unit_repository.dart';
 import '../repositories/category_repository.dart';
 import '../models/product_model.dart';
+import '../models/product_unit_model.dart';
 import '../models/category_model.dart';
 import '../core/services/app_event_bus.dart';
+import '../core/services/product_unit_validator.dart';
 import '../core/utils/db_error_handler.dart';
 
 enum ProductLoadState { idle, loading, loadingMore, error }
 
 class ProductController extends GetxController {
   final ProductRepository repo;
+  final ProductUnitRepository unitRepo;
   final CategoryRepository categoryRepo;
 
-  ProductController(this.repo, this.categoryRepo);
+  ProductController(this.repo, this.unitRepo, this.categoryRepo);
 
   // ==============================
-  // State
+  // State — قائمة المنتجات
   // ==============================
 
   final RxList<ProductModel> products = <ProductModel>[].obs;
@@ -27,6 +31,21 @@ class ProductController extends GetxController {
   final Rxn<int> selectedCategoryId = Rxn<int>();
 
   int? _cursor;
+
+  // ==============================
+  // State — وحدات مؤقتة (لنموذج إنشاء / تعديل المنتج)
+  // ==============================
+
+  /// الوحدات المؤقتة أثناء إنشاء أو تعديل منتج في الواجهة.
+  /// تُعبأ من loadProductUnits() عند فتح منتج موجود،
+  /// أو تبدأ فارغة وتُبنى تدريجياً عبر addTempUnit().
+  final RxList<ProductUnitModel> tempUnits = <ProductUnitModel>[].obs;
+
+  /// خطأ التحقق أو الحفظ الخاص بنموذج المنتج
+  final RxnString unitFormError = RxnString();
+
+  /// هل جاري حفظ المنتج مع وحداته؟
+  final RxBool isSavingProduct = false.obs;
 
   // ==============================
   // Getters
@@ -45,10 +64,9 @@ class ProductController extends GetxController {
   void onInit() {
     super.onInit();
 
-    // تشغيل البحث تلقائياً عند تغيير الكلمة مع debounce
     debounce(
       searchKeyword,
-          (_) => loadInitial(),
+      (_) => loadInitial(),
       time: const Duration(milliseconds: 500),
     );
 
@@ -79,10 +97,12 @@ class ProductController extends GetxController {
       final page = searchKeyword.value.isEmpty
           ? await repo.getAllProducts(
               lastId: _cursor,
+              categoryId: selectedCategoryId.value,
             )
           : await repo.searchProductsByName(
               searchKeyword.value,
               lastId: _cursor,
+              categoryId: selectedCategoryId.value,
             );
 
       products.addAll(page.products);
@@ -102,7 +122,6 @@ class ProductController extends GetxController {
 
   void search(String keyword) {
     searchKeyword.value = keyword.trim();
-    // debounce في onInit تتولى الباقي تلقائياً
   }
 
   void clearSearch() {
@@ -126,16 +145,12 @@ class ProductController extends GetxController {
   Future<void> loadCategories() async {
     try {
       categories.value = await categoryRepo.getAllCategories();
-    } catch (_) {
-      // الأصناف اختيارية — أي خطأ لا يوقف التطبيق
-    }
+    } catch (_) {}
   }
 
   Future<void> addCategory(String name, {String? description}) async {
     try {
-      await categoryRepo.insertCategory(
-        CategoryModel(name: name.trim()),
-      );
+      await categoryRepo.insertCategory(CategoryModel(name: name.trim()));
       await loadCategories();
     } catch (e) {
       errorMessage.value = e.toString();
@@ -165,7 +180,119 @@ class ProductController extends GetxController {
   }
 
   // ==============================
-  // CRUD
+  // TempUnits API — يُستخدم من ProductFormScreen
+  // ==============================
+
+  /// يُحمّل وحدات منتج موجود إلى tempUnits.
+  /// استدعه عند فتح نموذج تعديل منتج.
+  Future<void> loadProductUnits(int productId) async {
+    try {
+      final units = await unitRepo.getUnitsForProduct(
+        productId,
+        activeOnly: false, // نحمّل الكل ليرى المستخدم المعطّلة
+      );
+      tempUnits.assignAll(units);
+      unitFormError.value = null;
+    } catch (e) {
+      unitFormError.value = e.toString();
+    }
+  }
+
+  /// يُضيف وحدة للقائمة المؤقتة (مع تحقق فوري)
+  void addTempUnit(ProductUnitModel unit) {
+    // إذا كانت هي الأولى وليست base unit، نحذّر
+    // التحقق الكامل يحدث عند saveProduct()
+    tempUnits.add(unit);
+    unitFormError.value = null;
+  }
+
+  /// يُعدّل وحدة في موضعها بالقائمة المؤقتة
+  void updateTempUnit(int index, ProductUnitModel unit) {
+    if (index < 0 || index >= tempUnits.length) return;
+    tempUnits[index] = unit;
+    unitFormError.value = null;
+  }
+
+  /// يحذف وحدة من القائمة المؤقتة
+  void removeTempUnit(int index) {
+    if (index < 0 || index >= tempUnits.length) return;
+    tempUnits.removeAt(index);
+  }
+
+  /// يُفرّغ القائمة المؤقتة (استدعه عند إغلاق النموذج أو البدء بمنتج جديد)
+  void clearTempUnits() {
+    tempUnits.clear();
+    unitFormError.value = null;
+  }
+
+  /// يُنشئ وحدة أساسية افتراضية للمنتج الجديد
+  ProductUnitModel buildDefaultBaseUnit({
+    required int costPrice,
+    required int salePrice,
+    String unitName = 'قطعة',
+  }) {
+    return ProductUnitModel(
+      productId: 0, // سيُعيَّن لاحقاً من saveProduct
+      unitName: unitName,
+      conversionFactor: 1.0,
+      costPrice: costPrice,
+      defaultSalePrice: salePrice,
+      canBuy: true,
+      canSell: true,
+      isDefaultSellUnit: true,
+      isBaseUnit: true,
+    );
+  }
+
+  // ==============================
+  // saveProduct — الحفظ الكامل (منتج + وحداته)
+  // ==============================
+
+  /// ينشئ أو يُعدّل منتجاً مع وحداته ضمن transaction واحدة.
+  ///
+  /// [product.id == null]  → Create
+  /// [product.id != null]  → Update
+  ///
+  /// يُعيد id المنتج عند النجاح، أو null عند الفشل
+  /// (يُعيَّن unitFormError في حالة الفشل).
+  Future<int?> saveProduct(
+    ProductModel product,
+    List<ProductUnitModel> units,
+  ) async {
+    unitFormError.value = null;
+
+    // ── تحقق مسبق ──
+    try {
+      ProductUnitValidator.validate(product.name, units);
+    } on ProductUnitValidationException catch (e) {
+      unitFormError.value = e.message;
+      return null;
+    }
+
+    isSavingProduct.value = true;
+    try {
+      int productId;
+
+      if (product.id == null) {
+        productId = await repo.createProductWithUnits(product, units);
+      } else {
+        await repo.updateProductWithUnits(product, units);
+        productId = product.id!;
+      }
+
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
+      return productId;
+    } catch (e) {
+      unitFormError.value = e.toString().replaceFirst('Exception: ', '');
+      return null;
+    } finally {
+      isSavingProduct.value = false;
+    }
+  }
+
+  // ==============================
+  // CRUD بسيط (بدون وحدات — للتوافق مع الكود القديم)
   // ==============================
 
   Future<void> addProduct(ProductModel product) async {
@@ -205,6 +332,29 @@ class ProductController extends GetxController {
     return repo.getProductById(id);
   }
 
+  /// إحضار وحدات منتج بعينه (للقراءة فقط، لا يُغيّر tempUnits)
+  Future<List<ProductUnitModel>> getProductUnits(
+    int productId, {
+    bool activeOnly = true,
+  }) {
+    return unitRepo.getUnitsForProduct(productId, activeOnly: activeOnly);
+  }
+
+  /// إحضار وحدة البيع الافتراضية لمنتج معين
+  Future<ProductUnitModel?> getDefaultSellUnit(int productId) {
+    return unitRepo.getDefaultSellUnitForProduct(productId);
+  }
+
+  /// إحضار الوحدات المسموح بها للبيع
+  Future<List<ProductUnitModel>> getSellableUnits(int productId) {
+    return unitRepo.getSellableUnits(productId);
+  }
+
+  /// إحضار الوحدات المسموح بها للشراء
+  Future<List<ProductUnitModel>> getBuyableUnits(int productId) {
+    return unitRepo.getBuyableUnits(productId);
+  }
+
   // ==============================
   // Helpers
   // ==============================
@@ -224,5 +374,6 @@ class ProductController extends GetxController {
   void clearError() {
     state.value = ProductLoadState.idle;
     errorMessage.value = null;
+    unitFormError.value = null;
   }
 }

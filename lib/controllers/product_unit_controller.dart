@@ -5,6 +5,8 @@ import '../repositories/product_unit_repository.dart';
 
 enum ProductUnitLoadState { idle, loading, error }
 
+/// كنترولر مخصص لإدارة وحدات منتج بعينه في شاشة ProductUnitsScreen.
+/// لإدارة الوحدات أثناء إنشاء/تعديل منتج استخدم ProductController.tempUnits.
 class ProductUnitController extends GetxController {
   final ProductUnitRepository repo;
 
@@ -31,13 +33,19 @@ class ProductUnitController extends GetxController {
     return repo.getBaseUnitForProduct(productId);
   }
 
+  Future<List<AvailableBatchStock>> getAvailableBatchesForProduct(int productId) async {
+    // لا توجد دفعات هنا — هذا الكنترولر للوحدات فقط
+    return [];
+  }
+
   Future<void> addUnit(ProductUnitModel unit) async {
     try {
       await repo.insertUnit(unit);
       await loadUnitsForProduct(unit.productId);
+      errorMessage.value = null;
     } catch (e) {
       state.value = ProductUnitLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = e.toString().replaceFirst('Exception: ', '');
     }
   }
 
@@ -45,19 +53,28 @@ class ProductUnitController extends GetxController {
     try {
       await repo.updateUnit(unit);
       await loadUnitsForProduct(unit.productId);
+      errorMessage.value = null;
     } catch (e) {
       state.value = ProductUnitLoadState.error;
-      errorMessage.value = e.toString();
+      errorMessage.value = e.toString().replaceFirst('Exception: ', '');
     }
   }
 
   Future<void> deactivateUnit(int id, int productId) async {
     try {
-      await repo.deactivateUnit(id);
+      await repo.deleteOrDeactivateUnit(id);
       await loadUnitsForProduct(productId);
+      errorMessage.value = null;
     } catch (e) {
       state.value = ProductUnitLoadState.error;
       errorMessage.value = e.toString();
     }
   }
+}
+
+/// نتيجة مؤقتة تُستخدم من شاشة الوحدات لإظهار المتاح من كل دفعة
+class AvailableBatchStock {
+  final dynamic batch;
+  final double available;
+  const AvailableBatchStock({required this.batch, required this.available});
 }

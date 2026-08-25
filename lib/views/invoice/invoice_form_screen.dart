@@ -4,7 +4,7 @@ import '../../controllers/invoice_controller.dart';
 import '../../models/invoice_model.dart';
 import '../../models/product_model.dart';
 import '../../models/party_model.dart';
-import '../../models/Invoice_draft.dart';
+import '../../models/invoice_draft.dart';
 import '../../core/utils/money_utils.dart';
 
 class InvoiceFormScreen extends GetView<InvoiceController> {
@@ -13,35 +13,103 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('فاتورة جديدة'), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          _InvoiceTypeSelector(),
-          SizedBox(height: 16),
-          _PartySelector(),
-          SizedBox(height: 16),
-          _NotesField(),
-          SizedBox(height: 20),
-          _ItemsSection(),
-          SizedBox(height: 20),
-          _TotalSection(),
-          SizedBox(height: 12),
-          _PaymentSection(),
-          SizedBox(height: 12),
-          _FormErrorMessage(),
-          SizedBox(height: 12),
-          _SaveButton(),
-          SizedBox(height: 32),
+      backgroundColor: const Color(0xFFF7F8FC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          tooltip: 'رجوع',
+          onPressed: Get.back,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'فاتورة جديدة',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'إنشاء فاتورة مبيعات أو مشتريات',
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Obx(
+            () => TextButton.icon(
+              onPressed: controller.isSavingInvoice.value
+                  ? null
+                  : () async {
+                      final success = await controller.saveInvoice();
+                      if (success) {
+                        Get.back();
+                        Get.snackbar(
+                          'تم',
+                          'تم حفظ الفاتورة بنجاح',
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: const Color(0xFF16A34A),
+                          colorText: Colors.white,
+                        );
+                      }
+                    },
+              icon: controller.isSavingInvoice.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF2563EB),
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded, size: 19),
+              label: Text(
+                controller.isSavingInvoice.value ? 'جارٍ الحفظ...' : 'حفظ',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
         ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              _InvoiceTypeSelector(),
+              SizedBox(height: 16),
+              _PartySelector(),
+              SizedBox(height: 16),
+              _ItemsSection(),
+              SizedBox(height: 16),
+              _TotalSection(),
+              SizedBox(height: 16),
+              _PaymentSection(),
+              SizedBox(height: 16),
+              _NotesField(),
+              SizedBox(height: 16),
+              _FormErrorMessage(),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
-
-// ==============================
-// نوع الفاتورة (بيع / شراء)
-// ==============================
 
 class _InvoiceTypeSelector extends GetView<InvoiceController> {
   const _InvoiceTypeSelector();
@@ -49,27 +117,40 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => Row(
+      () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: _TypeButton(
-              label: 'بيع',
-              icon: Icons.arrow_upward_rounded,
-              color: Colors.green,
-              selected: controller.draftType.value == InvoiceType.sale,
-              onTap: () => controller.setDraftType(InvoiceType.sale), // ← صح
+          const Text(
+            'نوع العملية',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _TypeButton(
-              label: 'شراء',
-              icon: Icons.arrow_downward_rounded,
-              color: Colors.orange,
-              selected: controller.draftType.value == InvoiceType.purchase,
-              onTap: () =>
-                  controller.setDraftType(InvoiceType.purchase), // ← صح
-            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _TypeButton(
+                  label: 'المبيعات',
+                  icon: Icons.trending_up_rounded,
+                  color: const Color(0xFF16A34A),
+                  selected: controller.draftType.value == InvoiceType.sale,
+                  onTap: () => controller.setDraftType(InvoiceType.sale),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TypeButton(
+                  label: 'المشتريات',
+                  icon: Icons.shopping_cart_rounded,
+                  color: const Color(0xFFF59E0B),
+                  selected: controller.draftType.value == InvoiceType.purchase,
+                  onTap: () => controller.setDraftType(InvoiceType.purchase),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -94,39 +175,44 @@ class _TypeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.4)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: selected ? Colors.white : color),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : color,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+    return Material(
+      color: selected ? color : color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? color : color.withValues(alpha: 0.12),
             ),
-          ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? Colors.white : color,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : color,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-
-// ==============================
-// اختيار الطرف مع إضافة سريعة
-// ==============================
 
 class _PartySelector extends GetView<InvoiceController> {
   const _PartySelector();
@@ -134,47 +220,113 @@ class _PartySelector extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => GestureDetector(
-        onTap: () => _showPartyPicker(context),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.people_outline, color: Colors.grey),
-              const SizedBox(width: 12),
-              Expanded(
-                child: controller.draftParty.value == null
-                    ? Text(
-                        'اختر الطرف',
-                        style: TextStyle(color: Colors.grey[600]),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            controller.draftParty.value!.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          if (controller.draftParty.value!.phone != null)
-                            Text(
-                              controller.draftParty.value!.phone!,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                            ),
-                        ],
+      () {
+        final draftParty = controller.draftParty.value;
+        final typeLabel = controller.draftType.value == InvoiceType.sale
+            ? 'العميل'
+            : 'المورد';
+
+        return GestureDetector(
+          onTap: () => _showPartyPicker(context),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline_rounded,
+                      size: 18,
+                      color: Color(0xFF2563EB),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'الطرف',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827),
                       ),
-              ),
-              const Icon(Icons.chevron_right, color: Colors.grey),
-            ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      typeLabel,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F0FF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.people_alt_rounded,
+                        color: Color(0xFF2563EB),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: draftParty == null
+                          ? const Text(
+                              'اختر العميل أو المورد',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF6B7280),
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  draftParty.name,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                                if (draftParty.phone != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    draftParty.phone!,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                    ),
+                    const Icon(
+                      Icons.chevron_left_rounded,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -275,7 +427,7 @@ class _PartyPickerSheet extends GetView<InvoiceController> {
                         leading: CircleAvatar(
                           backgroundColor: _typeColor(
                             party.type,
-                          ).withOpacity(0.15),
+                          ).withValues(alpha: 0.15),
                           child: Icon(
                             _typeIcon(party.type),
                             color: _typeColor(party.type),
@@ -393,21 +545,57 @@ class _NotesField extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      onChanged: controller.setDraftNotes,
-      maxLines: 2,
-      decoration: InputDecoration(
-        labelText: 'ملاحظات (اختياري)',
-        prefixIcon: const Icon(Icons.notes_outlined),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.sticky_note_2_outlined,
+                size: 18,
+                color: Color(0xFF2563EB),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'ملاحظات',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            onChanged: controller.setDraftNotes,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'إضافة أي ملاحظات أو تعليمات خاصة...',
+              filled: true,
+              fillColor: const Color(0xFFF7F8FC),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
-
-// ==============================
-// أسطر المنتجات
-// ==============================
 
 class _ItemsSection extends GetView<InvoiceController> {
   const _ItemsSection();
@@ -418,57 +606,84 @@ class _ItemsSection extends GetView<InvoiceController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'أسطر الفاتورة',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            const Icon(
+              Icons.inventory_2_rounded,
+              size: 18,
+              color: Color(0xFF2563EB),
             ),
+            const SizedBox(width: 8),
+            const Text(
+              'المنتجات',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const Spacer(),
             TextButton.icon(
               onPressed: () => _showProductPicker(context),
-              icon: const Icon(Icons.add),
-              label: const Text('إضافة منتج'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF2563EB),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('إضافة'),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Obx(() {
           if (controller.draftItems.isEmpty) {
             return Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(vertical: 28),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
               child: const Column(
                 children: [
                   Icon(
-                    Icons.inventory_2_outlined,
-                    size: 40,
-                    color: Colors.grey,
+                    Icons.receipt_long_outlined,
+                    size: 38,
+                    color: Color(0xFF9CA3AF),
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 10),
                   Text(
-                    'لم تُضف أي منتجات بعد',
-                    style: TextStyle(color: Colors.grey),
+                    'لم يتم إضافة منتجات بعد',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6B7280),
+                    ),
                   ),
                 ],
               ),
             );
           }
 
-          return Column(
-            children: [
-              // رأس الجدول
-              _TableHeader(),
-              const Divider(height: 1),
-              // الأسطر
-              ...controller.draftItems.asMap().entries.map(
-                (entry) => _ItemRow(index: entry.key, item: entry.value),
-              ),
-            ],
+          return Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              children: [
+                _TableHeader(),
+                const SizedBox(height: 6),
+                ...controller.draftItems.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: _ItemRow(index: entry.key, item: entry.value),
+                  ),
+                ),
+              ],
+            ),
           );
         }),
       ],
@@ -491,10 +706,10 @@ class _TableHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+        color: const Color(0xFFF7F8FC),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: const Row(
         children: [
@@ -502,7 +717,7 @@ class _TableHeader extends StatelessWidget {
             flex: 3,
             child: Text(
               'المنتج',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
             ),
           ),
           Expanded(
@@ -510,15 +725,15 @@ class _TableHeader extends StatelessWidget {
             child: Text(
               'الكمية',
               textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
-              'سغر القطعة',
+              'السعر',
               textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
             ),
           ),
           Expanded(
@@ -526,10 +741,10 @@ class _TableHeader extends StatelessWidget {
             child: Text(
               'الإجمالي',
               textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
             ),
           ),
-          SizedBox(width: 32),
+          SizedBox(width: 28),
         ],
       ),
     );
@@ -545,23 +760,41 @@ class _ItemRow extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // اسم المنتج
           Expanded(
             flex: 3,
-            child: Text(
-              item.productNameSnapshot,
-              style: const TextStyle(fontSize: 13),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.productNameSnapshot,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${item.quantity} × ${MoneyUtils.formatMoney(item.unitPrice)}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
             ),
           ),
-          // الكمية (قابلة للتعديل)
           Expanded(
             flex: 2,
             child: _EditableCell(
@@ -577,7 +810,6 @@ class _ItemRow extends GetView<InvoiceController> {
               },
             ),
           ),
-          // السعر (قابل للتعديل)
           Expanded(
             flex: 2,
             child: _EditableCell(
@@ -593,22 +825,27 @@ class _ItemRow extends GetView<InvoiceController> {
               },
             ),
           ),
-          // الإجمالي
           Expanded(
             flex: 2,
             child: Text(
               MoneyUtils.formatMoney(item.lineTotal),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                color: Color(0xFF111827),
+              ),
             ),
           ),
-          // حذف السطر
           GestureDetector(
             onTap: () => controller.removeDraftItem(index),
-            child: const Icon(
-              Icons.remove_circle_outline,
-              color: Colors.red,
-              size: 20,
+            child: const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red,
+                size: 18,
+              ),
             ),
           ),
         ],
@@ -977,10 +1214,6 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
   }
 }
 
-// ==============================
-// المجموع الكلي
-// ==============================
-
 class _TotalSection extends GetView<InvoiceController> {
   const _TotalSection();
 
@@ -990,23 +1223,56 @@ class _TotalSection extends GetView<InvoiceController> {
       () => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade100),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'المبلغ الإجمالي',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F0FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Color(0xFF2563EB),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'إجمالي الفاتورة',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    MoneyUtils.formatMoney(controller.draftTotal),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Text(
-              MoneyUtils.formatMoney(controller.draftTotal),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-                color: Colors.blue.shade700,
+              '${controller.draftItems.length} عنصر',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1026,7 +1292,6 @@ class _PaymentSection extends GetView<InvoiceController> {
       final paid = controller.draftInitialPayment.value;
       final remaining = (total - paid).clamp(0, total);
 
-      // حالة الدفع
       final PaymentStatus status;
       if (paid <= 0) {
         status = PaymentStatus.unpaid;
@@ -1037,96 +1302,103 @@ class _PaymentSection extends GetView<InvoiceController> {
       }
 
       final statusColor = switch (status) {
-        PaymentStatus.unpaid => Colors.red,
-        PaymentStatus.partial => Colors.orange,
-        PaymentStatus.paid => Colors.green,
+        PaymentStatus.unpaid => const Color(0xFFEF4444),
+        PaymentStatus.partial => const Color(0xFFF59E0B),
+        PaymentStatus.paid => const Color(0xFF16A34A),
       };
 
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'الدفع عند الإنشاء',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            Row(
+              children: [
+                const Icon(
+                  Icons.payments_rounded,
+                  size: 18,
+                  color: Color(0xFF2563EB),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'الدفع المقدم',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    status.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
-
-            // حقل المبلغ المدفوع
             TextFormField(
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               initialValue: paid > 0 ? MoneyUtils.formatInput(paid) : '',
               onChanged: (v) {
                 final amount = MoneyUtils.parseAmount(v) ?? 0;
                 controller.setInitialPayment(amount);
               },
               decoration: InputDecoration(
-                labelText: 'المبلغ المدفوع',
-                prefixIcon: const Icon(Icons.payments_outlined),
+                hintText: 'المبلغ المدفوع',
+                filled: true,
+                fillColor: const Color(0xFFF7F8FC),
+                prefixIcon: const Icon(Icons.payments_rounded, size: 20),
                 suffixText: 'من ${MoneyUtils.formatMoney(total)}',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
                 ),
               ),
             ),
             const SizedBox(height: 12),
-
-            // شريط التقدم
             if (total > 0) ...[
               ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
-                  value: total > 0 ? (paid / total).clamp(0.0, 1.0) : 0,
+                  value: (paid / total).clamp(0.0, 1.0),
                   minHeight: 8,
-                  color: statusColor,
-                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                  backgroundColor: const Color(0xFFE5E7EB),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
             ],
-
-            // ملخص
             Row(
               children: [
                 Expanded(
                   child: _PaymentStat(
                     label: 'المدفوع',
                     value: MoneyUtils.formatMoney(paid),
-                    color: Colors.green,
+                    color: const Color(0xFF16A34A),
                   ),
                 ),
                 Expanded(
                   child: _PaymentStat(
                     label: 'المتبقي',
                     value: MoneyUtils.formatMoney(remaining),
-                    color: remaining > 0 ? Colors.red : Colors.grey,
-                  ),
-                ),
-                // badge الحالة
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    status.label,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                    color: remaining > 0 ? const Color(0xFFEF4444) : const Color(0xFF6B7280),
                   ),
                 ),
               ],
@@ -1154,23 +1426,27 @@ class _PaymentStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF6B7280),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
           ),
         ),
       ],
     );
   }
 }
-
-// ==============================
-// رسالة الخطأ
-// ==============================
 
 class _FormErrorMessage extends GetView<InvoiceController> {
   const _FormErrorMessage();
@@ -1185,18 +1461,21 @@ class _FormErrorMessage extends GetView<InvoiceController> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.shade200),
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFFECACA)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.red),
-            const SizedBox(width: 8),
+            const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 controller.invoiceFormError.value!,
-                style: const TextStyle(color: Colors.red),
+                style: const TextStyle(
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -1206,51 +1485,3 @@ class _FormErrorMessage extends GetView<InvoiceController> {
   }
 }
 
-// ==============================
-// زر الحفظ
-// ==============================
-
-class _SaveButton extends GetView<InvoiceController> {
-  const _SaveButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(
-      () => SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton.icon(
-          onPressed: controller.isSavingInvoice.value
-              ? null
-              : () async {
-                  final success = await controller.saveInvoice();
-                  if (success) {
-                    Get.back();
-                    Get.snackbar(
-                      'تم',
-                      'تم حفظ الفاتورة بنجاح',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
-                  }
-                },
-          icon: controller.isSavingInvoice.value
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Icon(Icons.save_outlined),
-          label: Text(
-            controller.isSavingInvoice.value ? 'جاري الحفظ...' : 'حفظ الفاتورة',
-            style: const TextStyle(fontSize: 16),
-          ),
-        ),
-      ),
-    );
-  }
-}

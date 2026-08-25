@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     final database = await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -106,11 +106,15 @@ class DatabaseHelper {
       product_id INTEGER NOT NULL,
       unit_name TEXT NOT NULL,
       conversion_factor REAL NOT NULL DEFAULT 1,
-      sale_price INTEGER NOT NULL,
       cost_price INTEGER,
+      default_sale_price INTEGER NOT NULL DEFAULT 0,
+      can_buy INTEGER NOT NULL DEFAULT 1,
+      can_sell INTEGER NOT NULL DEFAULT 1,
+      is_default_sell_unit INTEGER NOT NULL DEFAULT 0,
       is_base_unit INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT,
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )
   ''');
@@ -572,6 +576,135 @@ class DatabaseHelper {
         'UPDATE inventory_transactions SET warehouse_id = ? WHERE warehouse_id IS NULL',
         [defaultWarehouseId],
       );
+    }
+
+    if (oldVersion < 6) {
+      // ==============================
+      // v6: وحدات توزيع كاملة
+      //   - إعادة بناء product_units بطريقة آمنة لحذف العمود القديم sale_price
+      //   - نقل sale_price -> default_sale_price
+      //   - الحفاظ على جميع البيانات (id, product_id, ...)
+      //   - إنشاء وحدة أساسية افتراضية للمنتجات التي لا تملك وحدات
+      //   - كل شيء داخل transaction لضمان الاتمامية
+      // ==============================
+
+      await db.transaction((txn) async {
+        // تحقق مما إذا كان جدول product_units موجوداً
+        final tables = await txn.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='product_units'");
+        if (tables.isEmpty) {
+          // لم يجد الجدول، أنشئ الجدول الجديد مباشرة
+          await txn.execute('''
+            CREATE TABLE product_units (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              product_id INTEGER NOT NULL,
+              unit_name TEXT NOT NULL,
+              conversion_factor REAL NOT NULL DEFAULT 1,
+              cost_price INTEGER,
+              default_sale_price INTEGER NOT NULL DEFAULT 0,
+              can_buy INTEGER NOT NULL DEFAULT 1,
+              can_sell INTEGER NOT NULL DEFAULT 1,
+              is_default_sell_unit INTEGER NOT NULL DEFAULT 0,
+              is_base_unit INTEGER NOT NULL DEFAULT 0,
+              is_active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT,
+              FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )
+          ''');
+        } else {
+          // جدول قديم موجود - إعادة بنائه لتحويل وحذف sale_price بأمان
+          final cols = await txn.rawQuery("PRAGMA table_info(product_units)");
+          final colNames = cols.map((c) => c['name'] as String).toSet();
+
+          // أعد تسمية الجدول القديم
+          await txn.execute('ALTER TABLE product_units RENAME TO product_units_old');
+
+          // أنشئ الجدول الجديد بالشكل النهائي
+          await txn.execute('''
+            CREATE TABLE product_units (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              product_id INTEGER NOT NULL,
+              unit_name TEXT NOT NULL,
+              conversion_factor REAL NOT NULL DEFAULT 1,
+              cost_price INTEGER,
+              default_sale_price INTEGER NOT NULL DEFAULT 0,
+              can_buy INTEGER NOT NULL DEFAULT 1,
+              can_sell INTEGER NOT NULL DEFAULT 1,
+              is_default_sell_unit INTEGER NOT NULL DEFAULT 0,
+              is_base_unit INTEGER NOT NULL DEFAULT 0,
+              is_active INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT,
+              FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )
+          ''');
+
+          // جهز التعبيرات لاختيار الحقول من الجدول القديم، مع التعامل مع وجود/عدم وجود الأعمدة
+          final defaultSaleExpr = colNames.contains('sale_price')
+              ? "COALESCE(default_sale_price, sale_price, 0)"
+              : "COALESCE(default_sale_price, 0)";
+          final canBuyExpr = colNames.contains('can_buy') ? 'COALESCE(can_buy,1)' : '1';
+          final canSellExpr = colNames.contains('can_sell') ? 'COALESCE(can_sell,1)' : '1';
+          final isDefaultExpr = colNames.contains('is_default_sell_unit') ? 'COALESCE(is_default_sell_unit,0)' : '0';
+          final isBaseExpr = colNames.contains('is_base_unit') ? 'COALESCE(is_base_unit,0)' : '0';
+          final isActiveExpr = colNames.contains('is_active') ? 'COALESCE(is_active,1)' : '1';
+          final createdAtExpr = colNames.contains('created_at') ? 'COALESCE(created_at, datetime(\'now\'))' : "datetime('now')";
+          final updatedAtExpr = colNames.contains('updated_at') ? 'updated_at' : 'NULL';
+
+          // أنسخ كل السجلات من الجدول القديم مع تحويل sale_price -> default_sale_price
+          final insertSql = '''
+            INSERT INTO product_units (
+              id, product_id, unit_name, conversion_factor,
+              cost_price, default_sale_price, can_buy, can_sell,
+              is_default_sell_unit, is_base_unit, is_active, created_at, updated_at
+            )
+            SELECT
+              id, product_id, unit_name, COALESCE(conversion_factor,1),
+              cost_price, $defaultSaleExpr, $canBuyExpr, $canSellExpr,
+              $isDefaultExpr, $isBaseExpr, $isActiveExpr, $createdAtExpr, $updatedAtExpr
+            FROM product_units_old
+          ''';
+
+          await txn.execute(insertSql);
+
+          // احذف الجدول القديم بعد النقل
+          await txn.execute('DROP TABLE product_units_old');
+        }
+
+        // تأكد من أن الوحدة الأساسية مُعلّمة كوحدة بيع افتراضية
+        await txn.rawUpdate('UPDATE product_units SET is_default_sell_unit = 1 WHERE is_base_unit = 1 AND is_default_sell_unit = 0');
+
+        // إنشاء وحدة أساسية لكل منتج لا يملك أي وحدات بعد
+        final orphanProducts = await txn.rawQuery('''
+          SELECT p.id, p.cost_price, p.sale_price
+          FROM products p
+          WHERE NOT EXISTS (
+            SELECT 1 FROM product_units pu WHERE pu.product_id = p.id
+          )
+        ''');
+
+        for (final row in orphanProducts) {
+          await txn.insert('product_units', {
+            'product_id': row['id'],
+            'unit_name': 'قطعة',
+            'conversion_factor': 1.0,
+            'cost_price': row['cost_price'],
+            'default_sale_price': row['sale_price'] ?? 0,
+            'can_buy': 1,
+            'can_sell': 1,
+            'is_default_sell_unit': 1,
+            'is_base_unit': 1,
+            'is_active': 1,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+
+        // Index جديد لتسريع الاستعلامات عن وحدة البيع الافتراضية
+        await txn.execute(
+          'CREATE INDEX IF NOT EXISTS idx_product_units_default_sell '
+          'ON product_units(product_id, is_default_sell_unit)'
+        );
+      });
     }
   }
 

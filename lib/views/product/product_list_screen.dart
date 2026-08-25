@@ -13,6 +13,11 @@ class ProductListScreen extends GetView<ProductController> {
         title: const Text('المنتجات'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.category_outlined),
+            tooltip: 'الأصناف',
+            onPressed: () => Get.toNamed('/product-categories'),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: controller.refreshProducts,
           ),
@@ -21,12 +26,93 @@ class ProductListScreen extends GetView<ProductController> {
       body: Column(
         children: [
           _SearchBar(controller: controller),
+          _CategoryFilterBar(controller: controller),
           const Expanded(child: _ProductList()),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Get.toNamed('/product-form'),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+// ==============================
+// Category Filter Bar
+// ==============================
+
+class _CategoryFilterBar extends StatelessWidget {
+  final ProductController controller;
+
+  const _CategoryFilterBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.categories.isEmpty) return const SizedBox.shrink();
+
+      return SizedBox(
+        height: 40,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          children: [
+            _CategoryChip(
+              label: 'الكل',
+              selected: controller.selectedCategoryId.value == null,
+              onTap: controller.clearCategoryFilter,
+            ),
+            const SizedBox(width: 8),
+            ...controller.categories.map(
+              (category) => Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: _CategoryChip(
+                  label: category.name,
+                  selected: controller.selectedCategoryId.value == category.id,
+                  onTap: () => controller.filterByCategory(category.id),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.blue : Colors.blue.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.blue.withOpacity(0.4)),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.blue,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
       ),
     );
   }
@@ -150,10 +236,39 @@ class _ProductCard extends GetView<ProductController> {
           product.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(
-          'الوصف: ${product.description}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (product.description.isNotEmpty)
+              Text(
+                product.description,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            if (product.categoryName != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Text(
+                    product.categoryName!,
+                    style: TextStyle(
+                      color: Colors.blue.shade700,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
+        isThreeLine: product.categoryName != null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

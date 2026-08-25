@@ -49,7 +49,11 @@ class AppBinding extends Bindings {
     // Controllers — تعتمد على الـ Repositories
     // ==============================
     Get.put<ProductController>(
-      ProductController(Get.find<ProductRepository>(), Get.find<CategoryRepository>()),
+      ProductController(
+        Get.find<ProductRepository>(),
+        Get.find<ProductUnitRepository>(),
+        Get.find<CategoryRepository>(),
+      ),
       permanent: true,
     );
     Get.put<PartyController>(
