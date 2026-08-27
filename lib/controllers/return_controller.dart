@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../repositories/return_repository.dart';
 import '../models/return_model.dart';
 import '../core/services/app_event_bus.dart';
+import '../core/utils/unit_conversion.dart';
+import '../models/product_unit_model.dart';
 
 enum ReturnLoadState { idle, loading, error }
 
@@ -32,6 +34,9 @@ class ReturnController extends GetxController {
   final RxBool isSaving = false.obs;
   final RxnString formError = RxnString();
 
+  // نوع المرتجع الحالي (يحدّد ما إن كان المرتجع يُقصّ على المخزون الفعلي)
+  ReturnType? currentReturnType;
+
   // المجموع الكلي للمرتجع الحالي
   int get returnTotal => returnableItems.fold(
     0, (sum, i) => sum + i.lineTotal,
@@ -51,10 +56,11 @@ class ReturnController extends GetxController {
   // جلب الأسطر القابلة للإرجاع
   // ==============================
 
-  Future<void> loadReturnableItems(int invoiceId) async {
+  Future<void> loadReturnableItems(int invoiceId, {ReturnType? type}) async {
     try {
       isLoadingItems.value = true;
       formError.value = null;
+      currentReturnType = type;
       final items = await repo.getReturnableItems(invoiceId);
       returnableItems.assignAll(items);
 
@@ -69,7 +75,7 @@ class ReturnController extends GetxController {
   }
 
   // ==============================
-  // تحديث الكمية المحددة للإرجاع
+  // تحديث الكمية المحددة للإرجاع (التحقق بالوحدة الأساسية)
   // ==============================
 
   void updateReturnQuantity(int index, double quantity) {
@@ -82,37 +88,67 @@ class ReturnController extends GetxController {
       return;
     }
 
-    if (quantity > item.availableToReturn) {
+    final requestedBase = UnitConversion.toBaseQuantity(
+      quantity,
+      item.selectedUnitConversionFactor,
+    );
+
+    if (requestedBase > item.remainingBaseQuantity + 0.0001) {
+      final unitLabel = item.selectedUnitName ??
+          item.baseUnitName ??
+          'وحدة أساسية';
       formError.value =
-      'الكمية ($quantity) تتجاوز المتاح للإرجاع '
-          '(${item.availableToReturn}) للمنتج "${item.productName}"';
+          'لا يمكن إرجاع هذه الكمية. الكمية المتبقية القابلة للإرجاع '
+          'هي ${_fmtQty(item.remainingBaseQuantity)} $unitLabel '
+          'للمنتج "${item.productName}".';
       return;
     }
 
     formError.value = null;
-    returnableItems[index] = ReturnableItem(
-      invoiceItemId: item.invoiceItemId,
-      productId: item.productId,
-      productName: item.productName,
-      originalQuantity: item.originalQuantity,
-      returnedSoFar: item.returnedSoFar,
-      unitPrice: item.unitPrice,
-      selectedQuantity: quantity,
-    );
+    returnableItems[index] = item.copyWith(selectedQuantity: quantity);
     returnableItems.refresh();
   }
 
-  // تحديد الكمية الكاملة لسطر معين
+  // ==============================
+  // تغيير وحدة الإرجاع لسطر معيّن
+  // ==============================
+
+  void updateReturnUnit(int index, ProductUnitModel unit) {
+    if (index < 0 || index >= returnableItems.length) return;
+
+    final item = returnableItems[index];
+    final keepBase = item.selectedBaseQuantity;
+
+    returnableItems[index] = item.copyWith(
+      selectedUnitId: unit.id,
+      selectedUnitName: unit.unitName,
+      selectedUnitConversionFactor: unit.conversionFactor,
+    );
+    returnableItems.refresh();
+    formError.value = null;
+
+    // أعد حساب الكمية بالوحدة الجديدة لنفس المقدار الأساسي المحتفظ به
+    final updated = returnableItems[index];
+    if (keepBase > 0) {
+      updateReturnQuantity(index, updated.remainingInUnit(keepBase));
+    }
+  }
+
+  /// الكمية الكاملة الممكنة (بالوحدة المختارة) = المتبقي بالأساسية ÷ معاملها
   void selectFullQuantity(int index) {
     if (index < 0 || index >= returnableItems.length) return;
     final item = returnableItems[index];
-    updateReturnQuantity(index, item.availableToReturn);
+    final fullInUnit = item.remainingInUnit(item.remainingBaseQuantity);
+    updateReturnQuantity(index, fullInUnit);
   }
 
   // تصفير سطر معين
   void clearQuantity(int index) {
     updateReturnQuantity(index, 0);
   }
+
+  String _fmtQty(double v) =>
+      v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(2);
 
   // ==============================
   // حفظ المرتجع

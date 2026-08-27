@@ -2,11 +2,15 @@ import 'package:get/get.dart';
 import '../repositories/invoice_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/party_repository.dart';
+import '../repositories/product_unit_repository.dart';
+import '../repositories/batch_repository.dart';
+import '../repositories/warehouse_repository.dart';
 import '../models/invoice_model.dart';
 import '../models/product_model.dart';
 import '../models/party_model.dart';
+import '../models/product_unit_model.dart';
+import '../models/warehouse_model.dart';
 import '../models/invoice_draft.dart';
-import '../controllers/warehouse_controller.dart';
 import '../core/services/app_event_bus.dart';
 
 enum InvoiceLoadState { idle, loading, loadingMore, error }
@@ -15,8 +19,18 @@ class InvoiceController extends GetxController {
   final InvoiceRepository repo;
   final ProductRepository productRepo;
   final PartyRepository partyRepo;
+  final ProductUnitRepository unitRepo;
+  final BatchRepository batchRepo;
+  final WarehouseRepository warehouseRepo;
 
-  InvoiceController(this.repo, this.productRepo, this.partyRepo);
+  InvoiceController(
+    this.repo,
+    this.productRepo,
+    this.partyRepo, {
+    required this.unitRepo,
+    required this.batchRepo,
+    required this.warehouseRepo,
+  });
 
   // ==============================
   // State: قائمة الفواتير
@@ -49,9 +63,20 @@ class InvoiceController extends GetxController {
   final RxString draftNotes = ''.obs;
   final RxList<InvoiceItemDraft> draftItems = <InvoiceItemDraft>[].obs;
 
-  // قائمة المنتجات والأطراف المتاحة للاختيار في شاشة الفاتورة
+  // قائمة المنتجات والأطراف والمستودعات المتاحة للاختيار في شاشة الفاتورة
   final RxList<ProductModel> availableProducts = <ProductModel>[].obs;
   final RxList<PartyModel> availableParties = <PartyModel>[].obs;
+  final RxList<WarehouseModel> availableWarehouses = <WarehouseModel>[].obs;
+
+  /// المستودع المختار ككائن (لعرض الاسم في الواجهة)
+  WarehouseModel? get selectedWarehouse {
+    final id = draftWarehouseId.value;
+    if (id == null) return null;
+    for (final w in availableWarehouses) {
+      if (w.id == id) return w;
+    }
+    return null;
+  }
 
   final RxBool isSavingInvoice = false.obs;
   final RxnString invoiceFormError = RxnString();
@@ -142,18 +167,20 @@ class InvoiceController extends GetxController {
   // ==============================
 
   /// يُستدعى عند فتح شاشة "فاتورة جديدة"
-  /// يُحمِّل قوائم المنتجات والأطراف المتاحة للاختيار منها
+  /// يُحمِّل قوائم المنتجات والأطراف والمستودعات المتاحة للاختيار منها
   Future<void> startNewInvoice() async {
     draftType.value = InvoiceType.sale;
     draftParty.value = null;
-    draftWarehouseId.value = null;
     draftNotes.value = '';
     draftItems.clear();
     draftInitialPayment.value = 0;
     invoiceFormError.value = null;
 
-    final defaultWarehouse = await Get.find<WarehouseController>().repo.getDefaultWarehouse();
-    draftWarehouseId.value = defaultWarehouse?.id;
+    // المستودع الافتراضي يُختار تلقائياً إن وُجد
+    await loadAvailableWarehouses();
+    final defaultWarehouse = await warehouseRepo.getDefaultWarehouse();
+    draftWarehouseId.value =
+        defaultWarehouse?.id ?? availableWarehouses.firstOrNull?.id;
 
     await loadAvailableProducts();
     await _loadPartiesForType(InvoiceType.sale); // ← فلترة من البداية
@@ -167,6 +194,46 @@ class InvoiceController extends GetxController {
   Future<void> loadAvailableParties() async {
     final page = await partyRepo.getParties();
     availableParties.assignAll(page.parties);
+  }
+
+  Future<void> loadAvailableWarehouses() async {
+    try {
+      final list = await warehouseRepo.getAllWarehouses();
+      availableWarehouses.assignAll(list);
+    } catch (e) {
+      invoiceFormError.value = 'فشل تحميل المستودعات: $e';
+    }
+  }
+
+  // ==============================
+  // بيانات سطر الفاتورة: الوحدات والدفعات والمخزون
+  // ==============================
+  // هذه الدوال تُفوِّض الاستعلام للـ Repositories الموجودة ولا تعيد
+  // تنفيذ أي منطق حسابي (FEFO والتحويل موجودة في الريبو/الموديل).
+
+  /// وحدات المنتج القابلة للاستخدام حسب نوع الفاتورة
+  /// (بيع → canSell، شراء → canBuy)
+  Future<List<ProductUnitModel>> getUnitsForProduct(int productId) {
+    return draftType.value == InvoiceType.sale
+        ? unitRepo.getSellableUnits(productId)
+        : unitRepo.getBuyableUnits(productId);
+  }
+
+  /// دفعات المنتج المتاحة في المستودع المختار، مرتبة FEFO
+  /// (الأقرب انتهاءً أولاً) — نفس الترتيب الذي تستخدمه عملية الحفظ.
+  Future<List<BatchStock>> getAvailableBatches(int productId) {
+    return batchRepo.getAvailableBatchesForProduct(
+      productId,
+      warehouseId: draftWarehouseId.value,
+    );
+  }
+
+  /// الكمية المتاحة من منتج في المستودع المختار (بالوحدة الأساسية)
+  Future<double> getAvailableQuantity(int productId) {
+    return repo.getAvailableQuantity(
+      productId,
+      warehouseId: draftWarehouseId.value,
+    );
   }
 
   // ==============================
@@ -207,6 +274,11 @@ class InvoiceController extends GetxController {
   }
 
   /// إضافة سطر جديد للفاتورة الحالية
+  ///
+  /// [unitPrice] إن لم يُحدد يُؤخذ من المنتج (بيع → salePrice، شراء → costPrice).
+  /// [batchAllocations] توزيع الدفعات (للبيع) — فارغة تعني "تلقائي FEFO"
+  /// ويتولى Repository الحفظ التخصيص عبر BatchRepository.
+  /// معلومات [newBatchNumber]... تُستخدم في فواتير الشراء لإنشاء دفعة جديدة.
   void addDraftItem({
     required ProductModel product,
     required double quantity,
@@ -214,6 +286,10 @@ class InvoiceController extends GetxController {
     int? unitId,
     String? unitName,
     double conversionFactor = 1,
+    List<BatchAllocationSnapshot> batchAllocations = const [],
+    String? newBatchNumber,
+    String? newProductionDate,
+    String? newExpiryDate,
   }) {
     if (product.id == null) {
       invoiceFormError.value =
@@ -245,8 +321,12 @@ class InvoiceController extends GetxController {
         quantity: quantity,
         unitPrice: price,
         unitId: unitId,
-        unitNameSnapshot: unitName ?? 'قطعة',
+        unitNameSnapshot: unitName,
         conversionFactorSnapshot: conversionFactor,
+        batchAllocations: batchAllocations,
+        newBatchNumber: newBatchNumber,
+        newProductionDate: newProductionDate,
+        newExpiryDate: newExpiryDate,
       ),
     );
 
@@ -257,38 +337,76 @@ class InvoiceController extends GetxController {
     draftItems.removeAt(index);
   }
 
-  void updateDraftItem(int index, {double? quantity, int? unitPrice, int? unitId, String? unitNameSnapshot, double? conversionFactorSnapshot}) {
+  /// تعديل سطر موجود — القيم التي لا تُمرَّر تبقى كما هي.
+  void updateDraftItem(
+    int index, {
+    double? quantity,
+    int? unitPrice,
+    int? unitId,
+    bool clearUnit = false,
+    String? unitNameSnapshot,
+    double? conversionFactorSnapshot,
+    List<BatchAllocationSnapshot>? batchAllocations,
+    String? newBatchNumber,
+    String? newProductionDate,
+    String? newExpiryDate,
+    bool clearBatchInfo = false,
+  }) {
+    if (index < 0 || index >= draftItems.length) return;
     final old = draftItems[index];
+    final hasNewBatch = !clearBatchInfo &&
+        ((newBatchNumber ?? old.newBatchNumber)?.trim().isNotEmpty ?? false);
     draftItems[index] = InvoiceItemDraft(
       productId: old.productId,
       productNameSnapshot: old.productNameSnapshot,
       quantity: quantity ?? old.quantity,
       unitPrice: unitPrice ?? old.unitPrice,
-      unitId: unitId ?? old.unitId,
-      unitNameSnapshot: unitNameSnapshot ?? old.unitNameSnapshot,
-      conversionFactorSnapshot: conversionFactorSnapshot ?? old.conversionFactorSnapshot,
-        batchId: old.batchId,
-        batchAllocations: old.batchAllocations,
-      );
-      draftItems.refresh();
-    }
+      unitId: clearUnit ? null : (unitId ?? old.unitId),
+      unitNameSnapshot:
+          clearUnit ? null : (unitNameSnapshot ?? old.unitNameSnapshot),
+      conversionFactorSnapshot:
+          conversionFactorSnapshot ?? old.conversionFactorSnapshot,
+      batchId: old.batchId,
+      batchAllocations: batchAllocations ?? old.batchAllocations,
+      newBatchNumber: hasNewBatch
+          ? (newBatchNumber ?? old.newBatchNumber)
+          : null,
+      newProductionDate: hasNewBatch
+          ? (newProductionDate ?? old.newProductionDate)
+          : null,
+      newExpiryDate: hasNewBatch ? (newExpiryDate ?? old.newExpiryDate) : null,
+    );
+    draftItems.refresh();
+  }
 
-    /// تحديث دفعات السطر في الـ Draft (يُستخدم بعد تعديل توزيع الدفعات يدوياً)
-    void setDraftItemBatchAllocations(int index, List<BatchAllocationSnapshot> allocations, {int? batchId}) {
-      final old = draftItems[index];
-      draftItems[index] = InvoiceItemDraft(
-        productId: old.productId,
-        productNameSnapshot: old.productNameSnapshot,
-        quantity: old.quantity,
-        unitPrice: old.unitPrice,
-        unitId: old.unitId,
-        unitNameSnapshot: old.unitNameSnapshot,
-        conversionFactorSnapshot: old.conversionFactorSnapshot,
-        batchId: batchId ?? (allocations.isNotEmpty ? allocations.first.batchId : old.batchId),
-        batchAllocations: allocations,
-      );
-      draftItems.refresh();
-    }
+  /// تحديث دفعات السطر في الـ Draft (يُستخدم بعد تعديل توزيع الدفعات يدوياً)
+  void setDraftItemBatchAllocations(
+    int index,
+    List<BatchAllocationSnapshot> allocations, {
+    int? batchId,
+  }) {
+    if (index < 0 || index >= draftItems.length) return;
+    final old = draftItems[index];
+    draftItems[index] = InvoiceItemDraft(
+      productId: old.productId,
+      productNameSnapshot: old.productNameSnapshot,
+      quantity: old.quantity,
+      unitPrice: old.unitPrice,
+      unitId: old.unitId,
+      unitNameSnapshot: old.unitNameSnapshot,
+      conversionFactorSnapshot: old.conversionFactorSnapshot,
+      batchId: batchId ?? (allocations.isNotEmpty ? allocations.first.batchId : old.batchId),
+      batchAllocations: allocations,
+      newBatchNumber: old.newBatchNumber,
+      newProductionDate: old.newProductionDate,
+      newExpiryDate: old.newExpiryDate,
+    );
+    draftItems.refresh();
+  }
+
+  /// مجموع الكميات بالوحدة الأساسية (لتلخيص الفاتورة)
+  double get draftTotalBaseQuantity =>
+      draftItems.fold(0, (sum, item) => sum + item.baseQuantity);
 
   // ==============================
   // الإضافة السريعة: منتج جديد بدون مغادرة شاشة الفاتورة
@@ -378,6 +496,31 @@ class InvoiceController extends GetxController {
       return false;
     }
 
+    // التحقق من اتساق التوزيع اليدوي للدفعات (للبيع فقط).
+    // مجموع الدفعات المخصصة يدوياً يجب أن يساوي كمية السطر بالوحدة الأساسية.
+    // (توفر الكمية نفسها يتحقق منه Repository داخل transaction الحفظ)
+    if (draftType.value == InvoiceType.sale) {
+      for (final item in draftItems) {
+        if (item.batchAllocations.isEmpty) continue; // تخصيص تلقائي FEFO
+
+        final allocatedSum = item.batchAllocations
+            .fold<double>(0, (sum, allocation) => sum + allocation.quantity);
+        if ((allocatedSum - item.baseQuantity).abs() > 0.0001) {
+          invoiceFormError.value =
+              'توزيع الدفعات لـ "${item.productNameSnapshot}" '
+              '(${_fmtQty(allocatedSum)}) لا يطابق الكمية المطلوبة '
+              '(${_fmtQty(item.baseQuantity)})';
+          return false;
+        }
+        if (item.batchAllocations.any((allocation) => allocation.quantity <= 0)) {
+          invoiceFormError.value =
+              'كمية السحب من كل دفعة يجب أن تكون أكبر من صفر '
+              'في "${item.productNameSnapshot}"';
+          return false;
+        }
+      }
+    }
+
     isSavingInvoice.value = true;
 
     try {
@@ -412,6 +555,9 @@ class InvoiceController extends GetxController {
   // ==============================
   // Helpers
   // ==============================
+
+  static String _fmtQty(double value) =>
+      value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(2);
 
   void _reset() {
     invoices.clear();

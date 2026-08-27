@@ -4,7 +4,13 @@ import '../core/database/database_helper.dart';
 import '../models/product_unit_model.dart';
 
 class ProductUnitRepository {
-  Future<Database> get _db async => DatabaseHelper.instance.database;
+  ProductUnitRepository({Future<Database> Function()? dbProvider})
+      : _dbProvider =
+            dbProvider ?? (() async => DatabaseHelper.instance.database);
+
+  final Future<Database> Function() _dbProvider;
+
+  Future<Database> get _db async => _dbProvider();
 
   // ==============================
   // Read

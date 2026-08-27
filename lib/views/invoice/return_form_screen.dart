@@ -4,6 +4,8 @@ import '../../core/utils/money_utils.dart';
 import '../../controllers/return_controller.dart';
 import '../../models/invoice_model.dart';
 import '../../models/return_model.dart';
+import '../../models/product_unit_model.dart';
+import '../../repositories/product_unit_repository.dart';
 
 class ReturnFormScreen extends StatefulWidget {
   const ReturnFormScreen({super.key});
@@ -83,6 +85,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                 index: entry.key,
                 item: entry.value,
                 controller: controller,
+                returnType: returnType,
               ),
             ),
             const SizedBox(height: 16),
@@ -286,11 +289,13 @@ class _ReturnItemRow extends StatefulWidget {
   final int index;
   final ReturnableItem item;
   final ReturnController controller;
+  final ReturnType returnType;
 
   const _ReturnItemRow({
     required this.index,
     required this.item,
     required this.controller,
+    required this.returnType,
   });
 
   @override
@@ -299,15 +304,30 @@ class _ReturnItemRow extends StatefulWidget {
 
 class _ReturnItemRowState extends State<_ReturnItemRow> {
   late TextEditingController _qtyCtrl;
+  final _unitRepo = ProductUnitRepository();
+  final _units = <ProductUnitModel>[].obs;
 
   @override
   void initState() {
     super.initState();
     _qtyCtrl = TextEditingController(
       text: widget.item.selectedQuantity > 0
-          ? widget.item.selectedQuantity.toString()
+          ? _fmt(widget.item.selectedQuantity)
           : '',
     );
+    _loadUnits();
+  }
+
+  Future<void> _loadUnits() async {
+    try {
+      // وحدة الإرجاع: وحدات قابلة للبيع لمرتجع مبيعات، وقابلة للشراء لمرتجع مشتريات
+      final units = widget.returnType == ReturnType.saleReturn
+          ? await _unitRepo.getSellableUnits(widget.item.productId)
+          : await _unitRepo.getBuyableUnits(widget.item.productId);
+      if (mounted) _units.assignAll(units);
+    } catch (_) {
+      // لا نكسر النموذج عند فشل جلب الوحدات
+    }
   }
 
   @override
@@ -316,18 +336,22 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
     super.dispose();
   }
 
+  String get _baseUnitName =>
+      widget.item.baseUnitName ?? 'وحدة أساسية';
+
   @override
   Widget build(BuildContext context) {
+    final selectedQty = widget.item.selectedQuantity;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: widget.item.selectedQuantity > 0
+        color: selectedQty > 0
             ? Colors.purple.withOpacity(0.04)
             : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: widget.item.selectedQuantity > 0
+          color: selectedQty > 0
               ? Colors.purple.withOpacity(0.3)
               : Colors.grey.shade200,
         ),
@@ -342,28 +366,82 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
           ),
           const SizedBox(height: 6),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // معلومات الكمية
+              // معلومات الكمية (بالوحدة الأساسية للعرض الموحّد)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _QtyInfo(
-                      label: 'الكمية الأصلية',
-                      value: _fmt(widget.item.originalQuantity),
+                      label: 'الأصلي',
+                      value: '${_fmt(widget.item.originalQuantity)} '
+                          '${widget.item.invoiceUnitName ?? _baseUnitName}',
                       color: Colors.grey,
                     ),
-                    if (widget.item.returnedSoFar > 0)
+                    if (widget.item.returnedBaseQuantity > 0)
                       _QtyInfo(
                         label: 'مُرجع سابقاً',
-                        value: _fmt(widget.item.returnedSoFar),
+                        value:
+                            '${_fmt(widget.item.returnedBaseQuantity)} $_baseUnitName',
                         color: Colors.orange,
                       ),
                     _QtyInfo(
-                      label: 'متاح للإرجاع',
-                      value: _fmt(widget.item.availableToReturn),
+                      label: 'المتبقي',
+                      value:
+                          '${_fmt(widget.item.remainingBaseQuantity)} $_baseUnitName',
                       color: Colors.green,
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'وحدة الإرجاع',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                    const SizedBox(height: 4),
+                    Obx(() {
+                      if (_units.isEmpty) {
+                        return Text(
+                          widget.item.selectedUnitName ?? _baseUnitName,
+                          style: const TextStyle(fontSize: 13),
+                        );
+                      }
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButton<int>(
+                          value: widget.item.selectedUnitId,
+                          isDense: true,
+                          underline: const SizedBox.shrink(),
+                          items: _units
+                              .map(
+                                (u) => DropdownMenuItem<int>(
+                                  value: u.id,
+                                  child: Text(
+                                    '${u.unitName} (1 = ${_fmt(u.conversionFactor)} $_baseUnitName)',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (id) {
+                            if (id == null) return;
+                            final unit = _units.firstWhere((u) => u.id == id);
+                            widget.controller.updateReturnUnit(
+                              widget.index,
+                              unit,
+                            );
+                            final updated =
+                                widget.controller.returnableItems[widget.index];
+                            _qtyCtrl.text = updated.selectedQuantity > 0
+                                ? _fmt(updated.selectedQuantity)
+                                : '';
+                          },
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -404,7 +482,11 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
                   GestureDetector(
                     onTap: () {
                       widget.controller.selectFullQuantity(widget.index);
-                      _qtyCtrl.text = widget.item.availableToReturn.toString();
+                      final updated =
+                          widget.controller.returnableItems[widget.index];
+                      _qtyCtrl.text = updated.selectedQuantity > 0
+                          ? _fmt(updated.selectedQuantity)
+                          : '';
                     },
                     child: Text(
                       'الكل',
@@ -421,7 +503,7 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
           ),
 
           // الإجمالي إذا كانت هناك كمية
-          if (widget.item.selectedQuantity > 0) ...[
+          if (selectedQty > 0) ...[
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,

@@ -83,6 +83,7 @@ class InvoiceRepository {
             item.productId,
             requestedBaseQty,
             warehouseId: draft.warehouseId,
+            executor: txn,
           );
 
           final allocated = allocations.fold<double>(0, (sum, e) => sum + e.quantity);
@@ -147,6 +148,7 @@ class InvoiceRepository {
                     item.productId,
                     item.baseQuantity,
                     warehouseId: draft.warehouseId,
+                    executor: txn,
                   )).map((allocation) => BatchAllocationSnapshot(
                     batchId: allocation.batchId,
                     quantity: allocation.quantity,
@@ -168,13 +170,23 @@ class InvoiceRepository {
             });
           }
         } else {
+          // شراء: إن أدخل المستخدم معلومات دفعة جديدة نبحث عنها أو
+          // ننشئها داخل نفس الـ transaction، وإلا تبقى الدفعة null.
+          final purchaseBatchId = await batchRepo.findOrCreateBatchInTransaction(
+            txn,
+            productId: item.productId,
+            batchNumber: item.newBatchNumber,
+            productionDate: item.newProductionDate,
+            expiryDate: item.newExpiryDate,
+          );
+
           await txn.insert('inventory_transactions', {
             'product_id': item.productId,
             'type': draft.type.name.toUpperCase(),
             'quantity': item.baseQuantity,
             'invoice_id': invoiceId,
             'warehouse_id': draft.warehouseId,
-            'batch_id': item.batchId,
+            'batch_id': item.batchId ?? purchaseBatchId,
             'unit_id': item.unitId,
           });
         }
@@ -260,8 +272,10 @@ class InvoiceRepository {
           CASE
             WHEN type = 'PURCHASE'       THEN quantity
             WHEN type = 'SALE_RETURN'    THEN quantity
+            WHEN type = 'TRANSFER_IN'    THEN quantity
             WHEN type = 'SALE'            THEN -quantity
             WHEN type = 'PURCHASE_RETURN' THEN -quantity
+            WHEN type = 'TRANSFER_OUT'    THEN -quantity
             ELSE 0
           END
         ), 0) AS available
@@ -305,10 +319,83 @@ class InvoiceRepository {
       whereArgs: [invoiceId],
     );
 
+    // اسم المستودع (قد يكون null في بيانات قديمة جداً)
+    final warehouseId = invoiceResult.first['warehouse_id'] as int?;
+    String? warehouseName;
+    if (warehouseId != null) {
+      final warehouseRows = await db.query(
+        'warehouses',
+        columns: ['name'],
+        where: 'id = ?',
+        whereArgs: [warehouseId],
+        limit: 1,
+      );
+      if (warehouseRows.isNotEmpty) {
+        warehouseName = warehouseRows.first['name'] as String?;
+      }
+    }
+
+    final batchAllocations = await _getAllocatedBatchesByProduct(db, invoiceId);
+
     return InvoiceWithItems(
       invoice: InvoiceModel.fromMap(invoiceResult.first),
       items: itemsResult.map((e) => InvoiceItemModel.fromMap(e)).toList(),
+      warehouseName: warehouseName,
+      batchesByProductId: batchAllocations,
     );
+  }
+
+  /// الدفعات المخصصة فعلياً لأسطر فاتورة معينة، مجمعة حسب المنتج.
+  /// المصدر: inventory_transactions المرتبطة بالفاتورة (نوع SALE/PURCHASE
+  /// فقط — نستثني حركات المرتجعات لأنها تحمل نفس invoice_id).
+  /// الفواتير المحفوظة قبل تتبع الدفعات تُعيد خريطة فارغة.
+  Future<Map<int, List<BatchAllocationSnapshot>>> _getAllocatedBatchesByProduct(
+    DatabaseExecutor db,
+    int invoiceId,
+  ) async {
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        it.product_id,
+        it.batch_id,
+        b.batch_number,
+        b.expiry_date,
+        SUM(
+          CASE
+            WHEN it.type = 'SALE' THEN -it.quantity
+            ELSE it.quantity
+          END
+        ) AS allocated
+      FROM inventory_transactions it
+      LEFT JOIN batches b ON b.id = it.batch_id
+      WHERE it.invoice_id = ?
+        AND it.type IN ('SALE','PURCHASE')
+        AND it.batch_id IS NOT NULL
+      GROUP BY it.product_id, it.batch_id
+      HAVING allocated > 0
+      ORDER BY b.expiry_date ASC
+    ''',
+      [invoiceId],
+    );
+
+    final result = <int, List<BatchAllocationSnapshot>>{};
+    for (final row in rows) {
+      final productId = row['product_id'] as int;
+      final batchId = row['batch_id'] as int;
+      final quantity = (row['allocated'] as num).toDouble();
+
+      final entry = result.putIfAbsent(productId, () => []);
+      entry.add(
+        BatchAllocationSnapshot(
+          batchId: batchId,
+          quantity: quantity,
+          batchNumber:
+              (row['batch_number'] as String?) ?? 'بدون رقم',
+          expiryDate: row['expiry_date'] as String?,
+        ),
+      );
+    }
+    return result;
   }
 
   Future<InvoicePage> getAllInvoices({

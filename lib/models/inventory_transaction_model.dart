@@ -4,10 +4,14 @@ class InventoryTransactionModel {
   final int productId;
   final InventoryTransactionType type; // ← String إلى enum
   final double quantity; // ← دائماً بالوحدة الأساسية (القطعة)
-  final int invoiceId;
+  final int? invoiceId; // ← اختياري (تحويلات المخزون لا تملك فاتورة)
   final int? warehouseId;
   final int? batchId;
   final int? unitId;
+
+  /// معرّف يُربط حركتي التحويل معاً (تحويل خارج + تحويل داخل) في عملية واحدة.
+  final int? transferId;
+
   final String? createdAt;
 
   InventoryTransactionModel({
@@ -15,10 +19,11 @@ class InventoryTransactionModel {
     required this.productId,
     required this.type,
     required this.quantity,
-    required this.invoiceId,
+    this.invoiceId,
     this.warehouseId,
     this.batchId,
     this.unitId,
+    this.transferId,
     this.createdAt,
   });
 
@@ -32,6 +37,7 @@ class InventoryTransactionModel {
       'warehouse_id': warehouseId,
       'batch_id': batchId,
       'unit_id': unitId,
+      'transfer_id': transferId,
       'created_at': createdAt,
     };
   }
@@ -46,6 +52,7 @@ class InventoryTransactionModel {
       warehouseId: map['warehouse_id'],
       batchId: map['batch_id'],
       unitId: map['unit_id'],
+      transferId: map['transfer_id'],
       createdAt: map['created_at'],
     );
   }
@@ -59,6 +66,7 @@ class InventoryTransactionModel {
     int? warehouseId,
     int? batchId,
     int? unitId,
+    int? transferId,
     String? createdAt,
   }) {
     return InventoryTransactionModel(
@@ -70,6 +78,7 @@ class InventoryTransactionModel {
       warehouseId: warehouseId ?? this.warehouseId,
       batchId: batchId ?? this.batchId,
       unitId: unitId ?? this.unitId,
+      transferId: transferId ?? this.transferId,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -80,13 +89,17 @@ enum InventoryTransactionType {
   sale,
   purchase,
   saleReturn,
-  purchaseReturn;
+  purchaseReturn,
+  transferOut,
+  transferIn;
 
   String get label => switch (this) {
     InventoryTransactionType.sale            => 'بيع',
     InventoryTransactionType.purchase        => 'شراء',
     InventoryTransactionType.saleReturn      => 'مرتجع مبيعات',
     InventoryTransactionType.purchaseReturn  => 'مرتجع مشتريات',
+    InventoryTransactionType.transferOut     => 'تحويل خارج',
+    InventoryTransactionType.transferIn      => 'تحويل داخل',
   };
 
   String get dbValue => switch (this) {
@@ -94,6 +107,8 @@ enum InventoryTransactionType {
     InventoryTransactionType.purchase        => 'PURCHASE',
     InventoryTransactionType.saleReturn      => 'SALE_RETURN',
     InventoryTransactionType.purchaseReturn  => 'PURCHASE_RETURN',
+    InventoryTransactionType.transferOut     => 'TRANSFER_OUT',
+    InventoryTransactionType.transferIn      => 'TRANSFER_IN',
   };
 
   static InventoryTransactionType fromDb(String value) =>
@@ -102,6 +117,8 @@ enum InventoryTransactionType {
         'PURCHASE'         => InventoryTransactionType.purchase,
         'SALE_RETURN'      => InventoryTransactionType.saleReturn,
         'PURCHASE_RETURN'  => InventoryTransactionType.purchaseReturn,
+        'TRANSFER_OUT'     => InventoryTransactionType.transferOut,
+        'TRANSFER_IN'      => InventoryTransactionType.transferIn,
         _ => throw Exception('Unknown type: $value'),
       };
 
@@ -111,5 +128,12 @@ enum InventoryTransactionType {
     InventoryTransactionType.purchase        => true,
     InventoryTransactionType.saleReturn      => true,
     InventoryTransactionType.purchaseReturn  => false,
+    InventoryTransactionType.transferOut     => false,
+    InventoryTransactionType.transferIn      => true,
   };
+
+  /// هل هذه الحركة ضمن عمليات التحويل بين المستودعات؟
+  bool get isTransfer =>
+      this == InventoryTransactionType.transferOut ||
+      this == InventoryTransactionType.transferIn;
 }

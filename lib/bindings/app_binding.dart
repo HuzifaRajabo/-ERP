@@ -12,6 +12,7 @@ import '../repositories/category_repository.dart';
 import '../repositories/batch_repository.dart';
 import '../repositories/product_unit_repository.dart';
 import '../repositories/warehouse_repository.dart';
+import '../repositories/stock_transfer_repository.dart';
 import '../controllers/product_controller.dart';
 import '../controllers/party_controller.dart';
 import '../controllers/invoice_controller.dart';
@@ -44,6 +45,13 @@ class AppBinding extends Bindings {
     Get.put<BatchRepository>(BatchRepository(), permanent: true);
     Get.put<ProductUnitRepository>(ProductUnitRepository(), permanent: true);
     Get.put<WarehouseRepository>(WarehouseRepository(), permanent: true);
+    Get.put<StockTransferRepository>(
+      StockTransferRepository(
+        Get.find<BatchRepository>(),
+        Get.find<ProductUnitRepository>(),
+      ),
+      permanent: true,
+    );
 
     // ==============================
     // Controllers — تعتمد على الـ Repositories
@@ -65,6 +73,9 @@ class AppBinding extends Bindings {
         Get.find<InvoiceRepository>(),
         Get.find<ProductRepository>(),
         Get.find<PartyRepository>(),
+        unitRepo: Get.find<ProductUnitRepository>(),
+        batchRepo: Get.find<BatchRepository>(),
+        warehouseRepo: Get.find<WarehouseRepository>(),
       ),
       permanent: true,
     );

@@ -17,6 +17,8 @@ import 'views/invoice/return_form_screen.dart';
 import 'views/expense/expense_list_screen.dart';
 import 'views/expense/expense_form_screen.dart';
 import 'views/report/report_screen.dart';
+import 'views/warehouse/warehouse_form_screen.dart';
+import 'views/warehouse/transfer_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +76,8 @@ class MyApp extends StatelessWidget {
           name: '/return-details',
           page: () => const ReturnDetailsScreen(),
         ),
+        GetPage(name: '/warehouse-form', page: () => const WarehouseFormScreen()),
+        GetPage(name: '/stock-transfer', page: () => const TransferScreen()),
       ],
     );
   }

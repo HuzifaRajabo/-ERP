@@ -5,7 +5,12 @@ import '../core/database/database_helper.dart';
 import '../models/report_model.dart';
 
 class ReportRepository {
-  Future<Database> get _db async => DatabaseHelper.instance.database;
+  ReportRepository({Future<Database> Function()? dbProvider})
+      : _dbProvider = dbProvider ?? (() async => DatabaseHelper.instance.database);
+
+  final Future<Database> Function() _dbProvider;
+
+  Future<Database> get _db async => _dbProvider();
 
   int _toInt(dynamic v) => (v as num?)?.toInt() ?? 0;
 
@@ -47,9 +52,6 @@ class ReportRepository {
     final retWhereClause = retWhere.isEmpty
         ? ''
         : 'WHERE ${retWhere.join(' AND ')}';
-    final retSubFilterRet = retWhere.isEmpty
-        ? ''
-        : ' AND ${retWhere.join(' AND ').replaceAll('r.', 'ret.')}';
     final expFilter = expWhere.isEmpty ? '' : 'WHERE ${expWhere.join(' AND ')}';
     final payFilter = payWhere.isEmpty ? '' : 'AND ${payWhere.join(' AND ')}';
 
@@ -148,46 +150,36 @@ class ReportRepository {
     ''');
 
     // ── تكلفة البضاعة المباعة (COGS) ──
-    final cogsQ = await db.rawQuery('''
-      SELECT COALESCE(SUM(
-        (
-          SELECT ii_p.unit_price
-          FROM invoice_items ii_p
-          INNER JOIN invoices inv_p ON inv_p.id = ii_p.invoice_id
-          WHERE inv_p.type = 'PURCHASE'
-            AND ii_p.product_id = si.product_id
-          ORDER BY inv_p.created_at DESC
-          LIMIT 1
-        ) *
-        (si.quantity - COALESCE((
-          SELECT SUM(ri.quantity)
-          FROM return_items ri
-          INNER JOIN returns ret ON ret.id = ri.return_id
-          WHERE ret.type = 'SALE_RETURN'
-            AND ret.original_invoice_id = si.invoice_id
-            AND ri.product_id = si.product_id
-            $retSubFilterRet
-        ), 0))
-      ), 0) AS total
-      FROM invoice_items si
-      INNER JOIN invoices inv ON inv.id = si.invoice_id
-      WHERE inv.type = 'SALE' $invFilter
-    ''');
+    // تُحسب بطريقة FIFO وفق الكميات الفعلية (بالوحدة الأساسية) التي
+    // استهلكتها المبيعات، مع الأخذ في الاعتبار تحويل الوحدات والتكلفة
+    // الفعلية لكل دفعة/فاتورة شراء. لا تُستخدم أسعار المشتريات كصافي
+    // لكل الوحدات المباعة (كان ذلك يضاعف التكلفة عند بيع جزء صغير).
+    final layers = await _buildFifoLayers(db);
+    final soldBase = await _netSoldBaseQuantities(db, from: from, to: to);
+    var cogsCents = 0.0;
+    for (final entry in soldBase.entries) {
+      final productId = entry.key;
+      final netQty = entry.value;
+      if (netQty <= 0) continue;
+      cogsCents += await _fifoConsumeCost(
+        layers,
+        productId,
+        netQty,
+        mutate: false,
+      );
+    }
+    final cogsTotal = cogsCents.round();
 
     // ── قيمة المخزون الحالية ──
-    final inventoryValueQ = await db.rawQuery('''
-      SELECT COALESCE(SUM(stock * cost_price), 0) AS value
-      FROM (
-        SELECT
-          p.cost_price,
-          COALESCE(SUM(CASE WHEN it.type IN ('PURCHASE','SALE_RETURN') THEN it.quantity ELSE 0 END), 0)
-          - COALESCE(SUM(CASE WHEN it.type IN ('SALE','PURCHASE_RETURN') THEN it.quantity ELSE 0 END), 0)
-          AS stock
-        FROM products p
-        LEFT JOIN inventory_transactions it ON it.product_id = p.id
-        GROUP BY p.id, p.cost_price
-      )
-    ''');
+    // تُحسب بنفس طبقات FIFO: بعد استهلاك كل المبيعات (بكل الفترات، لأن
+    // المخزون الحالي كمية لحظية)، تُقيَّم الكمية المتبقية من كل طبقة
+    // بتكلفتها الفعلية — وبذلك تُؤخذ تكلفة الدفعات المختلفة في الحسبان.
+    final allTimeSold = await _netSoldBaseQuantities(db);
+    final inventoryValueCents = await _remainingInventoryValue(
+      layers,
+      allTimeSold,
+    );
+    final inventoryValue = inventoryValueCents.round();
 
     final sale = saleQ.first;
     final purchase = purchaseQ.first;
@@ -198,8 +190,6 @@ class ReportRepository {
     final payOut = payOutQ.first;
     final debtsToUs = debtsToUsQ.first;
     final debtsByUs = debtsByUsQ.first;
-    final cogs = cogsQ.first;
-    final inventory = inventoryValueQ.first;
 
     final saleTotal = _toInt(sale['total']);
     final saleRetTotal = _toInt(saleRet['total']);
@@ -209,7 +199,6 @@ class ReportRepository {
     final purchRetTotal = _toInt(purchRet['total']);
     final purchNetTotal = purchTotal - purchRetTotal;
 
-    final cogsTotal = _toInt(cogs['total']);
     final grossProfit = saleNetTotal - cogsTotal;
     final expTotal = _toInt(exp['total']);
     final netProfit = grossProfit - expTotal;
@@ -233,7 +222,7 @@ class ReportRepository {
       expenseTotal: expTotal,
       debtsOwedToUs: _toInt(debtsToUs['total']),
       debtsOwedByUs: _toInt(debtsByUs['total']),
-      inventoryValue: _toInt(inventory['value']),
+      inventoryValue: inventoryValue,
       cogsTotal: cogsTotal,
       grossProfit: grossProfit,
       netProfit: netProfit,
@@ -260,60 +249,241 @@ class ReportRepository {
 
     final filter = 'WHERE ${invWhere.join(' AND ')}';
 
-    // جلب فواتير البيع مع حساب صافي البيع والتكلفة لكل فاتورة
-    final result = await db.rawQuery('''
+    // جلب فواتير البيع صعودياً (الأقدم أولاً) لاستهلاك طبقات التكلفة FIFO
+    // بنفس ترتيب حدوث المخزون فعلياً.
+    final invoices = await db.rawQuery('''
       SELECT
         inv.id              AS invoice_id,
         inv.invoice_number,
         inv.party_name_snapshot AS party_name,
         inv.created_at,
-        -- صافي البيع = أصلي - مرتجعات هذه الفاتورة
-        inv.total_amount AS sale_amount,
-        -- تكلفة البضاعة المباعة لهذه الفاتورة
-        COALESCE((
-          SELECT SUM(
-            (
-              SELECT ii_p.unit_price
-              FROM invoice_items ii_p
-              INNER JOIN invoices inv_p ON inv_p.id = ii_p.invoice_id
-              WHERE inv_p.type = 'PURCHASE'
-                AND ii_p.product_id = si.product_id
-              ORDER BY inv_p.created_at DESC
-              LIMIT 1
-            ) *
-            (si.quantity - COALESCE((
-              SELECT SUM(ri.quantity)
-              FROM return_items ri
-              INNER JOIN returns ret ON ret.id = ri.return_id
-              WHERE ret.type = 'SALE_RETURN'
-                AND ret.original_invoice_id = inv.id
-                AND ri.product_id = si.product_id
-            ), 0))
-          )
-          FROM invoice_items si
-          WHERE si.invoice_id = inv.id
-        ), 0) AS cost_amount
+        inv.total_amount    AS sale_amount
       FROM invoices inv
       $filter
-      ORDER BY inv.created_at DESC
+      ORDER BY inv.created_at ASC, inv.id ASC
     ''');
 
-    return result.map((row) {
+    // الكمية الصافية (بالوحدة الأساسية) المباعة لكل فاتورة،
+    // تتضمن المرتجعات (SALE - SALE_RETURN) بالوحدة الأساسية لضمان الاتساق.
+    final soldQtyRows = await db.rawQuery('''
+      SELECT
+        invoice_id,
+        product_id,
+        SUM(CASE WHEN type = 'SALE' THEN quantity ELSE -quantity END) AS qty
+      FROM inventory_transactions
+      WHERE type IN ('SALE','SALE_RETURN')
+      GROUP BY invoice_id, product_id
+      HAVING SUM(CASE WHEN type = 'SALE' THEN quantity ELSE -quantity END) > 0
+    ''');
+
+    final qtyByInvoice = <int, Map<int, double>>{};
+    for (final row in soldQtyRows) {
+      final invoiceId = row['invoice_id'] as int;
+      final productId = row['product_id'] as int;
+      final qty = (row['qty'] as num).toDouble();
+      qtyByInvoice
+          .putIfAbsent(invoiceId, () => {})
+          .putIfAbsent(productId, () => 0.0);
+      qtyByInvoice[invoiceId]![productId] = qty;
+    }
+
+    // تكلفة FIFO منقولة عبر الفواتير (الأقدم أولاً)
+    final layers = await _buildFifoLayers(db);
+
+    final details = <InvoiceProfitDetail>[];
+    for (final row in invoices) {
+      final invoiceId = row['invoice_id'] as int;
       final saleAmount = _toInt(row['sale_amount']);
-      final costAmount = _toInt(row['cost_amount']);
-      final profit = saleAmount - costAmount;
+
+      var costAmount = 0.0;
+      final productsToSell = qtyByInvoice[invoiceId] ?? const <int, double>{};
+      for (final entry in productsToSell.entries) {
+        final netQty = entry.value;
+        if (netQty <= 0) continue;
+        costAmount += await _fifoConsumeCost(
+          layers,
+          entry.key,
+          netQty,
+          mutate: true,
+        );
+      }
+      final costCents = costAmount.round();
+      final profit = saleAmount - costCents;
       final margin = saleAmount > 0 ? (profit / saleAmount * 100) : 0.0;
 
-      return InvoiceProfitDetail(
-        invoiceId: row['invoice_id'] as int,
-        invoiceNumber: row['invoice_number'] as String,
-        partyName: row['party_name'] as String,
-        createdAt: row['created_at'] as String? ?? '',
-        saleAmount: saleAmount,
-        costAmount: costAmount,
-        profit: profit,
-        margin: margin,
+      details.add(
+        InvoiceProfitDetail(
+          invoiceId: invoiceId,
+          invoiceNumber: row['invoice_number'] as String,
+          partyName: row['party_name'] as String,
+          createdAt: row['created_at'] as String? ?? '',
+          saleAmount: saleAmount,
+          costAmount: costCents,
+          profit: profit,
+          margin: margin,
+        ),
       );
-    }).toList();
+    }
+
+    // العرض الأحدث أولاً
+    return details.reversed.toList();
   }
+
+  // ====================================================================
+  // FIFO: طبقات تكلفة المخزون واستهلاكها
+  // ====================================================================
+
+  /// يبني طبقات التكلفة (FIFO) لكل منتج من جميع فواتير الشراء حتى الآن،
+  /// مع خصم مرتجعات المشتريات من كمية الطبقات. التكلفة لكل وحدة أساسية
+  /// تُشتق من سطر الشراء: (line_total / الكمية بالوحدة الأساسية) لتُؤخذ
+  /// حقيقة تحويل الوحدات (مثلاً 1 باكيت = 12 كرتون) في الحسبان.
+  Future<Map<int, List<_CostLayer>>> _buildFifoLayers(Database db) async {
+    final rows = await db.rawQuery('''
+      SELECT
+        inv.id AS invoice_id,
+        ii.product_id AS product_id,
+        COALESCE(SUM(ii.quantity * ii.conversion_factor_snapshot), 0) AS qty,
+        COALESCE(SUM(ii.line_total), 0) AS cost_total
+      FROM invoice_items ii
+      INNER JOIN invoices inv ON inv.id = ii.invoice_id
+      WHERE inv.type = 'PURCHASE'
+      GROUP BY inv.id, ii.product_id
+      ORDER BY inv.created_at ASC, inv.id ASC
+    ''');
+
+    // مرتجعات المشتريات لكل (فاتورة، منتج) بالوحدة الأساسية
+    final retRows = await db.rawQuery('''
+      SELECT
+        invoice_id,
+        product_id,
+        SUM(quantity) AS ret_qty
+      FROM inventory_transactions
+      WHERE type = 'PURCHASE_RETURN'
+      GROUP BY invoice_id, product_id
+    ''');
+    final retByKey = <String, double>{};
+    for (final row in retRows) {
+      final key = '${row['invoice_id']}_${row['product_id']}';
+      retByKey[key] = (row['ret_qty'] as num).toDouble();
+    }
+
+    final layers = <int, List<_CostLayer>>{};
+    for (final row in rows) {
+      final productId = row['product_id'] as int;
+      final qty = (row['qty'] as num).toDouble();
+      final costTotal = (row['cost_total'] as num).toDouble();
+      if (qty <= 0) continue;
+
+      final key = '${row['invoice_id']}_$productId';
+      final retQty = retByKey[key] ?? 0;
+      final netQty = qty - retQty;
+      if (netQty <= 0.0001) continue;
+
+      final unitCost = costTotal / netQty;
+      layers.putIfAbsent(productId, () => []).add(
+        _CostLayer(netQty, unitCost),
+      );
+    }
+    return layers;
+  }
+
+  /// الكمية الصافية المباعة (بالوحدة الأساسية) لكل منتج في الفترة،
+  /// من inventory_transactions، وتشمل المرتجعات تلقائياً.
+  Future<Map<int, double>> _netSoldBaseQuantities(
+    Database db, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final where = <String>["it.type IN ('SALE','SALE_RETURN')"];
+    if (from != null) {
+      where.add("it.created_at >= '${_formatDateTimeForSqlite(from)}'");
+    }
+    if (to != null) {
+      where.add("it.created_at <= '${_formatDateTimeForSqlite(to)}'");
+    }
+    final filter = where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}';
+
+    final rows = await db.rawQuery('''
+      SELECT
+        it.product_id AS product_id,
+        SUM(CASE WHEN it.type = 'SALE' THEN it.quantity ELSE -it.quantity END) AS qty
+      FROM inventory_transactions it
+      $filter
+      GROUP BY it.product_id
+      HAVING SUM(CASE WHEN it.type = 'SALE' THEN it.quantity ELSE -it.quantity END) > 0
+    ''');
+
+    final result = <int, double>{};
+    for (final row in rows) {
+      result[row['product_id'] as int] = (row['qty'] as num).toDouble();
+    }
+    return result;
+  }
+
+  /// يستهلِك [qty] من الطبقات FIFO للمنتج ويُعيد التكلفة (بالسنت).
+  /// [mutate] = false يعني نسخة غير معدَّلة (لا تُغيَّر الطبقات)،
+  /// ويُستخدم للتقرير العام. مع [mutate] = true تُنقص الكميات فعلياً
+  /// لتتبع الاستهلاك عبر فواتير متعددة بترتيب زمني.
+  Future<double> _fifoConsumeCost(
+    Map<int, List<_CostLayer>> layers,
+    int productId,
+    double qty, {
+    required bool mutate,
+  }) async {
+    final productLayers = layers[productId];
+    if (productLayers == null || productLayers.isEmpty || qty <= 0) return 0;
+
+    final list = mutate
+        ? productLayers
+        : productLayers.map((l) => _CostLayer(l.remainingQty, l.unitCost)).toList();
+
+    double remaining = qty;
+    double cost = 0;
+    for (final layer in list) {
+      if (remaining <= 0.0001) break;
+      final take = remaining > layer.remainingQty ? layer.remainingQty : remaining;
+      if (take <= 0) continue;
+      cost += take * layer.unitCost;
+      layer.remainingQty -= take;
+      remaining -= take;
+    }
+    return cost;
+  }
+
+  /// قيمة المخزون الحالي: يستهلك كل المبيعات (الكميات الصافية بالوحدة
+  /// الأساسية) من نسخة من طبقات FIFO، ثم يقيِّم الكمية المتبقية من كل
+  /// طبقة بتكلفتها الفعلية.
+  Future<double> _remainingInventoryValue(
+    Map<int, List<_CostLayer>> layers,
+    Map<int, double> allTimeSold,
+  ) async {
+    final working = <int, List<_CostLayer>>{
+      for (final e in layers.entries)
+        e.key: e.value.map((l) => _CostLayer(l.remainingQty, l.unitCost)).toList(),
+    };
+
+    for (final entry in allTimeSold.entries) {
+      final netQty = entry.value;
+      if (netQty <= 0) continue;
+      await _fifoConsumeCost(working, entry.key, netQty, mutate: true);
+    }
+
+    double value = 0;
+    for (final list in working.values) {
+      for (final layer in list) {
+        if (layer.remainingQty > 0.0001) {
+          value += layer.remainingQty * layer.unitCost;
+        }
+      }
+    }
+    return value;
+  }
+}
+
+/// طبقة تكلفة واحدة في مخزون منتج (وحدة أساسية + تكلفة الوحدة).
+class _CostLayer {
+  double remainingQty;
+  final double unitCost;
+
+  _CostLayer(this.remainingQty, this.unitCost);
 }

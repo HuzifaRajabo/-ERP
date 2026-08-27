@@ -6,7 +6,13 @@ import '../core/database/database_helper.dart';
 import '../models/return_model.dart';
 
 class ReturnRepository {
-  Future<Database> get _db async => DatabaseHelper.instance.database;
+  ReturnRepository({Future<Database> Function()? dbProvider})
+      : _dbProvider =
+            dbProvider ?? (() async => DatabaseHelper.instance.database);
+
+  final Future<Database> Function() _dbProvider;
+
+  Future<Database> get _db async => _dbProvider();
 
   static const int _defaultPageSize = 20;
 
@@ -48,15 +54,20 @@ class ReturnRepository {
       final partyId = invoice['party_id'] as int;
       final partyName = invoice['party_name_snapshot'] as String;
       final partyAddress = invoice['party_address_snapshot'] as String;
+      final invoiceWarehouseId = invoice['warehouse_id'] as int?;
 
       // ----------------------------------------------------------------
-      // الخطوة 1: التحقق من الكميات المتاحة لكل سطر
+      // الخطوة 1: التحقق من الكميات المتاحة لكل سطر بالوحدة الأساسية
       // ----------------------------------------------------------------
       for (final item in activeItems) {
-        // جلب الكمية الأصلية في سطر الفاتورة
+        // جلب الكمية الأصلية و معامل تحويلها و الكمية المرجعة (بالأساسية)
         final itemResult = await txn.query(
           'invoice_items',
-          columns: ['quantity', 'returned_quantity'],
+          columns: [
+            'quantity',
+            'conversion_factor_snapshot',
+            'returned_quantity',
+          ],
           where: 'id = ?',
           whereArgs: [item.invoiceItemId],
           limit: 1,
@@ -67,15 +78,53 @@ class ReturnRepository {
         }
 
         final originalQty = (itemResult.first['quantity'] as num).toDouble();
-        final returnedSoFar = (itemResult.first['returned_quantity'] as num)
-            .toDouble();
-        final available = originalQty - returnedSoFar;
+        final conversionFactor =
+            (itemResult.first['conversion_factor_snapshot'] as num?)?.toDouble() ?? 1;
+        final originalBase = originalQty * conversionFactor;
+        // returned_quantity مخزّنة بالوحدة الأساسية (منذ v8 وأيضاً بعد backfill)
+        final returnedBase =
+            (itemResult.first['returned_quantity'] as num).toDouble();
+        final remainingBase = originalBase - returnedBase;
 
-        if (item.selectedQuantity > available) {
+        // الحد الفعلي: لمتجريات المشتريات يُقصّ على المخزون الفعلي الفائض
+        // في مستودع الفاتورة (لأن بعض البضاعة قد بيع أو نُقل بعد الشراء).
+        double effectiveRemaining = remainingBase;
+        if (type == ReturnType.purchaseReturn) {
+          // المستودع: مستودع الفاتورة، وإلا مستودع أول حركة أصلية للمنتج
+          int? whId = invoiceWarehouseId;
+          if (whId == null) {
+            final origTxn = await txn.query(
+              'inventory_transactions',
+              columns: ['warehouse_id'],
+              where: 'invoice_id = ? AND product_id = ?',
+              whereArgs: [originalInvoiceId, item.productId],
+              orderBy: 'id DESC',
+              limit: 1,
+            );
+            whId = origTxn.isNotEmpty
+                ? origTxn.first['warehouse_id'] as int?
+                : null;
+          }
+          final stockAvailable = whId == null
+              ? 0.0
+              : await _stockForProductInWarehouse(
+                  txn, item.productId, whId);
+          effectiveRemaining = remainingBase < stockAvailable
+              ? remainingBase
+              : (stockAvailable < 0 ? 0 : stockAvailable);
+        }
+
+        final requestedBase = item.selectedBaseQuantity;
+
+        if (requestedBase > effectiveRemaining + 0.0001) {
+          final unitLabel = item.selectedUnitName ??
+              item.baseUnitName ??
+              'وحدة أساسية';
           throw ReturnQuantityExceededException(
             productName: item.productName,
-            requested: item.selectedQuantity,
-            available: available,
+            requested: requestedBase,
+            available: effectiveRemaining,
+            unitLabel: unitLabel,
           );
         }
       }
@@ -178,28 +227,35 @@ class ReturnRepository {
       //           + حركات المخزون
       // ----------------------------------------------------------------
       for (final item in activeItems) {
-        final baseReturnedQuantity = item.selectedQuantity * item.conversionFactor;
+        final baseReturnedQuantity = item.selectedBaseQuantity;
         final originBatchId = item.batchId;
+        // سعر الوحدة الأساسية الواحدة (للتخزين/العرض)
+        final baseUnitPrice = item.pricePerBase.round();
 
-        // سطر المرتجع
+        // سطر المرتجع (يحمل معلومات الوحدة ومعامل التحويل والكمية الأساسية)
         await txn.insert('return_items', {
           'return_id': returnId,
           'product_id': item.productId,
           'batch_id': originBatchId,
           'product_name_snapshot': item.productName,
           'quantity': item.selectedQuantity,
-          'unit_price': item.unitPrice,
+          'unit_id': item.selectedUnitId,
+          'unit_name_snapshot': item.selectedUnitName,
+          'conversion_factor_snapshot': item.selectedUnitConversionFactor,
+          'base_quantity': baseReturnedQuantity,
+          'unit_price': baseUnitPrice,
           'line_total': item.lineTotal,
         });
 
         // تحديث returned_quantity في سطر الفاتورة الأصلية
+        // (مخزّنة بالوحدة الأساسية دائماً)
         await txn.rawUpdate(
           '''
           UPDATE invoice_items
           SET returned_quantity = returned_quantity + ?
           WHERE id = ?
         ''',
-          [item.selectedQuantity, item.invoiceItemId],
+          [baseReturnedQuantity, item.invoiceItemId],
         );
 
         // حركة مخزون عكسية بالوحدة الأساسية
@@ -257,6 +313,10 @@ class ReturnRepository {
         ii.unit_id,
         ii.unit_name_snapshot,
         ii.conversion_factor_snapshot,
+        (SELECT pu.unit_name
+         FROM product_units pu
+         WHERE pu.product_id = ii.product_id AND pu.is_base_unit = 1
+         LIMIT 1)       AS base_unit_name,
         COALESCE(
           (SELECT it.batch_id
            FROM inventory_transactions it
@@ -266,10 +326,37 @@ class ReturnRepository {
            ORDER BY it.id DESC
            LIMIT 1),
           NULL
-        ) AS batch_id
+        ) AS batch_id,
+        -- الكمية المتاحة فعلياً في مستودع الفاتورة (بالوحدة الأساسية)
+        -- تُقصّ عليها مرتجعات المشتريات لأن البضاعة قد بيعت بعد الشراء
+        COALESCE((
+          SELECT COALESCE(SUM(
+            CASE
+              WHEN it2.type = 'PURCHASE'        THEN it2.quantity
+              WHEN it2.type = 'SALE_RETURN'     THEN it2.quantity
+              WHEN it2.type = 'TRANSFER_IN'     THEN it2.quantity
+              WHEN it2.type = 'SALE'             THEN -it2.quantity
+              WHEN it2.type = 'PURCHASE_RETURN'  THEN -it2.quantity
+              WHEN it2.type = 'TRANSFER_OUT'     THEN -it2.quantity
+              ELSE 0
+            END
+          ), 0)
+          FROM inventory_transactions it2
+          WHERE it2.product_id = ii.product_id
+            AND it2.warehouse_id = COALESCE(
+              inv.warehouse_id,
+              (SELECT it3.warehouse_id
+               FROM inventory_transactions it3
+               WHERE it3.invoice_id = ii.invoice_id
+                 AND it3.product_id = ii.product_id
+               ORDER BY it3.id DESC
+               LIMIT 1)
+            )
+        ), 0) AS stock_available
       FROM invoice_items ii
+      INNER JOIN invoices inv ON inv.id = ii.invoice_id
       WHERE ii.invoice_id = ?
-        AND (ii.quantity - ii.returned_quantity) > 0
+        AND (ii.quantity * ii.conversion_factor_snapshot - ii.returned_quantity) > 0
       ORDER BY ii.id ASC
     ''',
       [invoiceId, invoiceId],
@@ -283,11 +370,20 @@ class ReturnRepository {
             batchId: row['batch_id'] as int?,
             productName: row['product_name'] as String,
             originalQuantity: (row['original_quantity'] as num).toDouble(),
-            returnedSoFar: (row['returned_quantity'] as num).toDouble(),
+            invoiceConversionFactor:
+                (row['conversion_factor_snapshot'] as num?)?.toDouble() ?? 1,
+            invoiceUnitId: row['unit_id'] as int?,
+            invoiceUnitName: row['unit_name_snapshot'] as String?,
             unitPrice: row['unit_price'] as int,
-            conversionFactor: (row['conversion_factor_snapshot'] as num?)?.toDouble() ?? 1,
-            unitId: row['unit_id'] as int?,
-            unitName: row['unit_name_snapshot'] as String?,
+            returnedBaseQuantity:
+                (row['returned_quantity'] as num?)?.toDouble() ?? 0,
+            baseUnitName: row['base_unit_name'] as String?,
+            stockAvailable:
+                (row['stock_available'] as num?)?.toDouble() ?? 0,
+            selectedUnitId: row['unit_id'] as int?,
+            selectedUnitName: row['unit_name_snapshot'] as String?,
+            selectedUnitConversionFactor:
+                (row['conversion_factor_snapshot'] as num?)?.toDouble() ?? 1,
           ),
         )
         .toList();
@@ -376,6 +472,33 @@ class ReturnRepository {
   // Helpers
   // ====================================================================
 
+  /// المخزون المتاح حالياً لمنتج داخل مستودع معيّن بالوحدة الأساسية.
+  Future<double> _stockForProductInWarehouse(
+    DatabaseExecutor txn,
+    int productId,
+    int warehouseId,
+  ) async {
+    final result = await txn.rawQuery(
+      '''
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN type = 'PURCHASE'       THEN quantity
+          WHEN type = 'SALE_RETURN'    THEN quantity
+          WHEN type = 'TRANSFER_IN'    THEN quantity
+          WHEN type = 'SALE'            THEN -quantity
+          WHEN type = 'PURCHASE_RETURN' THEN -quantity
+          WHEN type = 'TRANSFER_OUT'    THEN -quantity
+          ELSE 0
+        END
+      ), 0) AS available
+      FROM inventory_transactions
+      WHERE product_id = ? AND warehouse_id = ?
+    ''',
+      [productId, warehouseId],
+    );
+    return (result.first['available'] as num).toDouble();
+  }
+
   Future<String> _generateNextReturnNumber(DatabaseExecutor txn) async {
     final result = await txn.rawQuery('SELECT COUNT(*) as count FROM returns');
     final count = (result.first['count'] as int) + 1;
@@ -407,15 +530,24 @@ class ReturnQuantityExceededException implements Exception {
   final String productName;
   final double requested;
   final double available;
+  final String unitLabel;
 
   ReturnQuantityExceededException({
     required this.productName,
     required this.requested,
     required this.available,
+    this.unitLabel = 'وحدة أساسية',
   });
 
   @override
-  String toString() =>
-      'الكمية المرتجعة ($requested) تتجاوز المتاح للإرجاع '
-      '($available) للمنتج "$productName"';
+  String toString() {
+    final req = _fmt(requested);
+    final avail = _fmt(available);
+    return 'لا يمكن إرجاع هذه الكمية. الكمية المتبقية القابلة للإرجاع '
+        'هي $avail $unitLabel من المنتج "$productName". '
+        '(المطلوب $req $unitLabel)';
+  }
+
+  static String _fmt(double v) =>
+      v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(2);
 }

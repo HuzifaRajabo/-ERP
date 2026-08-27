@@ -411,6 +411,8 @@ class _TransactionCard extends StatelessWidget {
       InventoryTransactionType.purchase        => Colors.orange,
       InventoryTransactionType.saleReturn      => Colors.purple,
       InventoryTransactionType.purchaseReturn  => Colors.teal,
+      InventoryTransactionType.transferOut     => Colors.red,
+      InventoryTransactionType.transferIn      => Colors.green,
     };
 
     final IconData icon = switch (type) {
@@ -418,6 +420,8 @@ class _TransactionCard extends StatelessWidget {
       InventoryTransactionType.purchase        => Icons.arrow_downward_rounded,
       InventoryTransactionType.saleReturn      => Icons.undo_rounded,
       InventoryTransactionType.purchaseReturn  => Icons.redo_rounded,
+      InventoryTransactionType.transferOut     => Icons.arrow_forward_rounded,
+      InventoryTransactionType.transferIn      => Icons.arrow_back_rounded,
     };
 
     final String label = type.label;
@@ -471,11 +475,12 @@ class _TransactionCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        view.invoiceNumber,
-                        style: TextStyle(
-                            color: Colors.grey[500], fontSize: 12),
-                      ),
+                      if (view.invoiceNumber != null)
+                        Text(
+                          view.invoiceNumber!,
+                          style: TextStyle(
+                              color: Colors.grey[500], fontSize: 12),
+                        ),
                     ],
                   ),
                   if (view.transaction.createdAt != null)

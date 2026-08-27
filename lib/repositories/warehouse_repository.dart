@@ -10,12 +10,16 @@ class WarehouseRepository {
     try {
       final db = await _db;
       final data = warehouse.toMap()..remove('id');
+      if (data['created_at'] == null) data.remove('created_at');
       return await db.insert(
         'warehouses',
         data,
         conflictAlgorithm: ConflictAlgorithm.abort,
       );
     } on DatabaseException catch (e) {
+      if (e.isUniqueConstraintError()) {
+        throw Exception('يوجد مستودع بهذا الاسم بالفعل');
+      }
       throw Exception('خطأ في قاعدة البيانات أثناء إضافة المستودع: $e');
     }
   }

@@ -234,12 +234,33 @@ class ReturnDetailsScreen extends StatelessWidget {
                             ),
                             Expanded(
                               flex: 1,
-                              child: Text(
-                                item.quantity % 1 == 0
-                                    ? item.quantity.toInt().toString()
-                                    : item.quantity.toStringAsFixed(2),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 13),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _fmtQty(item.quantity),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                  if (item.unitName != null)
+                                    Text(
+                                      item.unitName!,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  if (item.conversionFactor != 1)
+                                    Text(
+                                      '= ${_fmtQty(item.baseQuantity)} أساسية',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             Expanded(
@@ -492,3 +513,6 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
+
+String _fmtQty(double qty) =>
+    qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);

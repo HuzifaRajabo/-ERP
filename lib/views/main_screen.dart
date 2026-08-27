@@ -12,6 +12,7 @@ import 'expense/expense_list_screen.dart';
 import 'inventory/inventory_screen.dart';
 import 'debts/debts_screen.dart';
 import 'report/report_screen.dart';
+import 'warehouse/warehouse_list_screen.dart';
 
 class MainScreen extends StatelessWidget {
   MainScreen({super.key});
@@ -23,7 +24,7 @@ class MainScreen extends StatelessWidget {
     ProductListScreen(),
     PartyListScreen(),
     InvoiceListScreen(),
-    InventoryScreen(),
+    WarehouseListScreen(),
     ExpenseListScreen(),
   ];
 
@@ -76,7 +77,7 @@ class MainScreen extends StatelessWidget {
         NavigationDestination(
           icon: Icon(Icons.warehouse_outlined),
           selectedIcon: Icon(Icons.warehouse_rounded),
-          label: 'المخزون',
+          label: 'المستودعات',
         ),
         NavigationDestination(
           icon: Icon(Icons.money_off_outlined),
@@ -748,7 +749,17 @@ class _MainDrawer extends StatelessWidget {
                   ),
                   _DrawerItem(
                     icon: Icons.warehouse_rounded,
-                    title: 'المستودع',
+                    title: 'المستودعات',
+                    onTap: () {
+                      Get.back();
+                      Get.to(
+                            () => const WarehouseListScreen(),
+                      );
+                    },
+                  ),
+                  _DrawerItem(
+                    icon: Icons.inventory_2_rounded,
+                    title: 'المخزون العام',
                     onTap: () {
                       Get.back();
                       Get.to(

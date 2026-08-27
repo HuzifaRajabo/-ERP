@@ -22,7 +22,7 @@ class DatabaseHelper {
 
     final database = await openDatabase(
       path,
-      version: 6,
+      version: 8,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -191,7 +191,8 @@ class DatabaseHelper {
   ''');
 
     // ← CHECK محذوف لأن SQLite لا يدعم تعديله لاحقاً
-    // القيم المقبولة: SALE, PURCHASE, SALE_RETURN, PURCHASE_RETURN
+    // القيم المقبولة: SALE, PURCHASE, SALE_RETURN, PURCHASE_RETURN,
+    //                 TRANSFER_OUT, TRANSFER_IN
     // يتم التحكم فيها من الكود
     await db.execute('''
     CREATE TABLE inventory_transactions (
@@ -199,11 +200,13 @@ class DatabaseHelper {
       product_id INTEGER NOT NULL,
       type TEXT NOT NULL,
       quantity REAL NOT NULL, -- ← دائماً بالوحدة الأساسية (القطعة)
-      invoice_id INTEGER NOT NULL,
+      invoice_id INTEGER,
       return_id INTEGER,
       warehouse_id INTEGER,
       batch_id INTEGER,
       unit_id INTEGER,
+      transfer_id INTEGER,
+      notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id),
       FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
@@ -239,6 +242,10 @@ class DatabaseHelper {
       batch_id INTEGER,
       product_name_snapshot TEXT NOT NULL,
       quantity REAL NOT NULL,
+      unit_id INTEGER,
+      unit_name_snapshot TEXT,
+      conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
+      base_quantity REAL NOT NULL DEFAULT 0,
       unit_price INTEGER NOT NULL,
       line_total INTEGER NOT NULL,
       FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE,
@@ -362,6 +369,9 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX idx_inv_batch ON inventory_transactions(batch_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_inv_transfer ON inventory_transactions(transfer_id)',
     );
     await db.execute(
       'CREATE INDEX idx_invoices_warehouse ON invoices(warehouse_id)',
@@ -705,6 +715,107 @@ class DatabaseHelper {
           'ON product_units(product_id, is_default_sell_unit)'
         );
       });
+    }
+
+    if (oldVersion < 7) {
+      // ==============================
+      // v7: نقل المخزون بين المستودعات
+      //   - إعادة بناء inventory_transactions لجعل invoice_id اختياري
+      //     (تحويلات المخزون لا تملك فاتورة)
+      //   - إضافة عمود transfer_id لربط حركتي التحويل معاً
+      //   - إضافة عمود notes
+      //   - كل شيء داخل transaction لضمان الاتمامية
+      // ==============================
+      await db.transaction((txn) async {
+        final cols = await txn.rawQuery('PRAGMA table_info(inventory_transactions)');
+        final colNames = cols.map((c) => c['name'] as String).toSet();
+
+        final hasTransferId = colNames.contains('transfer_id');
+
+        // أعد تسمية الجدول القديم
+        await txn.execute('ALTER TABLE inventory_transactions RENAME TO inventory_transactions_old');
+
+        // أنشئ الجدول الجديد بالشكل النهائي
+        await txn.execute('''
+          CREATE TABLE inventory_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            invoice_id INTEGER,
+            return_id INTEGER,
+            warehouse_id INTEGER,
+            batch_id INTEGER,
+            unit_id INTEGER,
+            transfer_id INTEGER,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (product_id) REFERENCES products(id),
+            FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+            FOREIGN KEY (return_id) REFERENCES returns(id) ON DELETE CASCADE,
+            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+            FOREIGN KEY (batch_id) REFERENCES batches(id),
+            FOREIGN KEY (unit_id) REFERENCES product_units(id)
+          )
+        ''');
+
+        // انسخ البيانات من الجدول القديم
+        final transferCol = hasTransferId ? 'transfer_id' : 'NULL';
+        await txn.execute('''
+          INSERT INTO inventory_transactions (
+            id, product_id, type, quantity, invoice_id, return_id,
+            warehouse_id, batch_id, unit_id, transfer_id, notes, created_at
+          )
+          SELECT
+            id, product_id, type, quantity, invoice_id, return_id,
+            warehouse_id, batch_id, unit_id, $transferCol, NULL, created_at
+          FROM inventory_transactions_old
+        ''');
+
+        // احذف الجدول القديم بعد النقل
+        await txn.execute('DROP TABLE inventory_transactions_old');
+
+        // أعد إنشاء الفهارس
+        await txn.execute('CREATE INDEX IF NOT EXISTS idx_inv_prod ON inventory_transactions(product_id)');
+        await txn.execute('CREATE INDEX IF NOT EXISTS idx_inv_type ON inventory_transactions(type)');
+        await txn.execute('CREATE INDEX IF NOT EXISTS idx_inv_warehouse ON inventory_transactions(warehouse_id)');
+        await txn.execute('CREATE INDEX IF NOT EXISTS idx_inv_batch ON inventory_transactions(batch_id)');
+        await txn.execute('CREATE INDEX IF NOT EXISTS idx_inv_transfer ON inventory_transactions(transfer_id)');
+      });
+    }
+
+    if (oldVersion < 8) {
+      // ==============================
+      // v8: إصلاح منطق المرتجعات مع تعدد الوحدات
+      //   - إضافة أعمدة معلومات الوحدة لجدول return_items
+      //     (unit_id, unit_name_snapshot, conversion_factor_snapshot, base_quantity)
+      //   - تحويل returned_quantity في invoice_items (التي كانت تُخزَّن
+      //     بوحدة العرض) إلى الوحدة الأساسية:
+      //       returned_quantity = returned_quantity × conversion_factor_snapshot
+      //     حتى تصبح المقارنة والكمية المتبقية دائماً بالوحدة الأساسية.
+      // ==============================
+      for (final stmt in [
+        'ALTER TABLE return_items ADD COLUMN unit_id INTEGER',
+        'ALTER TABLE return_items ADD COLUMN unit_name_snapshot TEXT',
+        'ALTER TABLE return_items ADD COLUMN conversion_factor_snapshot REAL NOT NULL DEFAULT 1',
+        'ALTER TABLE return_items ADD COLUMN base_quantity REAL NOT NULL DEFAULT 0',
+      ]) {
+        try {
+          await db.execute(stmt);
+        } catch (_) {
+          // العمود موجود مسبقاً
+        }
+      }
+
+      // backfill: تحويل القيم القديمة المخزنة بوحدة العرض إلى الوحدة الأساسية
+      await db.rawUpdate(
+        '''
+        UPDATE invoice_items
+        SET returned_quantity = returned_quantity * conversion_factor_snapshot
+        WHERE conversion_factor_snapshot <> 1
+          AND returned_quantity > 0
+        ''',
+      );
     }
   }
 

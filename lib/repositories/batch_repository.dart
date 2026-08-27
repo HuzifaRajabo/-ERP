@@ -27,7 +27,13 @@ class BatchAllocation {
 }
 
 class BatchRepository {
-  Future<Database> get _db async => DatabaseHelper.instance.database;
+  BatchRepository({Future<Database> Function()? dbProvider})
+      : _dbProvider =
+            dbProvider ?? (() async => DatabaseHelper.instance.database);
+
+  final Future<Database> Function() _dbProvider;
+
+  Future<Database> get _db async => _dbProvider();
 
   Future<int> insertBatch(BatchModel batch) async {
     try {
@@ -68,11 +74,16 @@ class BatchRepository {
   /// دفعات منتج معين مع الكمية المتاحة من كل دفعة، مرتبة حسب الأقرب
   /// انتهاءً أولاً (لدعم منطق البيع FEFO: First-Expiry-First-Out).
   /// تُستبعد الدفعات التي نفدت كميتها (available <= 0).
+  ///
+  /// [executor] اختياري: عند استدعاء هذا الأسلوب من داخل transaction خارجية
+  /// (مثل حفظ فاتورة بيع) يجب تمرير نفس الـ transaction حتى لا يُنفَّذ
+  /// الاستعلام على الاتصال الرئيسي المتزامن، ما يسبب قفل قاعدة البيانات.
   Future<List<BatchStock>> getAvailableBatchesForProduct(
     int productId, {
     int? warehouseId,
+    DatabaseExecutor? executor,
   }) async {
-    final db = await _db;
+    final db = executor ?? await _db;
 
     final params = <Object?>[];
     if (warehouseId != null) {
@@ -88,8 +99,10 @@ class BatchRepository {
           CASE
             WHEN it.type = 'PURCHASE'       THEN it.quantity
             WHEN it.type = 'SALE_RETURN'    THEN it.quantity
+            WHEN it.type = 'TRANSFER_IN'    THEN it.quantity
             WHEN it.type = 'SALE'            THEN -it.quantity
             WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
+            WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
             ELSE 0
           END
         ), 0) AS available
@@ -143,8 +156,10 @@ class BatchRepository {
           CASE
             WHEN it.type = 'PURCHASE'       THEN it.quantity
             WHEN it.type = 'SALE_RETURN'    THEN it.quantity
+            WHEN it.type = 'TRANSFER_IN'    THEN it.quantity
             WHEN it.type = 'SALE'            THEN -it.quantity
             WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
+            WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
             ELSE 0
           END
         ), 0) AS available
@@ -169,12 +184,22 @@ class BatchRepository {
     }).toList();
   }
 
+  /// يوزّع الكمية المطلوبة من منتج على دفعاته المتاحة وفق FEFO.
+  ///
+  /// عند الاستدعاء من داخل transaction خارجية (حفظ فاتورة) يجب تمرير نفس
+  /// الـ [executor] ليُستخدم الاتصال نفسه داخل الـ transaction ويعمل بشكل
+  /// ذرّي، بدلاً من استخدام الاتصال الرئيسي الذي يتسبب بقفل قاعدة البيانات.
   Future<List<BatchAllocation>> allocateAvailableQuantity(
     int productId,
     double requiredQuantity, {
     int? warehouseId,
+    DatabaseExecutor? executor,
   }) async {
-    final available = await getAvailableBatchesForProduct(productId, warehouseId: warehouseId);
+    final available = await getAvailableBatchesForProduct(
+      productId,
+      warehouseId: warehouseId,
+      executor: executor,
+    );
     final allocations = <BatchAllocation>[];
     double remaining = requiredQuantity;
 
@@ -208,5 +233,37 @@ class BatchRepository {
       where: 'id = ?',
       whereArgs: [batch.id],
     );
+  }
+
+  /// يبحث عن دفعة بنفس المنتج ورقم الدفعة، وينشئها إن لم توجد.
+  /// يعمل داخل transaction خارجية (حفظ فاتورة الشراء) لضمان الذرية،
+  /// ويُعيد id الدفعة. لا يُنشئ دفعة إذا كان رقم الدفعة فارغاً.
+  Future<int?> findOrCreateBatchInTransaction(
+    DatabaseExecutor txn, {
+    required int productId,
+    String? batchNumber,
+    String? productionDate,
+    String? expiryDate,
+    int? costPrice,
+  }) async {
+    final number = batchNumber?.trim();
+    if (number == null || number.isEmpty) return null;
+
+    final existing = await txn.query(
+      'batches',
+      columns: ['id'],
+      where: 'product_id = ? AND batch_number = ?',
+      whereArgs: [productId, number],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) return existing.first['id'] as int;
+
+    return await txn.insert('batches', {
+      'product_id': productId,
+      'batch_number': number,
+      'production_date': productionDate,
+      'expiry_date': expiryDate,
+      'cost_price': costPrice,
+    });
   }
 }

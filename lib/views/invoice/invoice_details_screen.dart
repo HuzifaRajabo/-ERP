@@ -79,6 +79,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         final items = data.items;
         final isSale = invoice.type == InvoiceType.sale;
         final typeColor = isSale ? Colors.green : Colors.orange;
+        final statusColor = Color(
+          int.parse('FF${invoice.paymentStatus.colorHex}', radix: 16),
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -119,25 +122,83 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                             fontSize: 18,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: typeColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            isSale ? 'فاتورة بيع' : 'فاتورة شراء',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: typeColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                isSale ? 'فاتورة بيع' : 'فاتورة شراء',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                invoice.paymentStatus.label,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
+                    if (data.warehouseName != null) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.warehouse_outlined,
+                            size: 14,
+                            color: Color(0xFF059669),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'المستودع:',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              data.warehouseName!,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (invoice.createdAt != null) ...[
                       const SizedBox(height: 8),
                       Row(
@@ -179,100 +240,8 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ─── جدول أسطر الفاتورة ───
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.list_alt,
-                            color: Colors.grey[600],
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'أسطر الفاتورة (${items.length})',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-
-                    Container(
-                      color: Colors.grey[50],
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: const Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'المنتج',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              'الكمية',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'سعر القطعة',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'الإجمالي',
-                              textAlign: TextAlign.end,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    ...items.map((item) => _ItemDetailRow(item: item)),
-                  ],
-                ),
-              ),
+              // ─── بطاقات أسطر الفاتورة ───
+              _ItemsCardsSection(data: data),
               const SizedBox(height: 12),
 
               // ─── الملاحظات ───
@@ -377,54 +346,229 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 }
 
-// ─── أسطر العرض والبطاقات المساعدة ───
+// ─── بطاقات أسطر الفاتورة ───
 
-class _ItemDetailRow extends StatelessWidget {
+/// بطاقات الأسطر بدل الجدول القديم — تعرض الوحدة والسعر والدفعات
+/// المخصصة وتواريخ الصلاحية، مع توافق كامل مع الفواتير القديمة
+/// (وحدة/دفعات غير متوفرة → تُخفى أو تُعرض كـ "الوحدة الأساسية").
+class _ItemsCardsSection extends StatelessWidget {
+  final InvoiceWithItems data;
+
+  const _ItemsCardsSection({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = data.items;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.list_alt,
+                  color: Colors.grey[600],
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'المنتجات (${items.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ...items.map(
+            (item) => _ItemDetailCard(
+              item: item,
+              allocations: data.allocationsFor(item),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemDetailCard extends StatelessWidget {
   final InvoiceItemModel item;
-  const _ItemDetailRow({required this.item});
+  final List<BatchAllocationSnapshot> allocations;
+
+  const _ItemDetailCard({required this.item, required this.allocations});
+
+  String _fmtQty(double value) {
+    if (value % 1 == 0) return value.toInt().toString();
+    final s = value.toStringAsFixed(2);
+    return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+  }
+
+  String _fmtDate(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}/${d.year}';
+  }
+
+  Color _batchStatusColor(BatchAllocationSnapshot allocation) {
+    final expiry = allocation.expiryDate;
+    if (expiry == null) return Colors.grey;
+    final date = DateTime.tryParse(expiry);
+    if (date == null) return Colors.grey;
+    final days = date.difference(
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
+    ).inDays;
+    if (days < 0) return Colors.red;
+    if (days <= 30) return Colors.orange;
+    return Colors.green;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              item.productNameSnapshot,
-              style: const TextStyle(fontSize: 13),
-            ),
+          // اسم المنتج
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Color(0xFF2563EB),
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.productNameSnapshot,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            flex: 1,
-            child: Text(
-              item.quantity % 1 == 0
-                  ? item.quantity.toInt().toString()
-                  : item.quantity.toString(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13),
-            ),
+          const SizedBox(height: 8),
+
+          // الكمية × السعر
+          Text(
+            '${_fmtQty(item.quantity)} '
+            '${item.unitNameSnapshot ?? 'الوحدة الأساسية'}'
+            ' × ${MoneyUtils.formatMoney(item.unitPrice)}',
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              MoneyUtils.formatMoney(item.unitPrice),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13),
-            ),
+          const SizedBox(height: 6),
+
+          // الإجمالي
+          Row(
+            children: [
+              Text(
+                'الإجمالي:',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              const Spacer(),
+              Text(
+                MoneyUtils.formatMoney(item.lineTotal),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              MoneyUtils.formatMoney(item.lineTotal),
-              textAlign: TextAlign.end,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+
+          // المكافئ بالوحدة الأساسية (معلومة ثانوية)
+          if (item.conversionFactorSnapshot != 1) ...[
+            const SizedBox(height: 4),
+            Text(
+              'يعادل ${_fmtQty(item.baseQuantity)} وحدة أساسية',
+              style: TextStyle(color: Colors.grey[500], fontSize: 11),
             ),
-          ),
+          ],
+
+          // الدفعات المخصصة
+          if (allocations.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    allocations.length == 1
+                        ? 'الدفعة:'
+                        : 'الدفعات المخصصة:',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF065F46),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...allocations.map(
+                    (allocation) => Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: _batchStatusColor(allocation),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${allocation.batchNumber} — '
+                              '${_fmtQty(allocation.quantity)}'
+                              '${allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF065F46),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
