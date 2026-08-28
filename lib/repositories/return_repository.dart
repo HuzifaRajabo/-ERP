@@ -51,6 +51,12 @@ class ReturnRepository {
       }
 
       final invoice = invoiceResult.first;
+      final invoiceType = invoice['type'] as String;
+      final expectedType =
+          type == ReturnType.saleReturn ? 'SALE' : 'PURCHASE';
+      if (invoiceType != expectedType) {
+        throw Exception('نوع المرتجع لا يطابق نوع الفاتورة الأصلية');
+      }
       final partyId = invoice['party_id'] as int;
       final partyName = invoice['party_name_snapshot'] as String;
       final partyAddress = invoice['party_address_snapshot'] as String;

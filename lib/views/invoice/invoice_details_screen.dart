@@ -91,7 +91,12 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               IconButton(
                 icon: const Icon(Icons.picture_as_pdf_outlined),
                 tooltip: 'تصدير PDF',
-                onPressed: () => _exportPdf(invoice, items), // ← items من snapshot
+                onPressed: () => _exportPdf(
+                  invoice,
+                  items,
+                  warehouseName: data.warehouseName,
+                  batchesByProductId: data.batchesByProductId,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -301,6 +306,10 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   Future<void> _exportPdf(
     InvoiceModel invoice,
     List<InvoiceItemModel> items,
+    {
+    String? warehouseName,
+    Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
+    }
   ) async {
     try {
       final payments = await _paymentRepo.getPaymentsByInvoice(invoice.id!);
@@ -311,6 +320,8 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         items:    items,
         payments: payments,
         returns:  returns,
+        warehouseName: warehouseName,
+        batchesByProductId: batchesByProductId,
       );
     } catch (e) {
       Get.snackbar(

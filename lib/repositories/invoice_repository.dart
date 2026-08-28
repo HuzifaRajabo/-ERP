@@ -178,6 +178,9 @@ class InvoiceRepository {
             batchNumber: item.newBatchNumber,
             productionDate: item.newProductionDate,
             expiryDate: item.newExpiryDate,
+            costPrice: item.baseQuantity <= 0
+                ? null
+                : (item.lineTotal / item.baseQuantity).round(),
           );
 
           await txn.insert('inventory_transactions', {

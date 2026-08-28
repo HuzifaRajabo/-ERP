@@ -7,6 +7,7 @@ import '../../models/invoice_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
+import '../../models/invoice_draft.dart';
 import '../utils/money_utils.dart';
 
 class InvoicePdfService {
@@ -19,12 +20,16 @@ class InvoicePdfService {
     required List<InvoiceItemModel> items,
     required List<PaymentModel> payments,
     required List<ReturnModel> returns,
+    String? warehouseName,
+    Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
   }) async {
     final pdfBytes = await _buildPdf(
       invoice: invoice,
       items: items,
       payments: payments,
       returns: returns,
+      warehouseName: warehouseName,
+      batchesByProductId: batchesByProductId,
     );
 
     await Printing.sharePdf(
@@ -42,19 +47,21 @@ class InvoicePdfService {
     required List<InvoiceItemModel> items,
     required List<PaymentModel> payments,
     required List<ReturnModel> returns,
+    String? warehouseName,
+    required Map<int, List<BatchAllocationSnapshot>> batchesByProductId,
   }) async {
     // ── تحميل الخط العربي ──
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final boldFontData = await rootBundle.load('assets/fonts/Cairo-Bold.ttf');
-    final ttf      = pw.Font.ttf(fontData);
-    final ttfBold  = pw.Font.ttf(boldFontData);
+    final ttf = pw.Font.ttf(fontData);
+    final ttfBold = pw.Font.ttf(boldFontData);
 
     final isSale = invoice.type == InvoiceType.sale;
 
     // حساب إجمالي المرتجعات
     final totalReturns = returns.fold(0, (s, r) => s + r.totalAmount);
-    final netTotal     = invoice.originalTotalAmount - totalReturns;
-    final balance      = netTotal - invoice.paidAmount;
+    final netTotal = invoice.originalTotalAmount - totalReturns;
+    final balance = netTotal - invoice.paidAmount;
 
     final doc = pw.Document();
 
@@ -63,48 +70,50 @@ class InvoicePdfService {
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: ttf, bold: ttfBold),
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.fromLTRB(34, 34, 34, 38),
+        footer: (context) => _buildFooter(context, ttf),
         build: (context) => [
-
           // ── رأس الفاتورة ──
           _buildHeader(invoice, isSale, ttfBold),
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: 12),
 
           // ── معلومات الطرف ──
-          _buildPartyInfo(invoice, isSale, ttf, ttfBold),
-          pw.SizedBox(height: 16),
+          _buildPartyInfo(invoice, isSale, warehouseName, ttf, ttfBold),
+          pw.SizedBox(height: 12),
 
           // ── جدول الأسطر ──
-          _buildItemsTable(items, ttf, ttfBold),
-          pw.SizedBox(height: 16),
+          _sectionTitle('المنتجات', ttfBold),
+          pw.SizedBox(height: 5),
+          _buildItemsTable(items, batchesByProductId, ttf, ttfBold),
+          pw.SizedBox(height: 12),
 
           // ── الملاحظات ──
           if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
             _buildNotes(invoice.notes!, ttf, ttfBold),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 10),
           ],
 
           // ── الدفعات ──
           if (payments.isNotEmpty) ...[
             _buildPayments(payments, ttf, ttfBold),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 10),
           ],
 
           // ── المرتجعات ──
           if (returns.isNotEmpty) ...[
             _buildReturns(returns, ttf, ttfBold),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 10),
           ],
 
           // ── الإجمالي ──
           _buildTotals(
-            invoice:      invoice,
+            invoice: invoice,
             totalReturns: totalReturns,
-            netTotal:     netTotal,
-            balance:      balance,
-            isSale:       isSale,
-            ttf:          ttf,
-            bold:      ttfBold,
+            netTotal: netTotal,
+            balance: balance,
+            isSale: isSale,
+            ttf: ttf,
+            bold: ttfBold,
           ),
         ],
       ),
@@ -123,18 +132,12 @@ class InvoicePdfService {
     pw.Font bold,
   ) {
     final typeLabel = isSale ? 'فاتورة مبيعات' : 'فاتورة مشتريات';
-    final color     = isSale ? PdfColors.green800 : PdfColors.orange800;
+    final color = isSale ? PdfColors.green800 : PdfColors.orange800;
 
     return pw.Container(
-      padding: const pw.EdgeInsets.all(16),
+      padding: const pw.EdgeInsets.fromLTRB(18, 14, 18, 14),
       decoration: pw.BoxDecoration(
-        color: isSale
-            ? PdfColors.green50
-            : PdfColors.orange50,
-        borderRadius: pw.BorderRadius.circular(8),
-        border: pw.Border.all(
-          color: isSale ? PdfColors.green200 : PdfColors.orange200,
-        ),
+        border: pw.Border(bottom: pw.BorderSide(color: color, width: 2)),
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -143,37 +146,26 @@ class InvoicePdfService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                invoice.invoiceNumber,
-                style: pw.TextStyle(
-                  font: bold,
-                  fontSize: 20,
-                  color: color,
-                ),
+                typeLabel,
+                style: pw.TextStyle(font: bold, fontSize: 20, color: color),
               ),
               if (invoice.createdAt != null)
                 pw.Text(
-                  invoice.createdAt!,
-                  style: pw.TextStyle(
-                    color: PdfColors.grey600,
-                    fontSize: 11,
-                  ),
+                  _displayDate(invoice.createdAt),
+                  style: pw.TextStyle(color: PdfColors.grey600, fontSize: 10),
                 ),
             ],
           ),
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(
-                horizontal: 14, vertical: 6),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: pw.BoxDecoration(
-              color: color,
-              borderRadius: pw.BorderRadius.circular(20),
+              color: isSale ? PdfColors.green50 : PdfColors.orange50,
+              border: pw.Border.all(color: color, width: 0.8),
+              borderRadius: pw.BorderRadius.circular(5),
             ),
             child: pw.Text(
-              typeLabel,
-              style: pw.TextStyle(
-                font: bold,
-                color: PdfColors.white,
-                fontSize: 13,
-              ),
+              invoice.invoiceNumber,
+              style: pw.TextStyle(font: bold, color: color, fontSize: 12),
             ),
           ),
         ],
@@ -188,29 +180,39 @@ class InvoicePdfService {
   static pw.Widget _buildPartyInfo(
     InvoiceModel invoice,
     bool isSale,
+    String? warehouseName,
     pw.Font ttf,
     pw.Font bold,
   ) {
     final title = isSale ? 'العميل' : 'المورد';
 
     return pw.Container(
-      padding: const pw.EdgeInsets.all(12),
+      padding: const pw.EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey300),
-        borderRadius: pw.BorderRadius.circular(8),
+        color: PdfColors.grey50,
+        borderRadius: pw.BorderRadius.circular(5),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(title,
-              style: pw.TextStyle(
-                  font: bold,
-                  color: PdfColors.blue800,
-                  fontSize: 12)),
-          pw.SizedBox(height: 6),
-          _pdfRow('الاسم', invoice.partyNameSnapshot, ttf, bold),
+          pw.Text(
+            title,
+            style: pw.TextStyle(
+              font: bold,
+              color: PdfColors.blue800,
+              fontSize: 13,
+            ),
+          ),
+          pw.SizedBox(height: 5),
+          _pdfRow(title, invoice.partyNameSnapshot, ttf, bold),
           if (invoice.partyAddressSnapshot.isNotEmpty)
             _pdfRow('العنوان', invoice.partyAddressSnapshot, ttf, bold),
+          if (warehouseName != null && warehouseName.isNotEmpty)
+            _pdfRow('المستودع', warehouseName, ttf, bold),
+          _pdfRow('رقم الفاتورة', invoice.invoiceNumber, ttf, bold),
+          if (invoice.createdAt != null)
+            _pdfRow('التاريخ', _displayDate(invoice.createdAt), ttf, bold),
         ],
       ),
     );
@@ -222,46 +224,77 @@ class InvoicePdfService {
 
   static pw.Widget _buildItemsTable(
     List<InvoiceItemModel> items,
+    Map<int, List<BatchAllocationSnapshot>> batchesByProductId,
     pw.Font ttf,
     pw.Font bold,
   ) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
       columnWidths: {
-        0: const pw.FlexColumnWidth(3),
-        1: const pw.FlexColumnWidth(1.5),
-        2: const pw.FlexColumnWidth(2),
+        0: const pw.FlexColumnWidth(3.4),
+        1: const pw.FlexColumnWidth(1.8),
+        2: const pw.FlexColumnWidth(1.7),
         3: const pw.FlexColumnWidth(2),
+        4: const pw.FlexColumnWidth(2),
       },
       children: [
         // رأس الجدول
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.grey100),
           children: [
-            _tableCell('المنتج',      bold, isHeader: true),
-            _tableCell('الكمية',      bold, isHeader: true),
-            _tableCell('سعر القطعة', bold, isHeader: true),
-            _tableCell('الإجمالي',   bold, isHeader: true),
+            _tableCell('المنتج', bold, isHeader: true),
+            _tableCell('الوحدة', bold, isHeader: true),
+            _tableCell('الكمية', bold, isHeader: true),
+            _tableCell('سعر الوحدة', bold, isHeader: true),
+            _tableCell('الإجمالي', bold, isHeader: true),
           ],
         ),
         // الأسطر
-        ...items.map((item) => pw.TableRow(
-          children: [
-            _tableCell(item.productNameSnapshot, ttf),
-            _tableCell(
-              item.quantity % 1 == 0
-                  ? item.quantity.toInt().toString()
-                  : item.quantity.toStringAsFixed(2),
-              ttf,
+        ...items.expand((item) {
+          final quantity = item.quantity % 1 == 0
+              ? item.quantity.toInt().toString()
+              : item.quantity.toStringAsFixed(2);
+          final unit = item.unitNameSnapshot;
+          final allocations = batchesByProductId[item.productId] ?? const [];
+          final rows = <pw.TableRow>[
+            pw.TableRow(
+              children: [
+                _tableCell(item.productNameSnapshot, ttf),
+                _tableCell(unit == null || unit.isEmpty ? '-' : unit, ttf),
+                _tableCell(quantity, ttf),
+                _tableCell(MoneyUtils.formatMoney(item.unitPrice), ttf),
+                _tableCell(
+                  MoneyUtils.formatMoney(item.lineTotal),
+                  ttf,
+                  isBold: true,
+                ),
+              ],
             ),
-            _tableCell(MoneyUtils.formatMoney(item.unitPrice), ttf),
-            _tableCell(
-              MoneyUtils.formatMoney(item.lineTotal),
-              ttf,
-              isBold: true,
-            ),
-          ],
-        )),
+          ];
+          for (final allocation in allocations) {
+            final expiry = allocation.expiryDate;
+            final allocationUnit =
+                item.conversionFactorSnapshot == 1 && unit != null
+                ? unit
+                : 'أساسية';
+            final details = expiry == null || expiry.isEmpty
+                ? '${allocation.batchNumber} — ${_formatQuantity(allocation.quantity)} $allocationUnit'
+                : '${allocation.batchNumber} — ${_formatQuantity(allocation.quantity)} $allocationUnit — ${_displayDate(expiry)}';
+            rows.add(
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey50),
+                children: [
+                  _tableCell('تفاصيل الدفعات', ttf, isBold: true),
+                  _tableCell(details, ttf),
+                  _tableCell('', ttf),
+                  _tableCell('', ttf),
+                  _tableCell('', ttf),
+                ],
+              ),
+            );
+          }
+          return rows;
+        }),
       ],
     );
   }
@@ -270,8 +303,7 @@ class InvoicePdfService {
   // الملاحظات
   // ====================================================================
 
-  static pw.Widget _buildNotes(
-      String notes, pw.Font ttf, pw.Font bold) {
+  static pw.Widget _buildNotes(String notes, pw.Font ttf, pw.Font bold) {
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(12),
@@ -283,14 +315,16 @@ class InvoicePdfService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text('ملاحظات',
-              style: pw.TextStyle(
-                  font: bold,
-                  color: PdfColors.purple800,
-                  fontSize: 11)),
+          pw.Text(
+            'ملاحظات',
+            style: pw.TextStyle(
+              font: bold,
+              color: PdfColors.purple800,
+              fontSize: 12,
+            ),
+          ),
           pw.SizedBox(height: 4),
-          pw.Text(notes,
-              style: pw.TextStyle(font: ttf, fontSize: 11)),
+          pw.Text(notes, style: pw.TextStyle(font: ttf, fontSize: 10.5)),
         ],
       ),
     );
@@ -308,10 +342,15 @@ class InvoicePdfService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('سجل الدفعات',
-            style: pw.TextStyle(
-                font: bold, fontSize: 13, color: PdfColors.green800)),
-        pw.SizedBox(height: 6),
+        pw.Text(
+          'سجل الدفعات',
+          style: pw.TextStyle(
+            font: bold,
+            fontSize: 13,
+            color: PdfColors.green800,
+          ),
+        ),
+        pw.SizedBox(height: 5),
         pw.Table(
           border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
           columnWidths: {
@@ -323,19 +362,24 @@ class InvoicePdfService {
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey100),
               children: [
-                _tableCell('المبلغ',     bold, isHeader: true),
-                _tableCell('ملاحظات',    bold, isHeader: true),
-                _tableCell('التاريخ',    bold, isHeader: true),
+                _tableCell('التاريخ', bold, isHeader: true),
+                _tableCell('البيان', bold, isHeader: true),
+                _tableCell('المبلغ', bold, isHeader: true),
               ],
             ),
-            ...payments.map((p) => pw.TableRow(
-              children: [
-                _tableCell(' ${MoneyUtils.formatMoney(p.amount)}', ttf,
-                    color: PdfColors.green700),
-                _tableCell(p.notes ?? '-', ttf),
-                _tableCell(p.createdAt ?? '-', ttf),
-              ],
-            )),
+            ...payments.map(
+              (p) => pw.TableRow(
+                children: [
+                  _tableCell(_displayDate(p.createdAt), ttf),
+                  _tableCell(p.notes ?? '-', ttf),
+                  _tableCell(
+                    MoneyUtils.formatMoney(p.amount),
+                    ttf,
+                    color: PdfColors.green700,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ],
@@ -354,10 +398,15 @@ class InvoicePdfService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('سجل المرتجعات',
-            style: pw.TextStyle(
-                font: bold, fontSize: 13, color: PdfColors.purple800)),
-        pw.SizedBox(height: 6),
+        pw.Text(
+          'سجل المرتجعات',
+          style: pw.TextStyle(
+            font: bold,
+            fontSize: 13,
+            color: PdfColors.purple800,
+          ),
+        ),
+        pw.SizedBox(height: 5),
         pw.Table(
           border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
           columnWidths: {
@@ -370,18 +419,23 @@ class InvoicePdfService {
               decoration: const pw.BoxDecoration(color: PdfColors.grey100),
               children: [
                 _tableCell('رقم المرتجع', bold, isHeader: true),
-                _tableCell('القيمة',       bold, isHeader: true),
-                _tableCell('التاريخ',      bold, isHeader: true),
+                _tableCell('القيمة', bold, isHeader: true),
+                _tableCell('التاريخ', bold, isHeader: true),
               ],
             ),
-            ...returns.map((r) => pw.TableRow(
-              children: [
-                _tableCell(r.returnNumber, ttf),
-                _tableCell('- ${MoneyUtils.formatMoney(r.totalAmount)}', ttf,
-                    color: PdfColors.purple700),
-                _tableCell(r.createdAt ?? '-', ttf),
-              ],
-            )),
+            ...returns.map(
+              (r) => pw.TableRow(
+                children: [
+                  _tableCell(r.returnNumber, ttf),
+                  _tableCell(
+                    '- ${MoneyUtils.formatMoney(r.totalAmount)}',
+                    ttf,
+                    color: PdfColors.purple700,
+                  ),
+                  _tableCell(r.createdAt ?? '-', ttf),
+                ],
+              ),
+            ),
           ],
         ),
       ],
@@ -404,14 +458,14 @@ class InvoicePdfService {
     final balanceLabel = balance > 0
         ? 'المتبقي'
         : balance < 0
-            ? (isSale ? 'المستحق للعميل' : 'المستحق لنا من المورد')
-            : 'مسواة بالكامل';
+        ? (isSale ? 'المستحق للعميل' : 'المستحق لنا من المورد')
+        : 'مسواة بالكامل';
 
     final balanceColor = balance > 0
         ? PdfColors.red700
         : balance < 0
-            ? PdfColors.blue800
-            : PdfColors.green700;
+        ? PdfColors.blue800
+        : PdfColors.green700;
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -424,41 +478,46 @@ class InvoicePdfService {
           _totalRow(
             'إجمالي الفاتورة الأصلي',
             ' ${MoneyUtils.formatMoney(invoice.originalTotalAmount)}',
-            ttf, bold,
+            ttf,
+            bold,
           ),
           if (totalReturns > 0)
             _totalRow(
               'إجمالي المرتجعات',
               '- ${MoneyUtils.formatMoney(totalReturns)}',
-              ttf, bold,
+              ttf,
+              bold,
               valueColor: PdfColors.purple700,
             ),
           pw.Divider(color: PdfColors.grey400, thickness: 1),
           _totalRow(
             'صافي الفاتورة',
             ' ${MoneyUtils.formatMoney(netTotal)}',
-            ttf, bold,
+            ttf,
+            bold,
             isBold: true,
             valueColor: isSale ? PdfColors.green700 : PdfColors.orange700,
           ),
           _totalRow(
             'المدفوع',
             ' ${MoneyUtils.formatMoney(invoice.paidAmount)}',
-            ttf, bold,
+            ttf,
+            bold,
             valueColor: PdfColors.green600,
           ),
           pw.Divider(color: PdfColors.grey400, thickness: 1.5),
           _totalRow(
             balanceLabel,
             ' ${MoneyUtils.formatMoney(balance.abs())}',
-            ttf, bold,
+            ttf,
+            bold,
             isBold: true,
             valueColor: balanceColor,
             bgColor: balance > 0
                 ? PdfColors.red50
                 : balance < 0
-                    ? PdfColors.blue50
-                    : PdfColors.green50,
+                ? PdfColors.blue50
+                : PdfColors.green50,
           ),
         ],
       ),
@@ -477,13 +536,13 @@ class InvoicePdfService {
     PdfColor? color,
   }) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 6),
       child: pw.Text(
         text,
         textAlign: pw.TextAlign.right,
         style: pw.TextStyle(
           font: font,
-          fontSize: isHeader ? 11 : 10,
+          fontSize: isHeader ? 10.5 : 10,
           fontWeight: isHeader || isBold
               ? pw.FontWeight.bold
               : pw.FontWeight.normal,
@@ -504,18 +563,22 @@ class InvoicePdfService {
       child: pw.Row(
         children: [
           pw.SizedBox(
-            width: 60,
-            child: pw.Text(label,
-                style: pw.TextStyle(
-                    font: ttf,
-                    color: PdfColors.grey600,
-                    fontSize: 11)),
+            width: 76,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                font: ttf,
+                color: PdfColors.grey600,
+                fontSize: 11,
+              ),
+            ),
           ),
           pw.SizedBox(width: 8),
           pw.Expanded(
-            child: pw.Text(value,
-                style: pw.TextStyle(
-                    font: bold, fontSize: 11)),
+            child: pw.Text(
+              value,
+              style: pw.TextStyle(font: bold, fontSize: 11),
+            ),
           ),
         ],
       ),
@@ -537,20 +600,75 @@ class InvoicePdfService {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(label,
-              style: pw.TextStyle(
-                font: isBold ? bold : ttf,
-                fontSize: isBold ? 13 : 11,
-                color: PdfColors.grey700,
-              )),
-          pw.Text(value,
-              style: pw.TextStyle(
-                font: isBold ? bold : ttf,
-                fontSize: isBold ? 15 : 11,
-                color: valueColor ?? PdfColors.black,
-              )),
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              font: isBold ? bold : ttf,
+              fontSize: isBold ? 13 : 11,
+              color: PdfColors.grey700,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              font: isBold ? bold : ttf,
+              fontSize: isBold ? 15 : 11,
+              color: valueColor ?? PdfColors.black,
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  static pw.Widget _sectionTitle(String title, pw.Font bold) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 2),
+      child: pw.Text(
+        title,
+        style: pw.TextStyle(
+          font: bold,
+          fontSize: 13,
+          color: PdfColors.blueGrey800,
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _buildFooter(pw.Context context, pw.Font font) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          'شكراً لتعاملكم معنا',
+          style: pw.TextStyle(
+            font: font,
+            fontSize: 8,
+            color: PdfColors.grey600,
+          ),
+        ),
+        pw.Text(
+          'صفحة ${context.pageNumber} من ${context.pagesCount}',
+          style: pw.TextStyle(
+            font: font,
+            fontSize: 8,
+            color: PdfColors.grey600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _displayDate(String? value) {
+    if (value == null || value.trim().isEmpty) return '-';
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    return '$day/$month/${parsed.year}';
+  }
+
+  static String _formatQuantity(double value) {
+    return value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(2);
   }
 }

@@ -83,14 +83,32 @@ class ReportController extends GetxController {
     switch (selectedRange.value) {
       case ReportDateRange.today:
         // بداية اليوم بالوقت المحلي تحول إلى UTC
-        final startOfToday = DateTime(now.year, now.month, now.day, 0, 0, 0).toUtc();
+        final startOfToday = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          0,
+          0,
+          0,
+        ).toUtc();
         // نهاية اليوم بالوقت المحلي تحول إلى UTC
-        final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59, 999).toUtc();
+        final endOfToday = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          23,
+          59,
+          59,
+          999,
+        ).toUtc();
         return Tuple2(startOfToday, endOfToday);
 
       case ReportDateRange.thisWeek:
-        final startOfWeek = DateTime(now.year, now.month, now.day)
-            .subtract(Duration(days: now.weekday - 1));
+        final startOfWeek = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(Duration(days: now.weekday - 1));
         final endOfWeek = startOfWeek.add(const Duration(days: 6));
         return Tuple2(
           _startOfDay(startOfWeek).toUtc(),
@@ -155,8 +173,6 @@ class ReportController extends GetxController {
       await rootBundle.load('assets/fonts/Cairo-Bold.ttf'),
     );
 
-    
-
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -164,10 +180,7 @@ class ReportController extends GetxController {
         // نقوم بتحديد اتجاه النص من اليمين لليسار (RTL) عالمياً للصفحة
         textDirection: pw.TextDirection.rtl,
         // نقوم بتعيين الخط العربي كخط أساسي لوثيقة الـ PDF
-        theme: pw.ThemeData.withFont(
-          base: regular,
-          bold: bold,
-        ),
+        theme: pw.ThemeData.withFont(base: regular, bold: bold),
         build: (context) {
           return [
             // الآن سيتم عرض العنوان بشكل صحيح تماماً
@@ -178,14 +191,18 @@ class ReportController extends GetxController {
             _buildSection('المبيعات', [
               'عدد الفواتير: ${currentOverview.saleInvoiceCount}',
               'إجمالي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleTotal)}',
-              'المدفوع: ${MoneyUtils.formatMoney(currentOverview.salePaid)}',
-              'المتبقي: ${MoneyUtils.formatMoney(currentOverview.saleRemaining)}',
+              'مرتجعات المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleReturnTotal)}',
+              'صافي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleNetTotal)}',
+              'المدفوع خلال الفترة: ${MoneyUtils.formatMoney(currentOverview.salePaid)}',
+              'المتبقي الحالي: ${MoneyUtils.formatMoney(currentOverview.saleRemaining)}',
             ]),
             _buildSection('المشتريات', [
               'عدد الفواتير: ${currentOverview.purchaseInvoiceCount}',
               'إجمالي المشتريات: ${MoneyUtils.formatMoney(currentOverview.purchaseTotal)}',
-              'المدفوع: ${MoneyUtils.formatMoney(currentOverview.purchasePaid)}',
-              'المتبقي: ${MoneyUtils.formatMoney(currentOverview.purchaseRemaining)}',
+              'مرتجعات المشتريات: ${MoneyUtils.formatMoney(currentOverview.purchaseReturnTotal)}',
+              'صافي المشتريات: ${MoneyUtils.formatMoney(currentOverview.purchaseNetTotal)}',
+              'المدفوع خلال الفترة: ${MoneyUtils.formatMoney(currentOverview.purchasePaid)}',
+              'المتبقي الحالي: ${MoneyUtils.formatMoney(currentOverview.purchaseRemaining)}',
             ]),
             _buildSection('المرتجعات', [
               'عدد مرتجعات المبيعات: ${currentOverview.saleReturnCount}',
@@ -202,10 +219,19 @@ class ReportController extends GetxController {
               'الديون المستحقة علينا: ${MoneyUtils.formatMoney(currentOverview.debtsOwedByUs)}',
             ]),
             _buildSection('الأرباح', [
-              'الإيرادات الصافية: ${MoneyUtils.formatMoney(currentOverview.revenue)}',
-              'التكاليف الصافية: ${MoneyUtils.formatMoney(currentOverview.cost)}',
+              'صافي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleNetTotal)}',
+              'تكلفة البضاعة المباعة: ${MoneyUtils.formatMoney(currentOverview.cogsTotal)}',
+              'مجمل الربح: ${MoneyUtils.formatMoney(currentOverview.grossProfit)}',
+              'المصاريف: ${MoneyUtils.formatMoney(currentOverview.expenseTotal)}',
               'صافي الربح: ${MoneyUtils.formatMoney(currentOverview.profit)}',
             ]),
+            _buildSection('الأرصدة الحالية', [
+              'الذمم المدينة: ${MoneyUtils.formatMoney(currentOverview.debtsOwedToUs)}',
+              'الذمم الدائنة: ${MoneyUtils.formatMoney(currentOverview.debtsOwedByUs)}',
+              'قيمة المخزون: ${MoneyUtils.formatMoney(currentOverview.inventoryValue)}',
+            ]),
+            if (currentOverview.warehouseSummaries.isNotEmpty)
+              _buildWarehouseSection(currentOverview.warehouseSummaries),
           ];
         },
       ),
@@ -213,7 +239,10 @@ class ReportController extends GetxController {
 
     final bytes = await doc.save();
     // تغيير اسم الملف ليكون بالعربية أيضاً (اختياري)
-    await Printing.sharePdf(bytes: bytes, filename: 'التقرير_المالي_الشامل.pdf');
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: 'التقرير_المالي_الشامل.pdf',
+    );
   }
 
   String _rangeLabel() {
@@ -243,6 +272,41 @@ class ReportController extends GetxController {
         pw.SizedBox(height: 12),
       ],
     );
+  }
+
+  pw.Widget _buildWarehouseSection(List<WarehouseReportSummary> summaries) {
+    final totalSales = summaries.fold(0, (sum, item) => sum + item.sales);
+    final totalReturns = summaries.fold(
+      0,
+      (sum, item) => sum + item.salesReturns,
+    );
+    final totalCogs = summaries.fold(0, (sum, item) => sum + item.cogs);
+    final totalProfit = summaries.fold(
+      0,
+      (sum, item) => sum + item.grossProfit,
+    );
+    final totalInventory = summaries.fold(
+      0,
+      (sum, item) => sum + item.inventoryValue,
+    );
+    return _buildSection('المستودعات', [
+      for (final summary in summaries) ...[
+        summary.warehouseName,
+        'المبيعات: ${MoneyUtils.formatMoney(summary.sales)}',
+        'مرتجعات المبيعات: ${MoneyUtils.formatMoney(summary.salesReturns)}',
+        'صافي المبيعات: ${MoneyUtils.formatMoney(summary.netSales)}',
+        'تكلفة البضاعة: ${MoneyUtils.formatMoney(summary.cogs)}',
+        'مجمل الربح: ${MoneyUtils.formatMoney(summary.grossProfit)}',
+        'قيمة المخزون: ${MoneyUtils.formatMoney(summary.inventoryValue)}',
+      ],
+      'الإجمالي',
+      'المبيعات: ${MoneyUtils.formatMoney(totalSales)}',
+      'مرتجعات المبيعات: ${MoneyUtils.formatMoney(totalReturns)}',
+      'صافي المبيعات: ${MoneyUtils.formatMoney(totalSales - totalReturns)}',
+      'تكلفة البضاعة: ${MoneyUtils.formatMoney(totalCogs)}',
+      'مجمل الربح: ${MoneyUtils.formatMoney(totalProfit)}',
+      'قيمة المخزون: ${MoneyUtils.formatMoney(totalInventory)}',
+    ]);
   }
 }
 

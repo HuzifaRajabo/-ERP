@@ -557,7 +557,7 @@ class InventoryRepository {
         available: available,
         costPrice: (row['batch_cost_price'] as int?) ??
             (row['product_cost_price'] as int?) ??
-            available.round(),
+            0,
       );
     }).toList();
   }

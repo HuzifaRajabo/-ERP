@@ -237,6 +237,55 @@ class _SummaryTab extends StatelessWidget {
               ),
             ],
           ),
+          if (ov.warehouseSummaries.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const _SectionTitle('أداء المستودعات'),
+            const SizedBox(height: 10),
+            ...ov.warehouseSummaries.map(
+              (warehouse) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _WarehouseSummaryCard(summary: warehouse),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WarehouseSummaryCard extends StatelessWidget {
+  final WarehouseReportSummary summary;
+
+  const _WarehouseSummaryCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.teal.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            summary.warehouseName,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          const SizedBox(height: 8),
+          _InfoTable(
+            rows: [
+              _InfoRow('إجمالي المبيعات', summary.sales, Colors.green),
+              _InfoRow('مرتجعات المبيعات', summary.salesReturns, Colors.purple),
+              _InfoRow('صافي المبيعات', summary.netSales, Colors.green),
+              _InfoRow('تكلفة البضاعة', summary.cogs, Colors.deepOrange),
+              _InfoRow('مجمل الربح', summary.grossProfit, Colors.blue),
+              _InfoRow('قيمة المخزون', summary.inventoryValue, Colors.teal),
+            ],
+          ),
         ],
       ),
     );

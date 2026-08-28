@@ -2,6 +2,20 @@
 
 enum ReportDateRange { today, thisWeek, thisMonth, thisYear, custom }
 
+class ReportMath {
+  const ReportMath._();
+
+  static int netSales(int grossSales, int salesReturns) =>
+      grossSales - salesReturns;
+
+  static int grossProfit(int netSales, int cogs) => netSales - cogs;
+
+  static int netProfit(int grossProfit, int expenses) => grossProfit - expenses;
+
+  static int inventoryValue(double quantity, double unitCost) =>
+      (quantity * unitCost).round();
+}
+
 class ReportOverview {
   final int saleInvoiceCount;
   final int saleTotal;
@@ -30,6 +44,7 @@ class ReportOverview {
   final int cogsTotal; // تكلفة البضاعة المباعة
   final int grossProfit; // مجمل الربح = صافي مبيعات - تكلفة
   final int netProfit; // صافي الربح = مجمل الربح - مصاريف
+  final List<WarehouseReportSummary> warehouseSummaries;
 
   ReportOverview({
     required this.saleInvoiceCount,
@@ -54,11 +69,34 @@ class ReportOverview {
     required this.cogsTotal,
     required this.grossProfit,
     required this.netProfit,
+    this.warehouseSummaries = const [],
   });
 
   int get revenue => saleNetTotal;
   int get cost => cogsTotal;
   int get profit => netProfit;
+}
+
+class WarehouseReportSummary {
+  final int warehouseId;
+  final String warehouseName;
+  final int sales;
+  final int salesReturns;
+  final int cogs;
+  final int grossProfit;
+  final int inventoryValue;
+
+  const WarehouseReportSummary({
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.sales,
+    this.salesReturns = 0,
+    required this.cogs,
+    required this.grossProfit,
+    required this.inventoryValue,
+  });
+
+  int get netSales => sales - salesReturns;
 }
 
 /// تفاصيل ربح فاتورة بيع واحدة

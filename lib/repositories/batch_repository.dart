@@ -256,7 +256,16 @@ class BatchRepository {
       whereArgs: [productId, number],
       limit: 1,
     );
-    if (existing.isNotEmpty) return existing.first['id'] as int;
+    if (existing.isNotEmpty) {
+      final id = existing.first['id'] as int;
+      if (costPrice != null) {
+        await txn.rawUpdate(
+          'UPDATE batches SET cost_price = COALESCE(cost_price, ?) WHERE id = ?',
+          [costPrice, id],
+        );
+      }
+      return id;
+    }
 
     return await txn.insert('batches', {
       'product_id': productId,
