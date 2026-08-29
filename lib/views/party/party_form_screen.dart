@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
 import '../../models/party_model.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 
 class PartyFormScreen extends GetView<PartyController> {
   const PartyFormScreen({super.key});
@@ -18,21 +20,17 @@ class PartyFormScreen extends GetView<PartyController> {
     final formKey = GlobalKey<FormState>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? 'تعديل طرف' : 'إضافة طرف'),
-      ),
+      appBar: AppBar(title: Text(isEditing ? 'تعديل طرف' : 'إضافة طرف')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Form(
           key: formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // ==============================
               // Name
               // ==============================
-
               TextFormField(
                 controller: nameController,
                 validator: (v) => v!.trim().isEmpty ? 'مطلوب' : null,
@@ -44,12 +42,11 @@ class PartyFormScreen extends GetView<PartyController> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // ==============================
               // Phone
               // ==============================
-
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -61,12 +58,11 @@ class PartyFormScreen extends GetView<PartyController> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
 
               //==============================
               //address
               //==============================
-
               TextFormField(
                 controller: addressController,
                 maxLines: 2,
@@ -78,100 +74,103 @@ class PartyFormScreen extends GetView<PartyController> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
 
               // ==============================
               // Type Selector
               // ==============================
-
-              const Text(
-                'نوع الطرف',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              Text('نوع الطرف', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.md),
+              Obx(
+                () => Row(
+                  children: [
+                    _TypeOption(
+                      label: 'عميل',
+                      icon: Icons.person_outline,
+                      color: AppColors.primary,
+                      selected: selectedType.value == PartyType.customer,
+                      onTap: () => selectedType.value = PartyType.customer,
+                    ),
+                    const SizedBox(width: 8),
+                    _TypeOption(
+                      label: 'مورد',
+                      icon: Icons.local_shipping_outlined,
+                      color: AppColors.warning,
+                      selected: selectedType.value == PartyType.supplier,
+                      onTap: () => selectedType.value = PartyType.supplier,
+                    ),
+                    const SizedBox(width: 8),
+                    _TypeOption(
+                      label: 'كلاهما',
+                      icon: Icons.people_outline,
+                      color: AppColors.secondary,
+                      selected: selectedType.value == PartyType.both,
+                      onTap: () => selectedType.value = PartyType.both,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Obx(() => Row(
-                    children: [
-                      _TypeOption(
-                        label: 'عميل',
-                        icon: Icons.person_outline,
-                        color: Colors.blue,
-                        selected: selectedType.value == PartyType.customer,
-                        onTap: () => selectedType.value = PartyType.customer,
-                      ),
-                      const SizedBox(width: 8),
-                      _TypeOption(
-                        label: 'مورد',
-                        icon: Icons.local_shipping_outlined,
-                        color: Colors.orange,
-                        selected: selectedType.value == PartyType.supplier,
-                        onTap: () => selectedType.value = PartyType.supplier,
-                      ),
-                      const SizedBox(width: 8),
-                      _TypeOption(
-                        label: 'كلاهما',
-                        icon: Icons.people_outline,
-                        color: Colors.purple,
-                        selected: selectedType.value == PartyType.both,
-                        onTap: () => selectedType.value = PartyType.both,
-                      ),
-                    ],
-                  )),
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpacing.xxl),
 
               // ==============================
               // Submit
               // ==============================
+              Obx(
+                () => SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: controller.isLoading
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
 
-              Obx(() => SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: controller.isLoading
-                          ? null
-                          : () async {
-                              if (!formKey.currentState!.validate()) return;
+                            final newParty = PartyModel(
+                              id: party?.id,
+                              name: nameController.text.trim(),
+                              phone: phoneController.text.trim().isEmpty
+                                  ? null
+                                  : phoneController.text.trim(),
+                              address: addressController.text.trim().isEmpty
+                                  ? null
+                                  : addressController.text.trim(),
+                              type: selectedType.value,
+                            );
 
-                              final newParty = PartyModel(
-                                id: party?.id,
-                                name: nameController.text.trim(),
-                                phone: phoneController.text.trim().isEmpty
-                                    ? null
-                                    : phoneController.text.trim(),
-                                address: addressController.text.trim().isEmpty
-                                ? null
-                                : addressController.text.trim(),
-                                type: selectedType.value,
-                              );
+                            if (isEditing) {
+                              await controller.updateParty(newParty);
+                            } else {
+                              await controller.addParty(newParty);
+                            }
 
-                              if (isEditing) {
-                                await controller.updateParty(newParty);
-                              } else {
-                                await controller.addParty(newParty);
-                              }
+                            if (!controller.hasError) Get.back();
+                          },
+                    icon: controller.isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(isEditing ? Icons.save : Icons.add),
+                    label: Text(isEditing ? 'حفظ التعديلات' : 'إضافة'),
+                  ),
+                ),
+              ),
 
-                              if (!controller.hasError) Get.back();
-                            },
-                      icon: controller.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(isEditing ? Icons.save : Icons.add),
-                      label: Text(isEditing ? 'حفظ التعديلات' : 'إضافة'),
-                    ),
-                  )),
-
-              Obx(() => controller.hasError
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        controller.errorMessage.value ?? '',
-                        style: const TextStyle(color: Colors.red),
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  : const SizedBox.shrink()),
+              Obx(
+                () => controller.hasError
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          controller.errorMessage.value ?? '',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),
@@ -198,29 +197,22 @@ class _TypeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? color : color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.4)),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: selected ? Colors.white : color),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? Colors.white : color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+      child: ChoiceChip(
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: selected ? Colors.white : color),
+            const SizedBox(width: AppSpacing.xs),
+            Text(label),
+          ],
+        ),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        selectedColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.4)),
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : color,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/expense_controller.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 import '../../models/expense_model.dart';
 import '../../core/utils/money_utils.dart';
+import '../shared/shared_components.dart';
 
 class ExpenseListScreen extends GetView<ExpenseController> {
   const ExpenseListScreen({super.key});
@@ -22,18 +25,21 @@ class ExpenseListScreen extends GetView<ExpenseController> {
       ),
       body: Obx(() {
         if (controller.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const AppLoadingState(message: 'جارٍ تحميل المصاريف...');
         }
 
         if (controller.hasError) {
-          return _ErrorView(
+          return AppErrorState(
             message: controller.errorMessage.value ?? 'خطأ غير معروف',
             onRetry: controller.refreshExpenses,
           );
         }
 
         if (controller.isEmpty) {
-          return const _EmptyView();
+          return const AppEmptyState(
+            icon: Icons.money_off_outlined,
+            title: 'لا توجد مصاريف حتى الآن',
+          );
         }
 
         return RefreshIndicator(
@@ -42,7 +48,7 @@ class ExpenseListScreen extends GetView<ExpenseController> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
             itemCount:
                 controller.expenses.length + (controller.hasMore.value ? 1 : 0),
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               if (index == controller.expenses.length) {
                 return const Padding(
@@ -76,75 +82,65 @@ class _ExpenseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<ExpenseController>();
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          controller.initExpenseForm(expense);
-          Get.toNamed('/expense-form', arguments: expense);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      onTap: () {
+        controller.initExpenseForm(expense);
+        Get.toNamed('/expense-form', arguments: expense);
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+            ),
+            child: const Icon(Icons.money_off, color: AppColors.error),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expense.description,
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-                child: const Icon(Icons.money_off, color: Colors.red),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      expense.description,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      expense.category.label,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                    ),
-                    if (expense.createdAt != null)
-                      Text(
-                        expense.createdAt!,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                      ),
-                  ],
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  expense.category.label,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+                if (expense.createdAt != null)
                   Text(
-                    MoneyUtils.formatMoney(expense.amount),
-                    style: const TextStyle(
+                    expense.createdAt!,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                MoneyUtils.formatMoney(expense.amount),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () =>
-                        _confirmDelete(context, controller, expense.id!),
-                  ),
-                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                onPressed: () =>
+                    _confirmDelete(context, controller, expense.id!),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -154,72 +150,16 @@ class _ExpenseCard extends StatelessWidget {
     ExpenseController controller,
     int id,
   ) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('حذف المصروف'),
-        content: const Text('هل تريد حذف هذا المصروف؟'),
-        actions: [
-          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-          TextButton(
-            onPressed: () async {
-              Get.back();
-              await controller.deleteExpense(id);
-            },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.money_off_outlined, size: 64, color: Colors.red[200]),
-          const SizedBox(height: 16),
-          const Text('لا توجد مصاريف حتى الآن', style: TextStyle(fontSize: 16)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorView({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: const TextStyle(fontSize: 15),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('إعادة المحاولة'),
-            ),
-          ],
-        ),
-      ),
-    );
+    AppConfirmDialog.show(
+      context,
+      title: 'حذف المصروف',
+      message: 'هل تريد حذف هذا المصروف؟',
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      isDestructive: true,
+    ).then((confirmed) async {
+      if (confirmed != true) return;
+      await controller.deleteExpense(id);
+    });
   }
 }

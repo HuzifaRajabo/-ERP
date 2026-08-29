@@ -13,6 +13,9 @@ import '../../repositories/payment_repository.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/services/invoice_pdf_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../shared/shared_components.dart';
 
 class InvoiceDetailsScreen extends StatefulWidget {
   const InvoiceDetailsScreen({super.key});
@@ -23,7 +26,7 @@ class InvoiceDetailsScreen extends StatefulWidget {
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   final controller = Get.find<InvoiceController>();
-  final _returnRepo  = ReturnRepository();
+  final _returnRepo = ReturnRepository();
   final _paymentRepo = PaymentRepository();
   late final int invoiceId;
   late InvoiceModel invoice;
@@ -78,7 +81,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         final invoice = data.invoice;
         final items = data.items;
         final isSale = invoice.type == InvoiceType.sale;
-        final typeColor = isSale ? Colors.green : Colors.orange;
+        final typeColor = isSale ? AppColors.success : AppColors.warning;
         final statusColor = Color(
           int.parse('FF${invoice.paymentStatus.colorHex}', radix: 16),
         );
@@ -99,7 +102,10 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 onPressed: () => _confirmDelete(context, invoice),
               ),
             ],
@@ -108,13 +114,8 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               // ─── رأس الفاتورة ───
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: typeColor.withOpacity(0.2)),
-                ),
+              AppCard(
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
                   children: [
                     Row(
@@ -130,44 +131,17 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: typeColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                isSale ? 'فاتورة بيع' : 'فاتورة شراء',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            AppStatusBadge(
+                              label: isSale ? 'فاتورة بيع' : 'فاتورة شراء',
+                              color: typeColor,
+                              icon: isSale
+                                  ? Icons.point_of_sale_outlined
+                                  : Icons.shopping_cart_outlined,
                             ),
                             const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: statusColor.withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: Text(
-                                invoice.paymentStatus.label,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
+                            AppStatusBadge(
+                              label: invoice.paymentStatus.label,
+                              color: statusColor,
                             ),
                           ],
                         ),
@@ -233,7 +207,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               _SectionCard(
                 icon: Icons.people_outline,
                 title: isSale ? 'العميل' : 'المورد',
-                color: Colors.blue,
+                color: Theme.of(context).colorScheme.primary,
                 children: [
                   _DetailRow(label: 'الاسم', value: invoice.partyNameSnapshot),
                   if (invoice.partyAddressSnapshot.isNotEmpty)
@@ -254,7 +228,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 _SectionCard(
                   icon: Icons.notes_outlined,
                   title: 'الملاحظات',
-                  color: Colors.purple,
+                  color: Theme.of(context).colorScheme.secondary,
                   children: [
                     Text(
                       invoice.notes!,
@@ -278,7 +252,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('تسجيل دفعة'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -293,9 +267,10 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               _ReturnButton(invoice: invoice),
               const SizedBox(height: 12),
 
-              // ─── قسم الحسابات والإجمالي الصافي ───
+              const SizedBox(height: 20),
+
               _InvoiceTotalSection(invoice: invoice),
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
             ],
           ),
         );
@@ -305,21 +280,19 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
   Future<void> _exportPdf(
     InvoiceModel invoice,
-    List<InvoiceItemModel> items,
-    {
+    List<InvoiceItemModel> items, {
     String? warehouseName,
     Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
-    }
-  ) async {
+  }) async {
     try {
       final payments = await _paymentRepo.getPaymentsByInvoice(invoice.id!);
-      final returns  = await _returnRepo.getReturnsByInvoice(invoice.id!);
+      final returns = await _returnRepo.getReturnsByInvoice(invoice.id!);
 
       await InvoicePdfService.exportInvoice(
-        invoice:  invoice,
-        items:    items,
+        invoice: invoice,
+        items: items,
         payments: payments,
-        returns:  returns,
+        returns: returns,
         warehouseName: warehouseName,
         batchesByProductId: batchesByProductId,
       );
@@ -383,11 +356,7 @@ class _ItemsCardsSection extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Icon(
-                  Icons.list_alt,
-                  color: Colors.grey[600],
-                  size: 18,
-                ),
+                Icon(Icons.list_alt, color: Colors.grey[600], size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'المنتجات (${items.length})',
@@ -437,9 +406,15 @@ class _ItemDetailCard extends StatelessWidget {
     if (expiry == null) return Colors.grey;
     final date = DateTime.tryParse(expiry);
     if (date == null) return Colors.grey;
-    final days = date.difference(
-      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day),
-    ).inDays;
+    final days = date
+        .difference(
+          DateTime(
+            DateTime.now().year,
+            DateTime.now().month,
+            DateTime.now().day,
+          ),
+        )
+        .inDays;
     if (days < 0) return Colors.red;
     if (days <= 30) return Colors.orange;
     return Colors.green;
@@ -537,9 +512,7 @@ class _ItemDetailCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    allocations.length == 1
-                        ? 'الدفعة:'
-                        : 'الدفعات المخصصة:',
+                    allocations.length == 1 ? 'الدفعة:' : 'الدفعات المخصصة:',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -708,45 +681,25 @@ class _PaymentHistorySectionState extends State<_PaymentHistorySection> {
   Widget build(BuildContext context) {
     return Obx(() {
       if (_payments.isEmpty) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.payments_outlined, color: Colors.grey[400]),
-              const SizedBox(width: 8),
-              Text(
-                'لا توجد دفعات مسجلة',
-                style: TextStyle(color: Colors.grey[500]),
-              ),
-            ],
-          ),
+        return AppEmptyState(
+          icon: Icons.payments_outlined,
+          title: 'لا توجد دفعات مسجلة',
         );
       }
 
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
+      return AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.sm),
               child: Row(
                 children: [
                   Icon(Icons.history, color: Colors.grey[600], size: 18),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   Text(
                     'سجل الدفعات (${_payments.length})',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ],
               ),
@@ -779,11 +732,8 @@ class _PaymentRow extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
-      ),
+    return AppCard(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
       child: Row(
         children: [
           Container(
@@ -792,7 +742,7 @@ class _PaymentRow extends GetView<PaymentController> {
             decoration: BoxDecoration(
               color: (payment.returnId != null ? Colors.red : Colors.green)
                   .withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.small),
             ),
             child: Icon(
               payment.returnId != null ? Icons.reply : Icons.payments_outlined,
@@ -800,39 +750,44 @@ class _PaymentRow extends GetView<PaymentController> {
               size: 18,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   MoneyUtils.formatMoney(payment.amount),
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
                     color: payment.returnId != null ? Colors.red : Colors.green,
                   ),
                 ),
                 if (payment.notes != null)
                   Text(
                     payment.notes!,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                    ),
                   ),
                 if (payment.returnId != null)
-                  Text(
-                    'دفعة راجعة',
-                    style: TextStyle(color: Colors.red[600], fontSize: 12),
+                  AppStatusBadge(
+                    label: 'دفعة راجعة',
+                    color: Colors.red,
                   ),
                 if (payment.createdAt != null)
                   Text(
                     payment.createdAt!,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.grey[400],
+                      fontSize: 11,
+                    ),
                   ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+            icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
             onPressed: () => _confirmDelete(context),
           ),
         ],
@@ -1121,12 +1076,8 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
       final paid = widget.invoice.paidAmount;
       final balance = netTotal - paid;
 
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-          color: Colors.white,
-        ),
+      return AppCard(
+        padding: EdgeInsets.zero,
         child: Column(
           children: [
             Padding(
@@ -1146,9 +1097,11 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                     _SummaryRow(
                       label: 'إجمالي المرتجعات',
                       value: '- ${MoneyUtils.formatMoney(returnsTotal)}',
-                      labelStyle: const TextStyle(color: Colors.purple),
-                      valueStyle: const TextStyle(
-                        color: Colors.purple,
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                      valueStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.secondary,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -1163,7 +1116,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                     label: 'صافي الفاتورة',
                     value: MoneyUtils.formatMoney(netTotal),
                     valueStyle: TextStyle(
-                      color: isSale ? Colors.green[700] : Colors.orange[800],
+                      color: isSale ? AppColors.success : AppColors.warning,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -1173,7 +1126,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                     label: 'المدفوع',
                     value: MoneyUtils.formatMoney(paid),
                     valueStyle: const TextStyle(
-                      color: Colors.green,
+                      color: AppColors.success,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -1184,7 +1137,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _getBalanceBackgroundColor(balance),
+                color: _getBalanceBackgroundColor(context, balance),
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(12),
                 ),
@@ -1198,7 +1151,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                       Text(
                         _getBalanceLabel(balance, isSale),
                         style: TextStyle(
-                          color: _getBalanceTextColor(balance),
+                          color: _getBalanceTextColor(context, balance),
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
@@ -1206,7 +1159,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                       Text(
                         MoneyUtils.formatMoney(balance.abs()),
                         style: TextStyle(
-                          color: _getBalanceTextColor(balance),
+                          color: _getBalanceTextColor(context, balance),
                           fontWeight: FontWeight.bold,
                           fontSize: 20,
                         ),
@@ -1221,7 +1174,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                           ? (paid / netTotal).clamp(0.0, 1.0)
                           : 1.0,
                       minHeight: 6,
-                      color: _getProgressBarColor(balance),
+                      color: _getProgressBarColor(context, balance),
                       backgroundColor: Colors.grey.shade300,
                     ),
                   ),
@@ -1240,22 +1193,20 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
     return 'مسواة بالكامل';
   }
 
-  Color _getBalanceTextColor(int balance) {
-    if (balance > 0) return Colors.red.shade700;
-    if (balance < 0) return Colors.blue.shade800;
-    return Colors.green.shade700;
+  Color _getBalanceTextColor(BuildContext context, int balance) {
+    if (balance > 0) return Theme.of(context).colorScheme.error;
+    if (balance < 0) return Theme.of(context).colorScheme.primary;
+    return AppColors.success;
   }
 
-  Color _getBalanceBackgroundColor(int balance) {
-    if (balance > 0) return Colors.red.shade50;
-    if (balance < 0) return Colors.blue.shade50;
-    return Colors.green.shade50;
+  Color _getBalanceBackgroundColor(BuildContext context, int balance) {
+    final color = _getBalanceTextColor(context, balance);
+    return color.withValues(alpha: 0.08);
   }
 
-  Color _getProgressBarColor(int balance) {
-    if (balance > 0) return Colors.orange;
-    if (balance < 0) return Colors.blue;
-    return Colors.green;
+  Color _getProgressBarColor(BuildContext context, int balance) {
+    if (balance > 0) return AppColors.warning;
+    return _getBalanceTextColor(context, balance);
   }
 }
 

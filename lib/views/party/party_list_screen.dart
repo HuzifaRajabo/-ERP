@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
 import '../../models/party_model.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../shared/shared_components.dart';
 
 class PartyListScreen extends GetView<PartyController> {
   const PartyListScreen({super.key});
@@ -47,23 +50,15 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      child: Obx(() => TextField(
-        onChanged: controller.search,
-        decoration: InputDecoration(
-          hintText: 'بحث عن طرف...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: controller.searchKeyword.value.isNotEmpty
-              ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: controller.clearSearch,
-          )
+      child: Obx(
+        () => AppSearchField(
+          hint: 'بحث عن طرف...',
+          onChanged: controller.search,
+          onClear: controller.searchKeyword.value.isNotEmpty
+              ? controller.clearSearch
               : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         ),
-      )),
+      ),
     );
   }
 }
@@ -79,40 +74,42 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() => SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          _Chip(
-            label: 'الكل',
-            selected: controller.selectedType.value == null,
-            onTap: () => controller.filterByType(null),
-          ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'عملاء',
-            selected: controller.selectedType.value == PartyType.customer,
-            color: Colors.blue,
-            onTap: () => controller.filterByType(PartyType.customer),
-          ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'موردين',
-            selected: controller.selectedType.value == PartyType.supplier,
-            color: Colors.orange,
-            onTap: () => controller.filterByType(PartyType.supplier),
-          ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'كلاهما',
-            selected: controller.selectedType.value == PartyType.both,
-            color: Colors.purple,
-            onTap: () => controller.filterByType(PartyType.both),
-          ),
-        ],
+    return Obx(
+      () => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            _Chip(
+              label: 'الكل',
+              selected: controller.selectedType.value == null,
+              onTap: () => controller.filterByType(null),
+            ),
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'عملاء',
+              selected: controller.selectedType.value == PartyType.customer,
+              color: AppColors.primary,
+              onTap: () => controller.filterByType(PartyType.customer),
+            ),
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'موردين',
+              selected: controller.selectedType.value == PartyType.supplier,
+              color: AppColors.warning,
+              onTap: () => controller.filterByType(PartyType.supplier),
+            ),
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'كلاهما',
+              selected: controller.selectedType.value == PartyType.both,
+              color: Theme.of(context).colorScheme.secondary,
+              onTap: () => controller.filterByType(PartyType.both),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }
 
@@ -125,30 +122,25 @@ class _Chip extends StatelessWidget {
   const _Chip({
     required this.label,
     required this.selected,
-    this.color = Colors.blue,
+    this.color = AppColors.primary,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.4)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      selectedColor: color,
+      backgroundColor: color.withValues(alpha: 0.08),
+      side: BorderSide(color: color.withValues(alpha: 0.4)),
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : color,
+        fontWeight: FontWeight.w600,
       ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
     );
   }
 }
@@ -163,9 +155,8 @@ class _PartyList extends GetView<PartyController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-
       if (controller.isLoading) {
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoadingState();
       }
 
       if (controller.hasError) {
@@ -193,8 +184,9 @@ class _PartyList extends GetView<PartyController> {
           onRefresh: controller.refreshParties,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: controller.parties.length + (controller.hasMore.value ? 1 : 0),
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemCount:
+                controller.parties.length + (controller.hasMore.value ? 1 : 0),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               if (index == controller.parties.length) {
                 return const Padding(
@@ -222,11 +214,14 @@ class _PartyCard extends GetView<PartyController> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: () => Get.toNamed('/party-details', arguments: party),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
         leading: CircleAvatar(
           backgroundColor: _typeColor(party.type).withOpacity(0.15),
           child: Icon(_typeIcon(party.type), color: _typeColor(party.type)),
@@ -255,35 +250,42 @@ class _PartyCard extends GetView<PartyController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+              icon:               Icon(
+                Icons.edit_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               onPressed: () => Get.toNamed('/party-form', arguments: party),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon:               Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => _confirmDelete(context),
             ),
           ],
         ),
-        onTap: () => Get.toNamed('/party-details', arguments: party),
       ),
     );
   }
 
   void _confirmDelete(BuildContext context) {
-    Get.dialog(AlertDialog(
-      title: const Text('حذف الطرف'),
-      content: Text('هل تريد حذف "${party.name}"؟'),
-      actions: [
-        TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-        TextButton(
-          onPressed: () {
-            Get.back();
-            controller.deleteParty(party.id!);
-          },
-          child: const Text('حذف', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ));
+    Get.dialog(
+      AlertDialog(
+        title: const Text('حذف الطرف'),
+        content: Text('هل تريد حذف "${party.name}"؟'),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.deleteParty(party.id!);
+            },
+            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _typeColor(PartyType type) => switch (type) {
@@ -311,22 +313,12 @@ class _TypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (type) {
-      PartyType.customer => ('عميل', Colors.blue),
-      PartyType.supplier => ('مورد', Colors.orange),
-      PartyType.both => ('عميل ومورد', Colors.purple),
+      PartyType.customer => ('عميل', AppColors.primary),
+      PartyType.supplier => ('مورد', AppColors.warning),
+      PartyType.both => ('عميل ومورد', Theme.of(context).colorScheme.secondary),
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
-      ),
-    );
+    return AppStatusBadge(label: label, color: color);
   }
 }
 
@@ -341,22 +333,9 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isSearching ? Icons.search_off : Icons.people_outline,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isSearching ? 'لا توجد نتائج' : 'لا توجد أطراف',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-          ),
-        ],
-      ),
+    return AppEmptyState(
+      icon: isSearching ? Icons.search_off : Icons.people_outline,
+      title: isSearching ? 'لا توجد نتائج' : 'لا توجد أطراف',
     );
   }
 }
@@ -369,22 +348,9 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-          const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600])),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
+    return AppErrorState(
+      message: message,
+      onRetry: onRetry,
     );
   }
 }

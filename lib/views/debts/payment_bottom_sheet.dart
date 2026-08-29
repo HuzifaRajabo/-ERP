@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/payment_controller.dart';
 import '../../models/invoice_model.dart';
-import '../shared/payment_widgets.dart';
+import '../../views/shared/shared_components.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_colors.dart';
 
 class PaymentBottomSheet extends GetView<PaymentController> {
   final InvoiceModel invoice;
@@ -37,7 +39,12 @@ class PaymentBottomSheet extends GetView<PaymentController> {
         builder: (context, scrollController) {
           return ListView(
             controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.xl,
+            ),
             children: [
               // Handle
               Center(
@@ -46,31 +53,22 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(AppRadius.small),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.sm),
 
-              // العنوان
-              Row(
-                children: [
-                  const Icon(Icons.payments_outlined, color: Colors.green),
-                  const SizedBox(width: 8),
-                  Text(
-                    'تسجيل دفعة — ${invoice.invoiceNumber}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
+              // العنوان - باستخدام AppSectionHeader
+              AppSectionHeader(
+                title: 'تسجيل دفعة — ${invoice.invoiceNumber}',
+                action: null,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.sm),
 
               // ملخص الفاتورة
               _InvoiceSummaryCard(invoice: invoice),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.md),
 
               // حقل المبلغ
               Obx(
@@ -90,12 +88,12 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                     suffixText:
                         'الحد الأقصى: ${MoneyUtils.formatMoney(invoice.remaining)}',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+SizedBox(height: AppSpacing.sm),
 
               // حقل الملاحظات
               TextFormField(
@@ -105,18 +103,22 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                   labelText: 'ملاحظات (اختياري)',
                   prefixIcon: const Icon(Icons.notes_outlined),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.md),
 
               // رسالة الخطأ
               Obx(
                 () => controller.formError.value != null
-                    ? ErrorBox(message: controller.formError.value!)
+                    ? AppErrorState(
+                  message: controller.formError.value!,
+                  title: 'خطأ',
+                )
                     : const SizedBox.shrink(),
               ),
+              SizedBox(height: AppSpacing.sm),
 
               // زر الحفظ
               Obx(
@@ -160,7 +162,7 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
                       ),
                     ),
                   ),
@@ -181,46 +183,45 @@ class _InvoiceSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+    return AppCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // استخدام AppSectionHeader للعنوان
+          AppSectionHeader(
+            title: 'ملخص الفاتورة',
+            action: null,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _SummaryItem(
                 label: 'الإجمالي',
                 value: MoneyUtils.formatMoney(invoice.totalAmount),
-                color: Colors.blueGrey,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               _SummaryItem(
                 label: 'المدفوع',
                 value: MoneyUtils.formatMoney(invoice.paidAmount),
-                color: Colors.green,
+                color: AppColors.success,
               ),
               _SummaryItem(
                 label: 'المتبقي',
                 value: MoneyUtils.formatMoney(invoice.remaining),
-                color: Colors.red,
+                color: Theme.of(context).colorScheme.error,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: invoice.totalAmount > 0
-                  ? (invoice.paidAmount / invoice.totalAmount).clamp(0.0, 1.0)
-                  : 0,
-              minHeight: 6,
-              color: Colors.green,
-              backgroundColor: Colors.grey.shade200,
-            ),
+          const SizedBox(height: AppSpacing.sm),
+          LinearProgressIndicator(
+            value: invoice.totalAmount > 0
+                ? (invoice.paidAmount / invoice.totalAmount).clamp(0.0, 1.0)
+                : 0,
+            minHeight: 6,
+            color: AppColors.success,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
         ],
       ),
@@ -243,11 +244,17 @@ class _SummaryItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Colors.grey[500],
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: color,
             fontWeight: FontWeight.bold,
             fontSize: 18,

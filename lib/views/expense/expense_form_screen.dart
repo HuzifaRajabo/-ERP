@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/expense_controller.dart';
 import '../../models/expense_model.dart';
@@ -78,7 +80,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             const SizedBox(height: 16),
             Obx(
               () => DropdownButtonFormField<ExpenseCategory>(
-                value: controller.category.value,
+                initialValue: controller.category.value,
                 decoration: const InputDecoration(
                   labelText: 'التصنيف',
                   prefixIcon: Icon(Icons.category),
@@ -103,15 +105,17 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             Obx(() {
               if (controller.formError.value != null) {
                 return Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red.shade200),
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     controller.formError.value!,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(color: AppColors.error),
                   ),
                 );
               }
@@ -122,7 +126,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               () => SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: controller.isSaving.value
                       ? null
                       : () async {
@@ -133,12 +137,11 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                               'تم',
                               'تم حفظ المصروف بنجاح',
                               snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: Colors.green,
+                              backgroundColor: AppColors.success,
                               colorText: Colors.white,
                             );
                           }
                         },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   child: controller.isSaving.value
                       ? const CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/product_controller.dart';
 import '../../models/product_model.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../../views/shared/shared_components.dart';
 
 class ProductListScreen extends GetView<ProductController> {
   const ProductListScreen({super.key});
@@ -96,23 +99,10 @@ class _CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? Colors.blue : Colors.blue.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.blue.withOpacity(0.4)),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.blue,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
+      child: AppStatusBadge(
+        label: label,
+        color: selected ? Theme.of(context).colorScheme.primary : null,
+        icon: null,
       ),
     );
   }
@@ -131,22 +121,12 @@ class _SearchBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: Obx(() => TextField(
+      child: Obx(() => AppSearchField(
+        hint: 'بحث عن منتج...',
         onChanged: controller.search,
-        decoration: InputDecoration(
-          hintText: 'بحث عن منتج...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: controller.searchKeyword.value.isNotEmpty
-              ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: controller.clearSearch,
-          )
-              : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        ),
+        onClear: controller.searchKeyword.value.isNotEmpty
+            ? controller.clearSearch
+            : null,
       )),
     );
   }
@@ -196,7 +176,7 @@ class _ProductList extends GetView<ProductController> {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             itemCount: controller.products.length + (controller.hasMore.value ? 1 : 0),
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
 
               // Loading More Indicator
@@ -227,14 +207,15 @@ class _ProductCard extends GetView<ProductController> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return AppCard(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         title: Text(
           product.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.titleSmall,
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,42 +223,33 @@ class _ProductCard extends GetView<ProductController> {
             if (product.description.isNotEmpty)
               Text(
                 product.description,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             if (product.categoryName != null)
               Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.blue.shade100),
-                  ),
-                  child: Text(
-                    product.categoryName!,
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                padding: EdgeInsets.only(top: AppSpacing.xs),
+                child: AppStatusBadge(
+                  label: product.categoryName!,
+                  color: Theme.of(context).colorScheme.primary,
+                  icon: Icons.category_outlined,
                 ),
               ),
           ],
         ),
-        isThreeLine: product.categoryName != null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+              icon: const Icon(Icons.edit_outlined),
               onPressed: () => Get.toNamed('/product-form', arguments: product),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon: const Icon(Icons.delete_outline),
               onPressed: () => _confirmDelete(context),
             ),
           ],
@@ -302,13 +274,17 @@ class _ProductCard extends GetView<ProductController> {
               Get.back();
               controller.deleteProduct(product.id!);
             },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: const Text('حذف', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
     );
   }
 }
+
+// ==============================
+// Empty View
+// ==============================
 
 // ==============================
 // Empty View
@@ -321,25 +297,16 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isSearching ? Icons.search_off : Icons.inventory_2_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isSearching ? 'لا توجد نتائج' : 'لا توجد منتجات',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-          ),
-        ],
-      ),
+    return AppEmptyState(
+      icon: isSearching ? Icons.search_off : Icons.inventory_2_outlined,
+      title: isSearching ? 'لا توجد نتائج' : 'لا توجد منتجات',
     );
   }
 }
+
+// ==============================
+// Error View
+// ==============================
 
 // ==============================
 // Error View
@@ -353,25 +320,10 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('إعادة المحاولة'),
-          ),
-        ],
-      ),
+    return AppErrorState(
+      message: message,
+      title: 'حدث خطأ',
+      onRetry: onRetry,
     );
   }
 }

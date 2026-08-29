@@ -4,6 +4,9 @@ import '../../controllers/warehouse_controller.dart';
 import '../../models/warehouse_model.dart';
 import 'warehouse_details_screen.dart';
 import 'warehouse_form_screen.dart';
+import '../shared/shared_components.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 
 class WarehouseListScreen extends GetView<WarehouseController> {
   const WarehouseListScreen({super.key});
@@ -11,7 +14,6 @@ class WarehouseListScreen extends GetView<WarehouseController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
         title: const Text('المستودعات'),
         centerTitle: true,
@@ -25,38 +27,42 @@ class WarehouseListScreen extends GetView<WarehouseController> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Get.to(() => const WarehouseFormScreen()),
-        backgroundColor: const Color(0xFF2563EB),
-        foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('مستودع جديد'),
       ),
       body: Obx(() {
         switch (controller.state.value) {
           case WarehouseLoadState.loading:
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingState();
           case WarehouseLoadState.error:
-            return _ErrorState(
-              message: controller.errorMessage.value ??
-                  'تعذر تحميل المستودعات',
+            return AppErrorState(
+              message: controller.errorMessage.value ?? 'تعذر تحميل المستودعات',
               onRetry: () => controller.loadWarehouses(),
             );
           case WarehouseLoadState.idle:
             if (controller.warehouses.isEmpty) {
-              return _EmptyState(onAdd: () => Get.to(() => const WarehouseFormScreen()));
+              return AppEmptyState(
+                icon: Icons.warehouse_outlined,
+                title: 'لا توجد مستودعات',
+                action: FilledButton.icon(
+                  onPressed: () => Get.to(() => const WarehouseFormScreen()),
+                  icon: const Icon(Icons.add),
+                  label: const Text('إضافة مستودع'),
+                ),
+              );
             }
             return RefreshIndicator(
               onRefresh: controller.loadWarehouses,
               child: ListView.separated(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpacing.lg),
                 itemCount: controller.warehouses.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final w = controller.warehouses[index];
                   return _WarehouseCard(
                     warehouse: w,
-                    onTap: () => Get.to(
-                      () => WarehouseDetailsScreen(warehouse: w),
-                    ),
+                    onTap: () =>
+                        Get.to(() => WarehouseDetailsScreen(warehouse: w)),
                   );
                 },
               ),
@@ -74,177 +80,99 @@ class _WarehouseCard extends StatelessWidget {
   const _WarehouseCard({required this.warehouse, required this.onTap});
 
   Color get _typeColor => switch (warehouse.type) {
-        WarehouseType.main => const Color(0xFF2563EB),
-        WarehouseType.van => const Color(0xFFF59E0B),
-        WarehouseType.branch => const Color(0xFF16A34A),
-      };
+    WarehouseType.main => AppColors.primary,
+    WarehouseType.van => AppColors.warning,
+    WarehouseType.branch => AppColors.success,
+  };
 
   IconData get _typeIcon => switch (warehouse.type) {
-        WarehouseType.main => Icons.warehouse_rounded,
-        WarehouseType.van => Icons.local_shipping_rounded,
-        WarehouseType.branch => Icons.store_mall_directory_rounded,
-      };
+    WarehouseType.main => Icons.warehouse_rounded,
+    WarehouseType.van => Icons.local_shipping_rounded,
+    WarehouseType.branch => Icons.store_mall_directory_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: _typeColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(_typeIcon, color: _typeColor, size: 26),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: _typeColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
+              child: Icon(_typeIcon, color: _typeColor, size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          warehouse.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      if (warehouse.isDefault) ...[
+                        const SizedBox(width: 6),
+                        AppStatusBadge(
+                          label: 'افتراضي',
+                          color: AppColors.primary,
+                        ),
+                      ],
+                      if (!warehouse.isActive) ...[
+                        const SizedBox(width: 6),
+                        AppStatusBadge(
+                          label: 'معطل',
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        warehouse.type.label,
+                        style: TextStyle(
+                          color: _typeColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (warehouse.address != null &&
+                          warehouse.address!.isNotEmpty) ...[
+                        const SizedBox(width: 8),
                         Flexible(
                           child: Text(
-                            warehouse.name,
+                            warehouse.address!,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 11,
                             ),
                           ),
                         ),
-                        if (warehouse.isDefault) ...[
-                          const SizedBox(width: 6),
-                          const _Badge(text: 'افتراضي', color: Color(0xFF2563EB)),
-                        ],
-                        if (!warehouse.isActive) ...[
-                          const SizedBox(width: 6),
-                          const _Badge(text: 'معطل', color: Color(0xFFDC2626)),
-                        ],
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          warehouse.type.label,
-                          style: TextStyle(
-                            color: _typeColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (warehouse.address != null &&
-                            warehouse.address!.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              warehouse.address!,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
-              const Icon(Icons.chevron_left_rounded, color: Colors.grey),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _Badge({required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onAdd;
-
-  const _EmptyState({required this.onAdd});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.warehouse_outlined, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          Text('لا توجد مستودعات',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('إضافة مستودع'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Color(0xFFDC2626)),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600])),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('إعادة المحاولة'),
             ),
+            const Icon(Icons.chevron_left_rounded, color: Colors.grey),
           ],
         ),
       ),

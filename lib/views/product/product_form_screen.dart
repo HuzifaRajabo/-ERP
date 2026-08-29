@@ -6,6 +6,9 @@ import '../../core/utils/money_utils.dart';
 import '../../models/category_model.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../../views/shared/shared_components.dart';
 
 class ProductFormScreen extends StatefulWidget {
   const ProductFormScreen({super.key});
@@ -200,7 +203,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget _buildCategoryDropdown() {
     return Obx(
       () => DropdownButtonFormField<int?>(
-        value: _selectedCategoryId,
+        initialValue: _selectedCategoryId,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: 'التصنيف',
@@ -476,7 +479,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                             children: [
                               Icon(
                                 Icons.delete_outline,
-                                color: Colors.red,
+                                color: AppColors.error,
                               ),
                               SizedBox(width: 8),
                               Text('حذف'),
@@ -647,7 +650,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             },
             child: const Text(
               'حذف',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: AppColors.error),
             ),
           ),
         ],
@@ -726,24 +729,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(.08),
+            color: AppColors.error,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.red.withOpacity(.2),
+              color: AppColors.error,
             ),
           ),
           child: Row(
             children: [
               const Icon(
                 Icons.error_outline,
-                color: Colors.red,
+                color: AppColors.error,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   message,
                   style: const TextStyle(
-                    color: Colors.red,
+                    color: AppColors.error,
                   ),
                 ),
               ),
@@ -1227,41 +1230,23 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            child,
-          ],
-        ),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          child,
+        ],
       ),
     );
   }
@@ -1299,11 +1284,11 @@ class _FormField extends StatelessWidget {
         hintText: hint,
         prefixIcon: Icon(icon),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.medium),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.lg,
         ),
       ),
     );

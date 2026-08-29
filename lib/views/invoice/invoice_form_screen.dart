@@ -9,6 +9,8 @@ import '../../models/warehouse_model.dart';
 import '../../models/invoice_draft.dart';
 import '../../repositories/batch_repository.dart' show BatchStock;
 import '../../core/utils/money_utils.dart';
+import '../../core/theme/app_colors.dart';
+import '../shared/shared_components.dart';
 
 // ==============================
 // أدوات مساعدة للتنسيق
@@ -30,8 +32,16 @@ String _fmtDate(String? iso) {
 
 double _parseQty(String input) {
   const arabicDigits = {
-    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
-    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+    '٠': '0',
+    '١': '1',
+    '٢': '2',
+    '٣': '3',
+    '٤': '4',
+    '٥': '5',
+    '٦': '6',
+    '٧': '7',
+    '٨': '8',
+    '٩': '9',
   };
   var normalized = input.trim();
   for (final entry in arabicDigits.entries) {
@@ -46,11 +56,7 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
         leading: IconButton(
           tooltip: 'رجوع',
           onPressed: Get.back,
@@ -61,20 +67,10 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
           children: [
             Text(
               'فاتورة جديدة',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             SizedBox(height: 2),
-            Text(
-              'إنشاء فاتورة مبيعات أو مشتريات',
-              style: TextStyle(
-                fontSize: 11,
-                color: Color(0xFF6B7280),
-              ),
-            ),
+            Text('إنشاء فاتورة مبيعات أو مشتريات'),
           ],
         ),
         actions: [
@@ -90,26 +86,26 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
                           'تم',
                           'تم حفظ الفاتورة بنجاح',
                           snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: const Color(0xFF16A34A),
+                          backgroundColor: AppColors.success,
                           colorText: Colors.white,
                         );
                       }
                     },
               icon: controller.isSavingInvoice.value
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFF2563EB),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : const Icon(Icons.save_rounded, size: 19),
               label: Text(
                 controller.isSavingInvoice.value ? 'جارٍ الحفظ...' : 'حفظ',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF2563EB),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -233,11 +229,7 @@ class _TypeButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected ? Colors.white : color,
-              ),
+              Icon(icon, size: 18, color: selected ? Colors.white : color),
               const SizedBox(width: 8),
               Text(
                 label,
@@ -264,117 +256,115 @@ class _PartySelector extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () {
-        final draftParty = controller.draftParty.value;
-        final typeLabel = controller.draftType.value == InvoiceType.sale
-            ? 'العميل'
-            : 'المورد';
+    return Obx(() {
+      final draftParty = controller.draftParty.value;
+      final typeLabel = controller.draftType.value == InvoiceType.sale
+          ? 'العميل'
+          : 'المورد';
 
-        return GestureDetector(
-          onTap: () => _showPartyPicker(context),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.person_outline_rounded,
-                      size: 18,
+      return GestureDetector(
+        onTap: () => _showPartyPicker(context),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.person_outline_rounded,
+                    size: 18,
+                    color: Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    typeLabel,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    draftParty == null ? 'مطلوب' : 'محدد',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: draftParty == null
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF16A34A),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F0FF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.people_alt_rounded,
                       color: Color(0xFF2563EB),
+                      size: 20,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      typeLabel,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      draftParty == null ? 'مطلوب' : 'محدد',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: draftParty == null
-                            ? const Color(0xFFEF4444)
-                            : const Color(0xFF16A34A),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F0FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.people_alt_rounded,
-                        color: Color(0xFF2563EB),
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: draftParty == null
-                          ? Text(
-                              'اختر $typeLabel',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF6B7280),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: draftParty == null
+                        ? Text(
+                            'اختر $typeLabel',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF6B7280),
+                            ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                draftParty.name,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF111827),
+                                ),
                               ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              if (draftParty.phone != null) ...[
+                                const SizedBox(height: 2),
                                 Text(
-                                  draftParty.name,
+                                  draftParty.phone!,
                                   style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF111827),
+                                    fontSize: 11,
+                                    color: Color(0xFF6B7280),
                                   ),
                                 ),
-                                if (draftParty.phone != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    draftParty.phone!,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF6B7280),
-                                    ),
-                                  ),
-                                ],
                               ],
-                            ),
-                    ),
-                    const Icon(
-                      Icons.chevron_left_rounded,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                            ],
+                          ),
+                  ),
+                  const Icon(
+                    Icons.chevron_left_rounded,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ],
+              ),
+            ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
   }
 
   void _showPartyPicker(BuildContext context) {
@@ -420,21 +410,14 @@ class _PartyPickerSheet extends GetView<InvoiceController> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppSearchField(
+                hint: 'بحث...',
                 onChanged: (v) => search.value = v.trim(),
-                decoration: InputDecoration(
-                  hintText: 'بحث...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
               ),
               const SizedBox(height: 8),
               ListTile(
                 leading: const CircleAvatar(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: AppColors.primary,
                   child: Icon(Icons.add, color: Colors.white),
                 ),
                 title: const Text('إضافة طرف جديد'),
@@ -596,9 +579,7 @@ class _WarehouseSelector extends GetView<InvoiceController> {
       final warehouses = controller.availableWarehouses;
 
       return GestureDetector(
-        onTap: warehouses.isEmpty
-            ? null
-            : () => _showWarehousePicker(context),
+        onTap: warehouses.isEmpty ? null : () => _showWarehousePicker(context),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -768,8 +749,9 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
 
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF059669)
-                              .withValues(alpha: 0.12),
+                          backgroundColor: const Color(
+                            0xFF059669,
+                          ).withValues(alpha: 0.12),
                           child: Icon(
                             _warehouseIcon(warehouse.type),
                             color: const Color(0xFF059669),
@@ -792,8 +774,9 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF2563EB)
-                                      .withValues(alpha: 0.1),
+                                  color: const Color(
+                                    0xFF2563EB,
+                                  ).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: const Text(
@@ -975,12 +958,16 @@ class _ItemsSection extends GetView<InvoiceController> {
           }
 
           return Column(
-            children: controller.draftItems.asMap().entries.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _ItemCard(index: entry.key, item: entry.value),
-              ),
-            ).toList(),
+            children: controller.draftItems
+                .asMap()
+                .entries
+                .map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _ItemCard(index: entry.key, item: entry.value),
+                  ),
+                )
+                .toList(),
           );
         }),
       ],
@@ -1065,7 +1052,10 @@ class _ItemCard extends GetView<InvoiceController> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _ItemField(label: 'الوحدة', value: item.unitNameSnapshot ?? 'الوحدة الأساسية'),
+              _ItemField(
+                label: 'الوحدة',
+                value: item.unitNameSnapshot ?? 'الوحدة الأساسية',
+              ),
               const SizedBox(width: 12),
               _ItemField(label: 'الكمية', value: _fmtQty(item.quantity)),
             ],
@@ -1282,10 +1272,7 @@ class _ItemBatchSummary extends StatelessWidget {
                 '${allocation.batchNumber} — '
                 '${_fmtQty(allocation.quantity)}'
                 '${allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF065F46),
-                ),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF065F46)),
               ),
             ),
           ),
@@ -1570,8 +1557,9 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                     isScrollControlled: true,
                     backgroundColor: Colors.white,
                     shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
                   );
                 }
@@ -1660,8 +1648,7 @@ class _ItemConfigSheet extends StatefulWidget {
 class _ItemConfigSheetState extends State<_ItemConfigSheet> {
   InvoiceController get controller => Get.find<InvoiceController>();
 
-  bool get isSale =>
-      controller.draftType.value == InvoiceType.sale;
+  bool get isSale => controller.draftType.value == InvoiceType.sale;
 
   bool get isEditMode => widget.editIndex != null;
 
@@ -1773,9 +1760,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
   void _applyUnitDefaultPrice() {
     final unit = selectedUnit;
     if (unit == null) return;
-    final price = isSale
-        ? unit.defaultSalePrice
-        : (unit.costPrice ?? 0);
+    final price = isSale ? unit.defaultSalePrice : (unit.costPrice ?? 0);
     setState(() {
       priceCtrl.text = MoneyUtils.formatInput(price);
     });
@@ -1937,13 +1922,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 ),
               ),
               Text(
-                isSale
-                    ? 'سطر فاتورة بيع'
-                    : 'سطر فاتورة شراء',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF6B7280),
-                ),
+                isSale ? 'سطر فاتورة بيع' : 'سطر فاتورة شراء',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
               ),
             ],
           ),
@@ -1996,7 +1976,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                   unit == null
                       ? ''
                       : '×${_fmtQty(unit.conversionFactor)} · '
-                          '${MoneyUtils.formatMoney(isSale ? unit.defaultSalePrice : (unit.costPrice ?? 0))}',
+                            '${MoneyUtils.formatMoney(isSale ? unit.defaultSalePrice : (unit.costPrice ?? 0))}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF6B7280),
@@ -2004,10 +1984,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Icon(
-                  Icons.expand_more_rounded,
-                  color: Color(0xFF6B7280),
-                ),
+                const Icon(Icons.expand_more_rounded, color: Color(0xFF6B7280)),
               ],
             ),
           ),
@@ -2053,8 +2030,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               ),
               const SizedBox(height: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F8FC),
                   borderRadius: BorderRadius.circular(14),
@@ -2140,10 +2116,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
     );
   }
 
-  Widget _stepButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget _stepButton({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: onTap,
@@ -2243,9 +2216,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               ),
             )
           else if (batches.isEmpty)
-            _errorBox(
-              'لا توجد دفعات متوفرة لهذا المنتج في المستودع المختار',
-            )
+            _errorBox('لا توجد دفعات متوفرة لهذا المنتج في المستودع المختار')
           else ...[
             ...batches.map(_buildBatchRow),
             const SizedBox(height: 8),
@@ -2273,8 +2244,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
     final statusColor = batch.isExpired
         ? const Color(0xFFEF4444)
         : batch.isExpiringSoon
-            ? const Color(0xFFF59E0B)
-            : const Color(0xFF16A34A);
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF16A34A);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2300,8 +2271,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -2320,10 +2290,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           const SizedBox(height: 4),
           Text(
             'الصلاحية: ${_fmtDate(batch.expiryDate)} · المتاح: ${_fmtQty(stock.available)}',
-            style: const TextStyle(
-              fontSize: 11,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 8),
           Row(
@@ -2400,7 +2367,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       child: Row(
         children: [
           Icon(
-            warning == null ? Icons.check_circle_rounded : Icons.warning_rounded,
+            warning == null
+                ? Icons.check_circle_rounded
+                : Icons.warning_rounded,
             size: 16,
             color: warning == null
                 ? const Color(0xFF16A34A)
@@ -2429,7 +2398,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
   // ── الشراء: معلومات دفعة جديدة ──
 
   Future<void> _pickDate({required bool isProduction}) async {
-    final initial = isProduction ? (productionDate ?? DateTime.now()) : (expiryDate ?? DateTime.now());
+    final initial = isProduction
+        ? (productionDate ?? DateTime.now())
+        : (expiryDate ?? DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -2459,8 +2430,11 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         children: [
           const Row(
             children: [
-              Icon(Icons.label_outline_rounded,
-                  size: 16, color: Color(0xFFB45309)),
+              Icon(
+                Icons.label_outline_rounded,
+                size: 16,
+                color: Color(0xFFB45309),
+              ),
               SizedBox(width: 6),
               Text(
                 'معلومات الدفعة (اختياري)',
@@ -2550,7 +2524,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    value == null ? 'اختر...' : _fmtDate(value.toIso8601String()),
+                    value == null
+                        ? 'اختر...'
+                        : _fmtDate(value.toIso8601String()),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -2644,13 +2620,15 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           width: double.infinity,
           height: 48,
           child: ElevatedButton.icon(
-            onPressed:
-                isLoadingUnits || blockingReason != null ? null : _confirm,
+            onPressed: isLoadingUnits || blockingReason != null
+                ? null
+                : _confirm,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
-              disabledBackgroundColor:
-                  const Color(0xFF2563EB).withValues(alpha: 0.4),
+              disabledBackgroundColor: const Color(
+                0xFF2563EB,
+              ).withValues(alpha: 0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -2660,9 +2638,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               size: 18,
             ),
             label: Text(
-              isEditMode
-                  ? 'حفظ التعديلات'
-                  : 'إضافة إلى الفاتورة',
+              isEditMode ? 'حفظ التعديلات' : 'إضافة إلى الفاتورة',
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
@@ -2715,10 +2691,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         unitNameSnapshot: unit.unitName,
         conversionFactorSnapshot: unit.conversionFactor,
         batchAllocations: allocations ?? const [],
-        newBatchNumber:
-            batchNumberCtrl.text.trim().isEmpty
-                ? null
-                : batchNumberCtrl.text.trim(),
+        newBatchNumber: batchNumberCtrl.text.trim().isEmpty
+            ? null
+            : batchNumberCtrl.text.trim(),
         newProductionDate: productionDate?.toIso8601String().split('T').first,
         newExpiryDate: expiryDate?.toIso8601String().split('T').first,
         clearBatchInfo: batchNumberCtrl.text.trim().isEmpty,
@@ -2735,8 +2710,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         newBatchNumber: batchNumberCtrl.text.trim().isEmpty
             ? null
             : batchNumberCtrl.text.trim(),
-        newProductionDate:
-            productionDate?.toIso8601String().split('T').first,
+        newProductionDate: productionDate?.toIso8601String().split('T').first,
         newExpiryDate: expiryDate?.toIso8601String().split('T').first,
       );
     }
@@ -2986,9 +2960,9 @@ class _PaymentSection extends GetView<InvoiceController> {
       }
 
       final statusColor = switch (status) {
-        PaymentStatus.unpaid => const Color(0xFFEF4444),
-        PaymentStatus.partial => const Color(0xFFF59E0B),
-        PaymentStatus.paid => const Color(0xFF16A34A),
+        PaymentStatus.unpaid => Theme.of(context).colorScheme.error,
+        PaymentStatus.partial => AppColors.warning,
+        PaymentStatus.paid => AppColors.success,
       };
 
       return Container(
@@ -3003,46 +2977,22 @@ class _PaymentSection extends GetView<InvoiceController> {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.payments_rounded,
                   size: 18,
-                  color: Color(0xFF2563EB),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'الدفع',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                  ),
-                ),
+                Text('الدفع', style: Theme.of(context).textTheme.titleSmall),
                 const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: Text(
-                    status.label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
+                AppStatusBadge(label: status.label, color: statusColor),
               ],
             ),
             const SizedBox(height: 12),
             TextFormField(
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               initialValue: paid > 0 ? MoneyUtils.formatInput(paid) : '',
               onChanged: (v) {
                 final amount = MoneyUtils.parseAmount(v) ?? 0;
@@ -3052,8 +3002,7 @@ class _PaymentSection extends GetView<InvoiceController> {
                 hintText: 'المبلغ المدفوع الآن',
                 filled: true,
                 fillColor: const Color(0xFFF7F8FC),
-                prefixIcon:
-                    const Icon(Icons.payments_rounded, size: 20),
+                prefixIcon: const Icon(Icons.payments_rounded, size: 20),
                 suffixText: 'من ${MoneyUtils.formatMoney(total)}',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -3080,7 +3029,7 @@ class _PaymentSection extends GetView<InvoiceController> {
                   child: _PaymentStat(
                     label: 'المدفوع',
                     value: MoneyUtils.formatMoney(paid),
-                    color: const Color(0xFF16A34A),
+                    color: AppColors.success,
                   ),
                 ),
                 Expanded(
@@ -3088,8 +3037,8 @@ class _PaymentSection extends GetView<InvoiceController> {
                     label: 'المتبقي',
                     value: MoneyUtils.formatMoney(remaining),
                     color: remaining > 0
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF6B7280),
+                        ? Theme.of(context).colorScheme.error
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

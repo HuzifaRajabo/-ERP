@@ -4,6 +4,8 @@ import '../../core/utils/money_utils.dart';
 import '../../controllers/payment_controller.dart';
 import '../../models/payment_model.dart';
 import '../../repositories/payment_repository.dart';
+import '../../views/shared/shared_components.dart';
+import '../../core/theme/app_dimensions.dart';
 
 class DebtsScreen extends GetView<PaymentController> {
   const DebtsScreen({super.key});
@@ -116,22 +118,9 @@ class _DebtList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (debts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 64,
-              color: Colors.green[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              config.emptyMessage,
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-            ),
-          ],
-        ),
+      return AppEmptyState(
+        icon: Icons.check_circle_outline,
+        title: config.emptyMessage,
       );
     }
 
@@ -142,50 +131,47 @@ class _DebtList extends StatelessWidget {
         // ==============================
         // شريط الإجمالي مع اتجاه الدين
         // ==============================
-        Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: config.color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: config.color.withOpacity(0.2)),
-          ),
-          child: Row(
-            children: [
-              Icon(config.icon, color: config.color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      config.totalLabel,
-                      style: TextStyle(
-                        color: config.color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+        AppCard(
+          margin: EdgeInsets.all(AppSpacing.md),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Icon(config.icon, color: config.color),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        config.totalLabel,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: config.color,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    // توضيح اتجاه الدين
-                    Text(
-                      config.directionLabel,
-                      style: TextStyle(
-                        color: config.color.withOpacity(0.7),
-                        fontSize: 11,
+                      // توضيح اتجاه الدين
+                      Text(
+                        config.directionLabel,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: config.color.withOpacity(0.7),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                MoneyUtils.formatMoney(totalDebt),
-                style: TextStyle(
-                  color: config.color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
+                Text(
+                  MoneyUtils.formatMoney(totalDebt),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: config.color,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
 
@@ -194,9 +180,9 @@ class _DebtList extends StatelessWidget {
         // ==============================
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             itemCount: debts.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => SizedBox(height: AppSpacing.xs),
             itemBuilder: (context, index) =>
                 _DebtCard(debt: debts[index], config: config),
           ),
@@ -218,129 +204,108 @@ class _DebtCard extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: config.color.withOpacity(0.1),
-                  child: Icon(config.icon, color: config.color),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        debt.partyName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      if (debt.partyPhone != null)
-                        Text(
-                          debt.partyPhone!,
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 12,
-                          ),
-                        ),
-                      Text(
-                        '${debt.invoiceCount} فاتورة غير مسددة',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // المبلغ مع اتجاه واضح
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+    return AppCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: config.color.withOpacity(0.1),
+                child: Icon(config.icon, color: config.color),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      MoneyUtils.formatMoney(debt.totalRemaining),
-                      style: TextStyle(
-                        color: config.color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
+                      debt.partyName,
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                    // توضيح اتجاه هذا الدين بالتحديد
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: config.color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        config.directionLabel,
-                        style: TextStyle(
-                          color: config.color,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                    if (debt.partyPhone != null)
+                      Text(
+                        debt.partyPhone!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[500],
                         ),
+                      ),
+                    Text(
+                      '${debt.invoiceCount} فاتورة غير مسددة',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.grey[400],
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
+              ),
 
-            Row(
-              children: [
-                // زر الفواتير
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Get.toNamed(
-                      '/party-invoices',
-                      arguments: {
-                        'partyId': debt.partyId,
-                        'partyName': debt.partyName,
-                        'paymentType': config.paymentType,
-                      },
-                    ),
-                    icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                    label: const Text('الفواتير'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: config.color,
-                      side: BorderSide(color: config.color.withOpacity(0.4)),
+              // المبلغ مع اتجاه واضح
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    MoneyUtils.formatMoney(debt.totalRemaining),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: config.color,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
+                  // توضيح اتجاه هذا الدين بالتحديد
+                  AppStatusBadge(
+                    label: config.directionLabel,
+                    color: config.color,
+                    icon: null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          const Divider(height: 1),
+          SizedBox(height: AppSpacing.sm),
 
-                // زر الدفع العام
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showGeneralPaymentSheet(context),
-                    icon: const Icon(Icons.payments_outlined, size: 16),
-                    label: Text(
-                      config.paymentType == PaymentType.inbound
-                          ? 'تحصيل' // من زبون = نستلم
-                          : 'سداد', // لمورد = ندفع
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: config.color,
-                      foregroundColor: Colors.white,
-                    ),
+          Row(
+            children: [
+              // زر الفواتير
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Get.toNamed(
+                    '/party-invoices',
+                    arguments: {
+                      'partyId': debt.partyId,
+                      'partyName': debt.partyName,
+                      'paymentType': config.paymentType,
+                    },
+                  ),
+                  icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                  label: const Text('الفواتير'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: config.color,
+                    side: BorderSide(color: config.color.withOpacity(0.4)),
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+
+              // زر الدفع العام
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showGeneralPaymentSheet(context),
+                  icon: const Icon(Icons.payments_outlined, size: 16),
+                  label: Text(
+                    config.paymentType == PaymentType.inbound
+                        ? 'تحصيل' // من زبون = نستلم
+                        : 'سداد', // لمورد = ندفع
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: config.color,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

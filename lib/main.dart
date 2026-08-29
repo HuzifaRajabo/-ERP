@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'bindings/app_binding.dart';
 import 'core/database/database_helper.dart';
+import 'core/theme/app_theme.dart';
 import 'views/main_screen.dart';
 import 'views/product/category_list_screen.dart';
 import 'views/product/product_details_screen.dart';
@@ -37,6 +38,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ERP',
+      theme: AppTheme.light(),
       initialBinding: AppBinding(), // ← يُشغَّل مرة واحدة عند البدء
       initialRoute: '/',
       builder: (context, child) =>

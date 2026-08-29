@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import '../../controllers/warehouse_controller.dart';
 import '../../models/warehouse_model.dart';
 import '../shared/app_ui.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 
 class WarehouseFormScreen extends StatefulWidget {
   const WarehouseFormScreen({super.key});
@@ -85,7 +87,7 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Form(
           key: _formKey,
           child: Column(
@@ -98,10 +100,11 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
                   label: 'اسم المستودع',
                   icon: Icons.storefront_outlined,
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'أدخل اسم المستودع' : null,
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'أدخل اسم المستودع'
+                    : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               TextFormField(
                 controller: _addressCtrl,
                 decoration: AppUi.inputDecoration(
@@ -109,23 +112,23 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
                   icon: Icons.location_on_outlined,
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
+              const SizedBox(height: AppSpacing.xl),
+              Text(
                 'نوع المستودع',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                style: Theme.of(context).textTheme.titleSmall,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               _typeSelector(),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.xl),
               SwitchListTile(
                 value: _isDefault,
                 onChanged: (v) => setState(() => _isDefault = v),
                 title: const Text('مستودع افتراضي'),
                 subtitle: const Text('يُستخدم تلقائياً في الفواتير الجديدة'),
                 contentPadding: EdgeInsets.zero,
-                activeTrackColor: const Color(0xFF2563EB),
+                activeTrackColor: AppColors.primary,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xl),
               FilledButton.icon(
                 onPressed: _save,
                 icon: const Icon(Icons.save_outlined),
@@ -133,7 +136,7 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
                   ),
                 ),
               ),
@@ -150,27 +153,21 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
       runSpacing: 8,
       children: WarehouseType.values.map((t) {
         final selected = _type == t;
-        return GestureDetector(
-          onTap: () => setState(() => _type = t),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFF2563EB) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF2563EB)
-                    : const Color(0xFFE5E7EB),
-              ),
-            ),
-            child: Text(
-              t.label,
-              style: TextStyle(
-                color: selected ? Colors.white : const Color(0xFF374151),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+        return ChoiceChip(
+          label: Text(t.label),
+          selected: selected,
+          onSelected: (_) => setState(() => _type = t),
+          selectedColor: AppColors.primary,
+          side: BorderSide(
+            color: selected
+                ? AppColors.primary
+                : Theme.of(context).colorScheme.outline,
+          ),
+          labelStyle: TextStyle(
+            color: selected
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w600,
           ),
         );
       }).toList(),

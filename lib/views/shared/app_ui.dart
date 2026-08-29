@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/theme/app_colors.dart';
+
 /// أدوات واجهة مشتركة صغيرة لشاشات إدارة المستودعات.
 class AppUi {
   AppUi._();
@@ -10,8 +12,8 @@ class AppUi {
       'خطأ',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: const Color(0xFFDC2626),
-      colorText: Colors.white,
+      backgroundColor: Get.theme.colorScheme.error,
+      colorText: Get.theme.colorScheme.onError,
       borderRadius: 12,
       margin: const EdgeInsets.all(12),
       duration: const Duration(seconds: 3),
@@ -23,7 +25,7 @@ class AppUi {
       'تم بنجاح',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: const Color(0xFF16A34A),
+      backgroundColor: AppColors.success,
       colorText: Colors.white,
       borderRadius: 12,
       margin: const EdgeInsets.all(12),
@@ -40,7 +42,6 @@ class AppUi {
       labelText: label,
       hintText: hint,
       prefixIcon: icon != null ? Icon(icon) : null,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 }

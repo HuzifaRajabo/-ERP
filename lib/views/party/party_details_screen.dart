@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
 import '../../models/party_model.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../shared/shared_components.dart';
 
 class PartyDetailsScreen extends GetView<PartyController> {
   const PartyDetailsScreen({super.key});
@@ -19,51 +22,56 @@ class PartyDetailsScreen extends GetView<PartyController> {
             onPressed: () => Get.toNamed('/party-form', arguments: party),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            icon: Icon(
+              Icons.delete_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () => _confirmDelete(),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-
           // ==============================
           // Header
           // ==============================
-
-          Center(
-            child: CircleAvatar(
-              radius: 40,
-              backgroundColor: _typeColor(party.type).withOpacity(0.15),
-              child: Icon(
-                _typeIcon(party.type),
-                size: 40,
-                color: _typeColor(party.type),
-              ),
+          AppCard(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: _typeColor(
+                    party.type,
+                  ).withValues(alpha: 0.15),
+                  child: Icon(
+                    _typeIcon(party.type),
+                    size: 32,
+                    color: _typeColor(party.type),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  party.name,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _TypeBadge(type: party.type),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              party.name,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(child: _TypeBadge(type: party.type)),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.lg),
 
           // ==============================
           // Info
           // ==============================
-
           if (party.phone != null)
             _InfoRow(
               icon: Icons.phone_outlined,
               label: 'الهاتف',
               value: party.phone!,
-              color: Colors.green,
+              color: AppColors.success,
             ),
 
           if (party.address != null) ...[
@@ -72,7 +80,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
               icon: Icons.location_on_outlined,
               label: 'العنوان',
               value: party.address!,
-              color: Colors.teal,
+              color: AppColors.info,
             ),
           ],
 
@@ -82,7 +90,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
               icon: Icons.calendar_today_outlined,
               label: 'تاريخ الإضافة',
               value: party.createdAt!,
-              color: Colors.purple,
+              color: Theme.of(context).colorScheme.secondary,
             ),
           ],
           const SizedBox(height: 32),
@@ -90,7 +98,6 @@ class PartyDetailsScreen extends GetView<PartyController> {
           // ==============================
           // Edit Button
           // ==============================
-
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -106,27 +113,29 @@ class PartyDetailsScreen extends GetView<PartyController> {
   }
 
   void _confirmDelete() {
-    Get.dialog(AlertDialog(
-      title: const Text('حذف الطرف'),
-      content: Text('هل تريد حذف "${party.name}"؟'),
-      actions: [
-        TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-        TextButton(
-          onPressed: () async {
-            Get.back();
-            await controller.deleteParty(party.id!);
-            if (!controller.hasError) Get.back();
-          },
-          child: const Text('حذف', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ));
+    Get.dialog(
+      AlertDialog(
+        title: const Text('حذف الطرف'),
+        content: Text('هل تريد حذف "${party.name}"؟'),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await controller.deleteParty(party.id!);
+              if (!controller.hasError) Get.back();
+            },
+            child: Text('حذف', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _typeColor(PartyType type) => switch (type) {
-    PartyType.customer => Colors.blue,
-    PartyType.supplier => Colors.orange,
-    PartyType.both => Colors.purple,
+    PartyType.customer => AppColors.primary,
+    PartyType.supplier => AppColors.warning,
+    PartyType.both => AppColors.secondary,
   };
 
   IconData _typeIcon(PartyType type) => switch (type) {
@@ -151,13 +160,8 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Row(
         children: [
           Icon(icon, color: color),
@@ -165,9 +169,15 @@ class _InfoRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              Text(
+                label,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
               const SizedBox(height: 2),
-              Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+              Text(
+                value,
+                style: TextStyle(color: color, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ],
@@ -184,21 +194,11 @@ class _TypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (type) {
-      PartyType.customer => ('عميل', Colors.blue),
-      PartyType.supplier => ('مورد', Colors.orange),
-      PartyType.both => ('عميل ومورد', Colors.purple),
+      PartyType.customer => ('عميل', AppColors.primary),
+      PartyType.supplier => ('مورد', AppColors.warning),
+      PartyType.both => ('عميل ومورد', AppColors.secondary),
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w600),
-      ),
-    );
+    return AppStatusBadge(label: label, color: color);
   }
 }

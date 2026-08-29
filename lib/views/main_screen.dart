@@ -26,6 +26,7 @@ class MainScreen extends StatelessWidget {
     InvoiceListScreen(),
     WarehouseListScreen(),
     ExpenseListScreen(),
+    DebtsScreen(),
   ];
 
   @override
@@ -83,7 +84,12 @@ class MainScreen extends StatelessWidget {
           icon: Icon(Icons.money_off_outlined),
           selectedIcon: Icon(Icons.money_off_rounded),
           label: 'المصاريف',
-        )
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+          label: 'الديون'
+         )
       ],
     );
   }

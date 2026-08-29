@@ -3,9 +3,12 @@ import 'package:get/get.dart';
 
 import '../../controllers/product_controller.dart';
 import '../../core/services/app_event_bus.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
+import '../../views/shared/shared_components.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   const ProductDetailsScreen({super.key});
@@ -134,7 +137,7 @@ class _ProductDetailsScreenState
             tooltip: 'حذف المنتج',
             icon: const Icon(
               Icons.delete_outline,
-              color: Colors.red,
+              color: AppColors.error,
             ),
             onPressed: () => _confirmDelete(context),
           ),
@@ -166,130 +169,104 @@ class _ProductDetailsScreenState
   // ============================================================
 
   Widget _buildHeaderCard() {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withOpacity(.08),
-                    borderRadius:
-                        BorderRadius.circular(17),
-                  ),
-                  child: Icon(
-                    Icons.inventory_2_outlined,
-                    size: 32,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
-                  ),
-                ),
-
-                const SizedBox(width: 14),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 7),
-
-                      Row(
-                        children: [
-                          _StatusBadge(
-                            icon: Icons.check_circle_outline,
-                            text: 'فعال',
-                            color: Colors.green,
-                          ),
-                          if (product.categoryName !=
-                                  null &&
-                              product.categoryName!
-                                  .trim()
-                                  .isNotEmpty) ...[
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: _StatusBadge(
-                                icon:
-                                    Icons.category_outlined,
-                                text:
-                                    product.categoryName!,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            if (product.description
-                .trim()
-                .isNotEmpty) ...[
-              const SizedBox(height: 18),
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(13),
+                width: 62,
+                height: 62,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.08),
                   borderRadius:
-                      BorderRadius.circular(12),
+                      BorderRadius.circular(AppRadius.medium),
                 ),
-                child: Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  size: 32,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+
+              const SizedBox(width: AppSpacing.md),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.description_outlined,
-                      size: 20,
-                      color: Colors.grey.shade600,
+                    Text(
+                      product.name,
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall,
                     ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        product.description,
-                        style: TextStyle(
-                          height: 1.5,
-                          color: Colors.grey.shade700,
+
+                    const SizedBox(height: AppSpacing.sm),
+
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        _StatusBadge(
+                          icon: Icons.check_circle_outline,
+                          text: 'فعال',
+                          color: Colors.green,
                         ),
-                      ),
+                        if (product.categoryName != null &&
+                            product.categoryName!.trim().isNotEmpty)
+                          _StatusBadge(
+                            icon: Icons.category_outlined,
+                            text: product.categoryName!,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary,
+                          ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
+          ),
+
+          if (product.description.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.medium),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 20,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      product.description,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -299,64 +276,30 @@ class _ProductDetailsScreenState
   // ============================================================
 
   Widget _buildUnitsSection() {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.all_inbox_outlined,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary,
-                ),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'الوحدات والأسعار',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${units.length} وحدة',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
+    return AppCard(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            title: 'الوحدات والأسعار',
+            subtitle: '${units.length} وحدة',
+          ),
 
-            const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
-            if (isLoadingUnits)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (units.isEmpty)
-              _buildNoUnits()
-            else
-              _buildUnitsList(),
-          ],
-        ),
+          if (isLoadingUnits)
+            const Padding(
+              padding: EdgeInsets.all(AppSpacing.xl),
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (units.isEmpty)
+            _buildNoUnits()
+          else
+            _buildUnitsList(),
+        ],
       ),
     );
   }
@@ -376,33 +319,27 @@ class _ProductDetailsScreenState
   Widget _buildUnitsHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 10,
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(10),
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.small),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Expanded(
             flex: 2,
             child: Text(
               'الوحدة',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
               'التحويل',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.labelSmall,
               textAlign: TextAlign.center,
             ),
           ),
@@ -410,10 +347,7 @@ class _ProductDetailsScreenState
             flex: 2,
             child: Text(
               'التكلفة',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.labelSmall,
               textAlign: TextAlign.center,
             ),
           ),
@@ -421,10 +355,7 @@ class _ProductDetailsScreenState
             flex: 2,
             child: Text(
               'البيع',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.labelSmall,
               textAlign: TextAlign.center,
             ),
           ),
@@ -437,26 +368,26 @@ class _ProductDetailsScreenState
     ProductUnitModel unit,
   ) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 12,
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
       ),
       decoration: BoxDecoration(
         color: unit.isDefaultSellUnit
             ? Theme.of(context)
                 .colorScheme
                 .primary
-                .withOpacity(.035)
+                .withValues(alpha: 0.035)
             : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: unit.isDefaultSellUnit
               ? Theme.of(context)
                   .colorScheme
                   .primary
-                  .withOpacity(.20)
-              : Colors.grey.shade200,
+                  .withValues(alpha: 0.20)
+              : AppColors.border,
         ),
       ),
       child: Column(
@@ -470,18 +401,13 @@ class _ProductDetailsScreenState
                     Flexible(
                       child: Text(
                         unit.unitName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow:
-                            TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (unit.isBaseUnit) ...[
-                      const SizedBox(width: 5),
-                      const _TinyBadge(
-                        text: 'أساسية',
-                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      const _TinyBadge(text: 'أساسية'),
                     ],
                   ],
                 ),
@@ -492,24 +418,16 @@ class _ProductDetailsScreenState
                 child: Text(
                   _conversionText(unit),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
 
               Expanded(
                 flex: 2,
                 child: Text(
-                  unit.costPrice == null
-                      ? '-'
-                      : _money(unit.costPrice!),
+                  unit.costPrice == null ? '-' : _money(unit.costPrice!),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
               ),
 
@@ -518,22 +436,19 @@ class _ProductDetailsScreenState
                 child: Text(
                   _money(unit.defaultSalePrice),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
 
           Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerStart,
             child: Wrap(
-              spacing: 5,
-              runSpacing: 5,
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
               children: [
                 if (unit.canBuy)
                   const _TinyBadge(
@@ -561,24 +476,22 @@ class _ProductDetailsScreenState
   Widget _buildNoUnits() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
       ),
       child: Column(
         children: [
           Icon(
             Icons.inventory_2_outlined,
             size: 38,
-            color: Colors.grey.shade500,
+            color: AppColors.textMuted,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           const Text(
             'لا توجد وحدات معرفة لهذا المنتج',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -618,21 +531,21 @@ class _ProductDetailsScreenState
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(.06),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.success.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
-          color: Colors.green.withOpacity(.15),
+          color: AppColors.success.withValues(alpha: 0.15),
         ),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.check_circle_outline,
-            color: Colors.green,
+            color: AppColors.success,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               'وحدة البيع الافتراضية: '
@@ -645,7 +558,7 @@ class _ProductDetailsScreenState
           Text(
             _money(defaultUnit.defaultSalePrice),
             style: const TextStyle(
-              color: Colors.green,
+              color: AppColors.success,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -678,43 +591,22 @@ class _ProductDetailsScreenState
   }
 
   void _confirmDelete(BuildContext context) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('حذف المنتج'),
-        content: Text(
-          'هل تريد حذف "${product.name}"؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Get.back();
+    AppConfirmDialog.show(
+      context,
+      title: 'حذف المنتج',
+      message: 'هل تريد حذف "${product.name}"؟',
+      confirmLabel: 'حذف',
+      cancelLabel: 'إلغاء',
+      isDestructive: true,
+    ).then((confirmed) async {
+      if (confirmed != true || product.id == null) return;
 
-              if (product.id == null) {
-                return;
-              }
+      await controller.deleteProduct(product.id!);
 
-              await controller.deleteProduct(
-                product.id!,
-              );
-
-              if (!controller.hasError) {
-                Get.back();
-              }
-            },
-            child: const Text(
-              'حذف',
-              style: TextStyle(
-                color: Colors.red,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+      if (!controller.hasError) {
+        Get.back();
+      }
+    });
   }
 
   String _money(int value) {
@@ -744,12 +636,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(.08),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.large),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -759,11 +651,10 @@ class _StatusBadge extends StatelessWidget {
             size: 13,
             color: color,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpacing.xs),
           Text(
             text,
-            style: TextStyle(
-              fontSize: 10,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -787,12 +678,12 @@ class _TinyBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 3,
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.large),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -801,15 +692,14 @@ class _TinyBadge extends StatelessWidget {
             Icon(
               icon,
               size: 12,
-              color: Colors.grey.shade700,
+              color: AppColors.textSecondary,
             ),
-            const SizedBox(width: 3),
+            const SizedBox(width: AppSpacing.xs),
           ],
           Text(
             text,
-            style: TextStyle(
-              fontSize: 9,
-              color: Colors.grey.shade700,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),

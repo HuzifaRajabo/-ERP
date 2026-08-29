@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 import '../../controllers/inventory_controller.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../repositories/inventory_repository.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../shared/shared_components.dart';
 
 class InventoryScreen extends GetView<InventoryController> {
   const InventoryScreen({super.key});
@@ -28,12 +31,7 @@ class InventoryScreen extends GetView<InventoryController> {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [
-            _StockTab(),
-            _TransactionsTab(),
-          ],
-        ),
+        body: const TabBarView(children: [_StockTab(), _TransactionsTab()]),
       ),
     );
   }
@@ -50,20 +48,13 @@ class _StockTab extends GetView<InventoryController> {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoadingStock.value) {
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoadingState();
       }
 
       if (controller.stockSummaries.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.warehouse_outlined, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              Text('لا توجد منتجات في المستودع',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-            ],
-          ),
+        return const AppEmptyState(
+          icon: Icons.warehouse_outlined,
+          title: 'لا توجد منتجات في المستودع',
         );
       }
 
@@ -72,11 +63,9 @@ class _StockTab extends GetView<InventoryController> {
         child: ListView.separated(
           padding: const EdgeInsets.all(12),
           itemCount: controller.stockSummaries.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
-            return _StockCard(
-              summary: controller.stockSummaries[index],
-            );
+            return _StockCard(summary: controller.stockSummaries[index]);
           },
         ),
       );
@@ -97,107 +86,98 @@ class _StockCard extends GetView<InventoryController> {
     final String stockLabel;
 
     if (summary.available <= 0) {
-      stockColor = Colors.red;
+      stockColor = Theme.of(context).colorScheme.error;
       stockIcon = Icons.warning_amber_rounded;
       stockLabel = 'نفد المخزون';
     } else if (summary.available <= 5) {
-      stockColor = Colors.orange;
+      stockColor = AppColors.warning;
       stockIcon = Icons.info_outline;
       stockLabel = 'مخزون منخفض';
     } else {
-      stockColor = Colors.green;
+      stockColor = AppColors.success;
       stockIcon = Icons.check_circle_outline;
       stockLabel = 'متوفر';
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => controller.filterByProduct(summary.productId),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // أيقونة المنتج
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: stockColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.inventory_2_outlined,
-                  color: stockColor,
-                  size: 26,
-                ),
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: () => controller.filterByProduct(summary.productId),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            // أيقونة المنتج
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: stockColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 14),
-
-              // اسم المنتج والـ description وحالة المخزون
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      summary.productName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Description: ${summary.productDescription}',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(stockIcon, size: 13, color: stockColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          stockLabel,
-                          style: TextStyle(
-                            color: stockColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              child: Icon(
+                Icons.inventory_2_outlined,
+                color: stockColor,
+                size: 26,
               ),
+            ),
+            const SizedBox(width: 14),
 
-              // الكمية المتاحة فقط
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            // اسم المنتج والـ description وحالة المخزون
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _formatQty(summary.available),
-                    style: TextStyle(
-                      color: stockColor,
+                    summary.productName,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 28,
+                      fontSize: 15,
                     ),
                   ),
-                  Text(
-                    'وحدة',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 11,
+                  const SizedBox(height: 2),
+                  if (summary.productDescription.isNotEmpty)
+                    Text(
+                      summary.productDescription,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(stockIcon, size: 13, color: stockColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        stockLabel,
+                        style: TextStyle(
+                          color: stockColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            // الكمية المتاحة فقط
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatQty(summary.available),
+                  style: TextStyle(
+                    color: stockColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                  ),
+                ),
+                Text(
+                  summary.unitName ?? 'وحدة',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -232,50 +212,55 @@ class _TransactionFilters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() => SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          // زر إلغاء الفلتر إن كان فلتر منتج نشطاً
-          if (controller.selectedProductId.value != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: ActionChip(
-                label: const Text('إلغاء فلتر المنتج'),
-                avatar: const Icon(Icons.close, size: 16),
-                onPressed: controller.clearFilters,
+    return Obx(
+      () => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // زر إلغاء الفلتر إن كان فلتر منتج نشطاً
+            if (controller.selectedProductId.value != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: ActionChip(
+                  label: const Text('إلغاء فلتر المنتج'),
+                  avatar: const Icon(Icons.close, size: 16),
+                  onPressed: controller.clearFilters,
+                ),
               ),
-            ),
 
-          _FilterChip(
-            label: 'الكل',
-            selected: controller.selectedType.value == null &&
-                controller.selectedProductId.value == null,
-            color: Colors.blueGrey,
-            onTap: controller.clearFilters,
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'مشتريات',
-            selected: controller.selectedType.value ==
-                InventoryTransactionType.purchase,
-            color: Colors.orange,
-            onTap: () => controller
-                .filterByType(InventoryTransactionType.purchase),
-          ),
-          const SizedBox(width: 8),
-          _FilterChip(
-            label: 'مبيعات',
-            selected: controller.selectedType.value ==
-                InventoryTransactionType.sale,
-            color: Colors.blue,
-            onTap: () =>
-                controller.filterByType(InventoryTransactionType.sale),
-          ),
-        ],
+            _FilterChip(
+              label: 'الكل',
+              selected:
+                  controller.selectedType.value == null &&
+                  controller.selectedProductId.value == null,
+              color: Theme.of(context).colorScheme.secondary,
+              onTap: controller.clearFilters,
+            ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'مشتريات',
+              selected:
+                  controller.selectedType.value ==
+                  InventoryTransactionType.purchase,
+              color: AppColors.warning,
+              onTap: () =>
+                  controller.filterByType(InventoryTransactionType.purchase),
+            ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'مبيعات',
+              selected:
+                  controller.selectedType.value ==
+                  InventoryTransactionType.sale,
+              color: Theme.of(context).colorScheme.primary,
+              onTap: () =>
+                  controller.filterByType(InventoryTransactionType.sale),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }
 
@@ -294,9 +279,20 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      selectedColor: color,
+      backgroundColor: color.withValues(alpha: 0.08),
+      side: BorderSide(color: color.withValues(alpha: 0.4)),
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : color,
+        fontWeight: FontWeight.w600,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      /* AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -311,7 +307,7 @@ class _FilterChip extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-      ),
+      ), */
     );
   }
 }
@@ -323,41 +319,20 @@ class _TransactionList extends GetView<InventoryController> {
   Widget build(BuildContext context) {
     return Obx(() {
       if (controller.isLoading) {
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoadingState();
       }
 
       if (controller.hasError) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 12),
-              Text(controller.errorMessage.value ?? '',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: controller.refreshAll,
-                icon: const Icon(Icons.refresh),
-                label: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
+        return AppErrorState(
+          message: controller.errorMessage.value ?? 'تعذر تحميل الحركات',
+          onRetry: controller.refreshAll,
         );
       }
 
       if (controller.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.history, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              Text('لا توجد حركات مخزون',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-            ],
-          ),
+        return const AppEmptyState(
+          icon: Icons.history,
+          title: 'لا توجد حركات مخزون',
         );
       }
 
@@ -373,9 +348,10 @@ class _TransactionList extends GetView<InventoryController> {
           onRefresh: controller.refreshAll,
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: controller.transactions.length +
+            itemCount:
+                controller.transactions.length +
                 (controller.hasMore.value ? 1 : 0),
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, _) => const SizedBox(height: 6),
             itemBuilder: (context, index) {
               if (index == controller.transactions.length) {
                 return const Padding(
@@ -383,8 +359,7 @@ class _TransactionList extends GetView<InventoryController> {
                   child: Center(child: CircularProgressIndicator()),
                 );
               }
-              return _TransactionCard(
-                  view: controller.transactions[index]);
+              return _TransactionCard(view: controller.transactions[index]);
             },
           ),
         ),
@@ -407,21 +382,25 @@ class _TransactionCard extends StatelessWidget {
         : qty.toStringAsFixed(2);
 
     final Color color = switch (type) {
-      InventoryTransactionType.sale            => Colors.blue,
-      InventoryTransactionType.purchase        => Colors.orange,
-      InventoryTransactionType.saleReturn      => Colors.purple,
-      InventoryTransactionType.purchaseReturn  => Colors.teal,
-      InventoryTransactionType.transferOut     => Colors.red,
-      InventoryTransactionType.transferIn      => Colors.green,
+      InventoryTransactionType.sale => Theme.of(context).colorScheme.primary,
+      InventoryTransactionType.purchase => AppColors.warning,
+      InventoryTransactionType.saleReturn => Theme.of(
+        context,
+      ).colorScheme.secondary,
+      InventoryTransactionType.purchaseReturn => AppColors.info,
+      InventoryTransactionType.transferOut => Theme.of(
+        context,
+      ).colorScheme.error,
+      InventoryTransactionType.transferIn => AppColors.success,
     };
 
     final IconData icon = switch (type) {
-      InventoryTransactionType.sale            => Icons.arrow_upward_rounded,
-      InventoryTransactionType.purchase        => Icons.arrow_downward_rounded,
-      InventoryTransactionType.saleReturn      => Icons.undo_rounded,
-      InventoryTransactionType.purchaseReturn  => Icons.redo_rounded,
-      InventoryTransactionType.transferOut     => Icons.arrow_forward_rounded,
-      InventoryTransactionType.transferIn      => Icons.arrow_back_rounded,
+      InventoryTransactionType.sale => Icons.arrow_upward_rounded,
+      InventoryTransactionType.purchase => Icons.arrow_downward_rounded,
+      InventoryTransactionType.saleReturn => Icons.undo_rounded,
+      InventoryTransactionType.purchaseReturn => Icons.redo_rounded,
+      InventoryTransactionType.transferOut => Icons.arrow_forward_rounded,
+      InventoryTransactionType.transferIn => Icons.arrow_back_rounded,
     };
 
     final String label = type.label;
@@ -454,40 +433,29 @@ class _TransactionCard extends StatelessWidget {
                   Text(
                     view.productName,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                              color: color,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
+                      AppStatusBadge(label: label, color: color),
                       const SizedBox(width: 6),
                       if (view.invoiceNumber != null)
                         Text(
                           view.invoiceNumber!,
                           style: TextStyle(
-                              color: Colors.grey[500], fontSize: 12),
+                            color: Colors.grey[500],
+                            fontSize: 12,
+                          ),
                         ),
                     ],
                   ),
                   if (view.transaction.createdAt != null)
                     Text(
                       view.transaction.createdAt!,
-                      style: TextStyle(
-                          color: Colors.grey[400], fontSize: 11),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
                     ),
                 ],
               ),
@@ -506,7 +474,7 @@ class _TransactionCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'وحدة',
+                  view.unitName ?? 'وحدة',
                   style: TextStyle(color: Colors.grey[400], fontSize: 11),
                 ),
               ],

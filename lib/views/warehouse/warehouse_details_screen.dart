@@ -271,7 +271,7 @@ class _InventoryTab extends StatelessWidget {
         child: ListView.separated(
           padding: const EdgeInsets.all(12),
           itemCount: controller.stockSummaries.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 6),
+          separatorBuilder: (_, _) => const SizedBox(height: 6),
           itemBuilder: (context, index) {
             final s = controller.stockSummaries[index];
             return _ProductStockTile(
@@ -355,7 +355,7 @@ class _BatchesSheet extends StatelessWidget {
                   Expanded(
                     child: ListView.separated(
                       itemCount: batches.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
                       itemBuilder: (context, i) {
                         final b = batches[i];
                         final lineValue = (b.costPrice * b.available).round();
@@ -574,7 +574,7 @@ class _MovementsTab extends StatelessWidget {
                       horizontal: 12, vertical: 8),
                   itemCount: controller.movements.length +
                       (controller.hasMore.value ? 1 : 0),
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     if (index == controller.movements.length) {
                       return const Padding(

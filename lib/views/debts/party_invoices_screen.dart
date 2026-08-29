@@ -5,6 +5,8 @@ import '../../controllers/invoice_controller.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../models/invoice_model.dart';
 import '../../models/payment_model.dart';
+import '../shared/shared_components.dart';
+import '../../core/theme/app_dimensions.dart';
 import '../debts/payment_bottom_sheet.dart';
 
 class PartyInvoicesScreen extends StatefulWidget {
@@ -270,7 +272,7 @@ class _InvoicesList extends StatelessWidget {
       return ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         itemCount: filtered.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) => _PartyInvoiceCard(
           invoice: filtered[index],
           paymentType: paymentType,
@@ -298,131 +300,108 @@ class _PartyInvoiceCard extends StatelessWidget {
       PaymentStatus.paid => Colors.green,
     };
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            // رأس البطاقة
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+    return AppCard(
+      child: Column(
+        children: [
+          // رأس البطاقة
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      invoice.invoiceNumber,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    if (invoice.createdAt != null)
                       Text(
-                        invoice.invoiceNumber,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                        invoice.createdAt!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[400],
                         ),
                       ),
-                      if (invoice.createdAt != null)
-                        Text(
-                          invoice.createdAt!,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 11,
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-
-                // badge الحالة
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    invoice.paymentStatus.label,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-
-            // أرقام الدفع
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _AmountItem(
-                  label: 'الإجمالي',
-                  value: MoneyUtils.formatMoney(invoice.totalAmount),
-                  color: Colors.blueGrey,
-                ),
-                _AmountItem(
-                  label: 'المدفوع',
-                  value: MoneyUtils.formatMoney(invoice.paidAmount),
-                  color: Colors.green,
-                ),
-                _AmountItem(
-                  label: 'المتبقي',
-                  value: MoneyUtils.formatMoney(invoice.remaining),
-                  color: invoice.remaining > 0 ? Colors.red : Colors.grey,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // شريط التقدم
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: invoice.totalAmount > 0
-                    ? (invoice.paidAmount / invoice.totalAmount).clamp(0.0, 1.0)
-                    : 0,
-                minHeight: 6,
-                color: statusColor,
-                backgroundColor: Colors.grey.shade200,
               ),
-            ),
 
-            // أزرار الإجراءات
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        Get.toNamed('/invoice-details', arguments: invoice.id),
-                    icon: const Icon(Icons.visibility_outlined, size: 16),
-                    label: const Text('التفاصيل'),
-                  ),
+              //badge الحالة باستخدام AppStatusBadge
+              AppStatusBadge(
+                label: invoice.paymentStatus.label,
+                color: statusColor,
+                icon: null,
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          const Divider(height: 1),
+          SizedBox(height: AppSpacing.sm),
+
+          // أرقام الدفع
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _AmountItem(
+                label: 'الإجمالي',
+                value: MoneyUtils.formatMoney(invoice.totalAmount),
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              _AmountItem(
+                label: 'المدفوع',
+                value: MoneyUtils.formatMoney(invoice.paidAmount),
+                color: Colors.green,
+              ),
+              _AmountItem(
+                label: 'المتبقي',
+                value: MoneyUtils.formatMoney(invoice.remaining),
+                color: invoice.remaining > 0 ? Colors.red : Colors.grey,
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+
+          // شريط التقدم
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.small),
+            child: LinearProgressIndicator(
+              value: invoice.totalAmount > 0
+                  ? (invoice.paidAmount / invoice.totalAmount).clamp(0.0, 1.0)
+                  : 0,
+              minHeight: 6,
+              color: statusColor,
+              backgroundColor: Colors.grey.shade200,
+            ),
+          ),
+
+          // أزرار الإجراءات
+          SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      Get.toNamed('/invoice-details', arguments: invoice.id),
+                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  label: const Text('التفاصيل'),
                 ),
-                if (invoice.paymentStatus != PaymentStatus.paid) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => PaymentBottomSheet.show(invoice),
-                      icon: const Icon(Icons.payments_outlined, size: 16),
-                      label: const Text('دفعة'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
+              ),
+              if (invoice.paymentStatus != PaymentStatus.paid) ...[
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => PaymentBottomSheet.show(invoice),
+                    icon: const Icon(Icons.payments_outlined, size: 16),
+                    label: const Text('دفعة'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                     ),
                   ),
-                ],
+                ),
               ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -443,11 +422,17 @@ class _AmountItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Colors.grey[500],
+            fontSize: 11,
+          ),
+        ),
+        SizedBox(height: AppSpacing.xs),
         Text(
           value,
-          style: TextStyle(
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: color,
             fontWeight: FontWeight.bold,
             fontSize: 16,
