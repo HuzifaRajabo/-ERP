@@ -220,6 +220,17 @@ class InvoiceRepository {
     });
   }
 
+  /// يحذف الفاتورة فقط إذا لم يكن قد ترتب عليها أي أثر مخزني أو مالي.
+  ///
+  /// الفاتورة "مستقلة" ويمكن حذفها إذا لم يوجد لها:
+  /// - أي inventory_transactions (بيع/شراء/مرتجع مرتبط بها)
+  /// - أي payments مسجّلة عليها
+  /// - أي returns أُنشئت عنها
+  ///
+  /// إذا وُجد أي أثر من هذه، تُرمى [InvoiceHasDependenciesException] ولا
+  /// يُحذف شيء إطلاقاً — لا الفاتورة ولا أي سجل مرتبط بها. هذا يمنع
+  /// الاعتماد على الحذف المتسلسل (ON DELETE CASCADE في قاعدة البيانات)
+  /// الذي كان يحذف حركات المخزون والحركات المالية تلقائياً دون تحقق.
   Future<bool> deleteInvoice(int invoiceId) async {
     final db = await _db;
 
@@ -232,24 +243,67 @@ class InvoiceRepository {
       );
       if (invoiceResult.isEmpty) return false;
 
-      await txn.delete('payments', where: 'invoice_id = ?', whereArgs: [invoiceId]);
+      // ── التحقق من الاعتماديات قبل أي حذف ──
+
+      final movementRows = await txn.query(
+        'inventory_transactions',
+        columns: ['id'],
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+        limit: 1,
+      );
+      if (movementRows.isNotEmpty) {
+        throw InvoiceHasDependenciesException(
+          invoiceId: invoiceId,
+          reason: 'حركات مخزون',
+        );
+      }
+
+      final paymentRows = await txn.query(
+        'payments',
+        columns: ['id'],
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+        limit: 1,
+      );
+      if (paymentRows.isNotEmpty) {
+        throw InvoiceHasDependenciesException(
+          invoiceId: invoiceId,
+          reason: 'دفعات مسجّلة',
+        );
+      }
 
       final returnRows = await txn.query(
         'returns',
         columns: ['id'],
         where: 'original_invoice_id = ?',
         whereArgs: [invoiceId],
+        limit: 1,
       );
       if (returnRows.isNotEmpty) {
-        final returnIds = returnRows.map((row) => row['id'] as int).toList();
-        final placeholders = List.filled(returnIds.length, '?').join(', ');
-        await txn.delete(
-          'returns',
-          where: 'id IN ($placeholders)',
-          whereArgs: returnIds,
+        throw InvoiceHasDependenciesException(
+          invoiceId: invoiceId,
+          reason: 'مرتجعات مرتبطة',
         );
       }
 
+      final financialRows = await txn.query(
+        'financial_transactions',
+        columns: ['id'],
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+        limit: 1,
+      );
+      if (financialRows.isNotEmpty) {
+        throw InvoiceHasDependenciesException(
+          invoiceId: invoiceId,
+          reason: 'حركات مالية',
+        );
+      }
+
+      // لا يوجد أي أثر — الفاتورة مستقلة ويمكن حذفها بأمان.
+      // (invoice_items تُحذف تلقائياً عبر ON DELETE CASCADE، وهي آمنة
+      // لأنها ليست سجلاً محاسبياً/مخزنياً مستقلاً بل جزء من الفاتورة نفسها)
       final rows = await txn.delete(
         'invoices',
         where: 'id = ?',
@@ -446,6 +500,50 @@ class InvoiceRepository {
     return _buildPage(result, pageSize);
   }
 
+  /// يبحث عن الفواتير برقم الفاتورة أو باسم الطرف (المخزَّن كـ snapshot
+  /// داخل جدول invoices نفسه — party_name_snapshot — وليس عبر جدول
+  /// parties، لأن الفاتورة يجب أن تحتفظ باسم الطرف وقت إصدارها حتى
+  /// لو تغيّر اسمه لاحقاً؛ هذا الحقل موجود أصلاً وليس إضافة جديدة).
+  Future<InvoicePage> searchInvoices({
+    required String query,
+    InvoiceType? type,
+    int? lastId,
+    int pageSize = _defaultPageSize,
+  }) async {
+    final db = await _db;
+    final trimmed = query.trim();
+
+    if (trimmed.isEmpty) {
+      return type == null
+          ? getAllInvoices(lastId: lastId, pageSize: pageSize)
+          : getInvoicesByType(type: type, lastId: lastId, pageSize: pageSize);
+    }
+
+    final where = <String>[
+      '(invoice_number LIKE ? OR party_name_snapshot LIKE ?)',
+    ];
+    final likeArg = '%$trimmed%';
+    final args = <dynamic>[likeArg, likeArg];
+
+    if (type != null) {
+      where.add('type = ?');
+      args.add(type.name.toUpperCase());
+    }
+    if (lastId != null) {
+      where.add('id < ?');
+      args.add(lastId);
+    }
+
+    final result = await db.query(
+      'invoices',
+      where: where.join(' AND '),
+      whereArgs: args,
+      orderBy: 'id DESC',
+      limit: pageSize + 1,
+    );
+    return _buildPage(result, pageSize);
+  }
+
   Future<InvoiceModel?> getInvoiceById(int id) async {
     final db = await _db;
     final result = await db.query(
@@ -528,6 +626,21 @@ class InsufficientStockException implements Exception {
   String toString() =>
       'الكمية غير متوفرة لـ "$productName": '
       'المطلوب $requested، المتوفر $available فقط';
+}
+
+class InvoiceHasDependenciesException implements Exception {
+  final int invoiceId;
+  final String reason;
+
+  InvoiceHasDependenciesException({
+    required this.invoiceId,
+    required this.reason,
+  });
+
+  @override
+  String toString() =>
+      'لا يمكن حذف هذه الفاتورة لأنها مرتبطة بـ $reason. '
+      'يجب إلغاء أو حذف تلك السجلات أولاً إن كان ذلك ممكناً.';
 }
 
 class PartyNotFoundException implements Exception {

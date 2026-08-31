@@ -48,6 +48,10 @@ class MainScreen extends StatelessWidget {
     return NavigationBar(
       selectedIndex: currentIndex.value,
       onDestinationSelected: (index) {
+        if (index == 5) {
+          _showMoreMenu();
+          return;
+        }
         currentIndex.value = index;
       },
       backgroundColor: Colors.white,
@@ -81,16 +85,146 @@ class MainScreen extends StatelessWidget {
           label: 'المستودعات',
         ),
         NavigationDestination(
-          icon: Icon(Icons.money_off_outlined),
-          selectedIcon: Icon(Icons.money_off_rounded),
-          label: 'المصاريف',
+          icon: Icon(Icons.more_horiz_rounded),
+          selectedIcon: Icon(Icons.more_horiz_rounded),
+          label: 'المزيد',
         ),
-        NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-          label: 'الديون'
-         )
       ],
+    );
+  }
+}
+
+void _showMoreMenu() {
+  Get.bottomSheet(
+    Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1D5DB),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'المزيد',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _MoreMenuItem(
+            icon: Icons.money_off_rounded,
+            title: 'المصاريف',
+            onTap: () {
+              Get.back();
+              Get.to(
+                () => const ExpenseListScreen(),
+              );
+            },
+          ),
+
+          _MoreMenuItem(
+            icon: Icons.account_balance_wallet_rounded,
+            title: 'الديون',
+            onTap: () {
+              Get.back();
+              Get.to(
+                () => const DebtsScreen(),
+              );
+            },
+          ),
+
+          _MoreMenuItem(
+            icon: Icons.inventory_rounded,
+            title: 'المخزون العام',
+            onTap: () {
+              Get.back();
+              Get.to(
+                () => const InventoryScreen(),
+              );
+            },
+          ),
+
+          _MoreMenuItem(
+            icon: Icons.bar_chart_rounded,
+            title: 'التقارير',
+            onTap: () {
+              Get.back();
+              Get.to(
+                () => const ReportScreen(),
+              );
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MoreMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _MoreMenuItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 2,
+      ),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFF374151),
+          size: 21,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF374151),
+        ),
+      ),
+      trailing: const Icon(
+        Icons.chevron_left_rounded,
+        color: Color(0xFF9CA3AF),
+      ),
     );
   }
 }

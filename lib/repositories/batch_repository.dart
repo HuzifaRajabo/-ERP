@@ -35,6 +35,23 @@ class BatchRepository {
 
   Future<Database> get _db async => _dbProvider();
 
+  /// يولّد رقم دفعة تلقائياً بصيغة B-{السنة}-{تسلسل}، ليُعرض للمستخدم
+  /// كقيمة افتراضية قابلة للتعديل قبل حفظ الفاتورة (وليس فرضاً نهائياً).
+  /// يتبع نفس نمط توليد رقم الفاتورة الموجود في InvoiceRepository
+  /// (عدّ السجلات ثم زيادة واحد)، دون إضافة آلية sequence جديدة أو
+  /// عمود جديد في قاعدة البيانات.
+  Future<String> generateNextBatchNumber() async {
+    final db = await _db;
+    final year = DateTime.now().year;
+    final prefix = 'B-$year-';
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM batches WHERE batch_number LIKE ?',
+      ['$prefix%'],
+    );
+    final count = (result.first['count'] as int) + 1;
+    return '$prefix${count.toString().padLeft(3, '0')}';
+  }
+
   Future<int> insertBatch(BatchModel batch) async {
     try {
       final db = await _db;

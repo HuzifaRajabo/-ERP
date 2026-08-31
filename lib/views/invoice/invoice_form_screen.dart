@@ -1675,6 +1675,24 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
     super.initState();
     _prefillFromDraft();
     _loadUnits();
+    // اقتراح رقم دفعة تلقائياً لفواتير الشراء فقط، وفقط إذا لم يوجد
+    // رقم محفوظ مسبقاً (لا نستبدل رقماً أدخله/عدّله المستخدم عند التعديل).
+    if (!isSale && batchNumberCtrl.text.trim().isEmpty) {
+      _suggestBatchNumber();
+    }
+  }
+
+  Future<void> _suggestBatchNumber() async {
+    try {
+      final suggested = await controller.suggestNextBatchNumber();
+      if (!mounted) return;
+      // نتحقق مجدداً أن المستخدم لم يبدأ الكتابة أثناء انتظار التوليد.
+      if (batchNumberCtrl.text.trim().isEmpty) {
+        setState(() => batchNumberCtrl.text = suggested);
+      }
+    } catch (_) {
+      // فشل التوليد لا يمنع المستخدم من إدخال رقم يدوياً — الحقل يبقى فارغاً.
+    }
   }
 
   @override
@@ -2448,7 +2466,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'تُنشأ الدفعة تلقائياً عند حفظ الفاتورة إذا أدخلت رقماً',
+            'يُقترح رقم الدفعة تلقائياً، ويمكنك تعديله أو مسحه',
             style: TextStyle(fontSize: 10, color: Color(0xFFB45309)),
           ),
           const SizedBox(height: 10),
@@ -3178,7 +3196,7 @@ class _FormErrorMessage extends GetView<InvoiceController> {
               child: Text(
                 controller.invoiceFormError.value!,
                 style: const TextStyle(
-                  color: Color(0xFFB91C1C),
+                  color: AppColors.error,
                   fontWeight: FontWeight.w700,
                 ),
               ),

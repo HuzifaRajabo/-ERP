@@ -380,7 +380,7 @@ class _PartyInvoiceCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () =>
-                      Get.toNamed('/invoice-details', arguments: invoice.id),
+                      Get.toNamed('/invoice-details', arguments: invoice),
                   icon: const Icon(Icons.visibility_outlined, size: 16),
                   label: const Text('التفاصيل'),
                 ),

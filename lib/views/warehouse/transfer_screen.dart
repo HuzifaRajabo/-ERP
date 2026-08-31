@@ -74,8 +74,22 @@ class _TransferBodyState extends State<_TransferBody> {
         double.tryParse(v.replaceAll(',', '.'));
   }
 
+  void _addToCart() {
+    final err = widget.controller.addSelectionToCart();
+    if (err != null) {
+      widget.controller.errorMessage.value = err;
+      return;
+    }
+    _qtyCtrl.clear();
+    FocusScope.of(context).unfocus();
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (widget.controller.cartItems.isEmpty) {
+      widget.controller.errorMessage.value =
+          'أضف منتجاً واحداً على الأقل قبل تنفيذ التحويل';
+      return;
+    }
     final ok = await widget.controller.submit();
     if (ok && mounted) {
       _qtyCtrl.clear();
@@ -100,31 +114,6 @@ class _TransferBodyState extends State<_TransferBody> {
           },
         );
       }
-      final err = widget.controller.errorMessage.value;
-      if (err != null) {
-        return Column(
-          children: [
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(err, textAlign: TextAlign.center),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: FilledButton(
-                onPressed: () {
-                  widget.controller.errorMessage.value = null;
-                  widget.controller.state.value = TransferState.idle;
-                },
-                child: const Text('محاولة مجدداً'),
-              ),
-            ),
-          ],
-        );
-      }
 
       if (s == TransferState.loading && widget.controller.warehouses.isEmpty) {
         return const Center(child: CircularProgressIndicator());
@@ -146,6 +135,37 @@ class _TransferBodyState extends State<_TransferBody> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // رسالة الخطأ (تظهر أعلى الشاشة بدل استبدال النموذج بالكامل،
+            // حتى لا يفقد المستخدم ما أضافه للسلة سابقاً عند حدوث خطأ)
+            Obx(() {
+              final err = c.errorMessage.value;
+              if (err == null) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: Color(0xFFB91C1C), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(err,
+                          style: const TextStyle(color: Color(0xFFB91C1C))),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      color: const Color(0xFFB91C1C),
+                      onPressed: () => c.errorMessage.value = null,
+                    ),
+                  ],
+                ),
+              );
+            }),
             _sectionTitle('المستودع المصدر'),
             Obx(() => _reactiveDropdown(
                   label: 'من مستودع',
@@ -171,7 +191,59 @@ class _TransferBodyState extends State<_TransferBody> {
                   ],
                 )),
             const SizedBox(height: 20),
-            _sectionTitle('المنتج'),
+
+            // ===== سلة المنتجات المضافة =====
+            Obx(() {
+              if (c.cartItems.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _sectionTitle('منتجات هذا التحويل (${c.cartItems.length})'),
+                  ...c.cartItems.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(item.productName,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _fmt(item.quantity),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            color: Colors.grey[500],
+                            onPressed: () => c.removeFromCart(index),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 4),
+                ],
+              );
+            }),
+
+            _sectionTitle('إضافة منتج للتحويل'),
             Obx(() {
               if (c.isLoadingProducts.value) {
                 return const Padding(
@@ -202,24 +274,31 @@ class _TransferBodyState extends State<_TransferBody> {
                 ],
               );
             }),
-            const SizedBox(height: 20),
-            _sectionTitle('الكمية (بالوحدة الأساسية)'),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _qtyCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
               ],
-              decoration:
-                  AppUi.inputDecoration(label: 'الكمية', icon: Icons.numbers),
+              decoration: AppUi.inputDecoration(
+                  label: 'الكمية (بالوحدة الأساسية)', icon: Icons.numbers),
               onChanged: _syncQuantity,
-              validator: (v) {
-                final q = double.tryParse(v?.replaceAll(',', '.') ?? '');
-                if (q == null || q <= 0) return 'أدخل كمية صحيحة';
-                return null;
-              },
+              onFieldSubmitted: (_) => _addToCart(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _addToCart,
+              icon: const Icon(Icons.add),
+              label: const Text('أضف للتحويل'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _sectionTitle('ملاحظات (اختياري)'),
             TextFormField(
               controller: _notesCtrl,
               maxLines: 2,
@@ -228,16 +307,18 @@ class _TransferBodyState extends State<_TransferBody> {
                   AppUi.inputDecoration(label: 'ملاحظات (اختياري)', icon: Icons.notes),
             ),
             const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _submit,
-              icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('تنفيذ التحويل'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
+            Obx(() => FilledButton.icon(
+                  onPressed: c.cartItems.isEmpty ? null : _submit,
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: Text(c.cartItems.isEmpty
+                      ? 'أضف منتجاً واحداً على الأقل'
+                      : 'تنفيذ التحويل (${c.cartItems.length} منتج)'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                )),
           ],
         ),
       ),
@@ -286,6 +367,9 @@ class _SuccessView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = controller.lastResult;
+    final itemsCount = r?.items.length ?? 0;
+    final totalQty =
+        r?.items.fold<double>(0, (sum, i) => sum + i.quantity) ?? 0;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -299,8 +383,11 @@ class _SuccessView extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text(
-              'الكمية المنقولة: ${_fmtQty(r?.quantity ?? 0)} وحدة أساسية',
+              itemsCount <= 1
+                  ? 'الكمية المنقولة: ${_fmtQty(totalQty)} وحدة أساسية'
+                  : '$itemsCount منتجات — إجمالي ${_fmtQty(totalQty)} وحدة أساسية',
               style: TextStyle(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             FilledButton.icon(

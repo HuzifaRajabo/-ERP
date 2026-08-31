@@ -13,6 +13,15 @@ class PaymentBottomSheet extends GetView<PaymentController> {
   const PaymentBottomSheet({super.key, required this.invoice});
 
   static Future<void> show(InvoiceModel invoice) async {
+    // تهيئة نموذج الدفعة مرة واحدة فقط قبل فتح النافذة — وليس داخل
+    // build()، لأن build() يُعاد تنفيذه في كل مرة يتغيّر فيها
+    // MediaQuery.viewInsets (أي عند ظهور/اختفاء لوحة المفاتيح)، وكان هذا
+    // يُصفّر المبلغ الذي كتبه المستخدم ويعيده إلى "المتبقي بالكامل" —
+    // وغالباً يحدث هذا التصفير عند الضغط على زر الحفظ نفسه (لأن لمس
+    // الشاشة يُغلق لوحة المفاتيح قبل تنفيذ onPressed)، فيُحفظ المبلغ
+    // الخاطئ (المتبقي الكامل) بدل المبلغ الذي أدخله المستخدم فعلياً.
+    Get.find<PaymentController>().initPaymentForm(invoice);
+
     await Get.bottomSheet(
       PaymentBottomSheet(invoice: invoice),
       isScrollControlled: true,
@@ -25,8 +34,6 @@ class PaymentBottomSheet extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
-    controller.initPaymentForm(invoice);
-
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,

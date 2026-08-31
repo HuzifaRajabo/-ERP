@@ -95,7 +95,11 @@ class WarehouseDetailController extends GetxController {
       isLoadingStock.value = true;
       final summaries =
           await inventoryRepo.getAllProductsStockByWarehouse(warehouseId);
-      stockSummaries.assignAll(summaries.where((s) => s.available > 0).toList());
+      // نعرض كل المنتجات المرتبطة فعلياً بهذا المستودع (الاستعلام في
+      // Repository يقيّدها بالفعل)، بما فيها التي أصبح مخزونها صفراً —
+      // لا نُخفيها بعد الآن، فالمستخدم يحتاج رؤية أن المنتج "موجود
+      // بالمستودع لكن نفد" وليس أنه غير مرتبط بالمستودع أصلاً.
+      stockSummaries.assignAll(summaries);
       productCount.value = stockSummaries.length;
     } catch (e) {
       errorMessage.value = e.toString();
@@ -190,4 +194,3 @@ class WarehouseDetailController extends GetxController {
     await resetMovements();
   }
 }
-

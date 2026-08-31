@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/report_controller.dart';
+import '../../controllers/invoice_controller.dart';
 import '../../models/report_model.dart';
 
 class ReportScreen extends GetView<ReportController> {
@@ -561,10 +562,18 @@ class _ProfitLossTab extends GetView<ReportController> {
                   ...controller.profitDetails.map((d) {
                     final isP = d.profit >= 0;
                     return InkWell(
-                      onTap: () => Get.toNamed(
-                        '/invoice-details',
-                        arguments: d.invoiceId,
-                      ),
+                      onTap: () async {
+                        final invoice =
+                            await Get.find<InvoiceController>()
+                                .repo
+                                .getInvoiceById(d.invoiceId);
+                        if (invoice != null) {
+                          Get.toNamed(
+                            '/invoice-details',
+                            arguments: invoice,
+                          );
+                        }
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,

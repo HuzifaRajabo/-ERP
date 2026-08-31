@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/return_controller.dart';
+import '../../controllers/invoice_controller.dart';
 import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
 import '../../repositories/payment_repository.dart';
@@ -126,10 +127,14 @@ class ReturnDetailsScreen extends StatelessWidget {
 
               // رابط للفاتورة الأصلية
               OutlinedButton.icon(
-                onPressed: () => Get.toNamed(
-                  '/invoice-details',
-                  arguments: ret.originalInvoiceId,
-                ),
+                onPressed: () async {
+                  final invoice = await Get.find<InvoiceController>()
+                      .repo
+                      .getInvoiceById(ret.originalInvoiceId);
+                  if (invoice != null) {
+                    Get.toNamed('/invoice-details', arguments: invoice);
+                  }
+                },
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: const Text('عرض الفاتورة الأصلية'),
               ),

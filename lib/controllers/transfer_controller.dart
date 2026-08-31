@@ -6,7 +6,23 @@ import '../core/services/app_event_bus.dart';
 
 enum TransferState { idle, loading, submitting, success, error }
 
-/// يدير عملية نقل مخزون بين مستودعين لمنتج واحد.
+/// عنصر ضمن سلة التحويل الحالية (قبل التنفيذ).
+class TransferCartItem {
+  final int productId;
+  final String productName;
+  final double quantity;
+  final double availableAtAddTime;
+
+  const TransferCartItem({
+    required this.productId,
+    required this.productName,
+    required this.quantity,
+    required this.availableAtAddTime,
+  });
+}
+
+/// يدير عملية نقل مخزون بين مستودعين، لمنتج واحد أو أكثر ضمن نفس
+/// عملية التحويل (سلة منتجات تُنفَّذ كلها معاً بشكل ذرّي).
 class TransferController extends GetxController {
   final WarehouseRepository warehouseRepo;
   final InventoryRepository inventoryRepo;
@@ -38,8 +54,11 @@ class TransferController extends GetxController {
   final RxnDouble quantity = RxnDouble();
   final RxnString notes = RxnString();
 
-  StockTransferResult? _lastResult;
-  StockTransferResult? get lastResult => _lastResult;
+  /// سلة المنتجات المضافة لهذه العملية (قبل الضغط على "تنفيذ التحويل").
+  final RxList<TransferCartItem> cartItems = <TransferCartItem>[].obs;
+
+  StockTransferBatchResult? _lastResult;
+  StockTransferBatchResult? get lastResult => _lastResult;
 
   @override
   void onInit() {
@@ -64,6 +83,7 @@ class TransferController extends GetxController {
     selectedProductId.value = null;
     quantity.value = null;
     availableProducts.clear();
+    cartItems.clear();
     if (toWarehouseId.value == id) toWarehouseId.value = null;
     if (id != null) loadAvailableProducts(id);
   }
@@ -88,12 +108,87 @@ class TransferController extends GetxController {
     quantity.value = null;
   }
 
-  /// يُنفّذ التحويل. يُعيد true عند النجاح.
-  Future<bool> submit() async {
-    final from = fromWarehouseId.value;
-    final to = toWarehouseId.value;
+  /// الكمية المتاحة من المنتج المختار حالياً، بعد خصم ما وُضع مسبقاً في
+  /// السلة لنفس المنتج (حتى لا يُسمح بإضافته مرتين بمجموع يتجاوز المتوفر).
+  double availableForSelectedProduct() {
+    final productId = selectedProductId.value;
+    if (productId == null) return 0;
+    final summary = availableProducts.firstWhereOrNull(
+      (p) => p.productId == productId,
+    );
+    if (summary == null) return 0;
+    final alreadyInCart = cartItems
+        .where((i) => i.productId == productId)
+        .fold<double>(0, (sum, i) => sum + i.quantity);
+    return summary.available - alreadyInCart;
+  }
+
+  /// يضيف المنتج والكمية المختارَين حالياً إلى سلة التحويل.
+  /// يُعيد رسالة خطأ نصية عند الفشل، أو null عند النجاح.
+  String? addSelectionToCart() {
     final productId = selectedProductId.value;
     final qty = quantity.value;
+
+    if (productId == null) return 'اختر المنتج المراد نقله';
+    if (qty == null || qty <= 0) return 'أدخل كمية صحيحة أكبر من صفر';
+
+    final summary =
+        availableProducts.firstWhereOrNull((p) => p.productId == productId);
+    if (summary == null) return 'هذا المنتج لم يعد متاحاً في المستودع المصدر';
+
+    final remaining = availableForSelectedProduct();
+    if (qty > remaining) {
+      return 'الكمية المطلوبة ($qty) تتجاوز المتاح فعلياً '
+          '(${_fmt(remaining)}) بعد احتساب ما أُضيف مسبقاً للسلة';
+    }
+
+    // إن كان المنتج موجوداً بالسلة مسبقاً، ندمج الكمية بدل إضافة سطر مكرر.
+    final existingIndex =
+        cartItems.indexWhere((i) => i.productId == productId);
+    if (existingIndex != -1) {
+      final existing = cartItems[existingIndex];
+      cartItems[existingIndex] = TransferCartItem(
+        productId: existing.productId,
+        productName: existing.productName,
+        quantity: existing.quantity + qty,
+        availableAtAddTime: summary.available,
+      );
+    } else {
+      cartItems.add(TransferCartItem(
+        productId: productId,
+        productName: summary.productName,
+        quantity: qty,
+        availableAtAddTime: summary.available,
+      ));
+    }
+
+    // تجهيز الحقول لإضافة منتج آخر
+    selectedProductId.value = null;
+    quantity.value = null;
+    errorMessage.value = null;
+    return null;
+  }
+
+  void removeFromCart(int index) {
+    if (index < 0 || index >= cartItems.length) return;
+    cartItems.removeAt(index);
+  }
+
+  String _fmt(double q) =>
+      q % 1 == 0 ? q.toInt().toString() : q.toStringAsFixed(2);
+
+  /// يُنفّذ تحويل كل منتجات السلة دفعة واحدة (عملية ذرّية واحدة).
+  /// يُعيد true عند النجاح.
+  Future<bool> submit() async {
+    // حماية من التنفيذ المزدوج: لو ضغط المستخدم الزر مرتين بسرعة قبل أن
+    // تتحول الواجهة لحالة "submitting" (فرق التوقيت بين استدعاء الدالة
+    // وإعادة رسم الشاشة عبر Obx)، يجب رفض الاستدعاء الثاني فوراً — وإلا
+    // تُنفَّذ عمليتا تحويل منفصلتان بنفس الكميات بالضبط، فتتكرر كل حركة
+    // في سجل "الحركات" مرتين تماماً كما هي.
+    if (state.value == TransferState.submitting) return false;
+
+    final from = fromWarehouseId.value;
+    final to = toWarehouseId.value;
 
     if (from == null || to == null) {
       errorMessage.value = 'اختر المستودع المصدر والمستودع الوجهة';
@@ -103,22 +198,23 @@ class TransferController extends GetxController {
       errorMessage.value = 'لا يمكن النقل إلى نفس المستودع';
       return false;
     }
-    if (productId == null) {
-      errorMessage.value = 'اختر المنتج المراد نقله';
-      return false;
-    }
-    if (qty == null || qty <= 0) {
-      errorMessage.value = 'أدخل كمية صحيحة أكبر من صفر';
+    if (cartItems.isEmpty) {
+      errorMessage.value = 'أضف منتجاً واحداً على الأقل قبل تنفيذ التحويل';
       return false;
     }
 
     try {
       state.value = TransferState.submitting;
-      _lastResult = await transferRepo.transferStock(
+      _lastResult = await transferRepo.transferStockBatch(
         fromWarehouseId: from,
         toWarehouseId: to,
-        productId: productId,
-        quantity: qty,
+        items: [
+          for (final item in cartItems)
+            StockTransferItemInput(
+              productId: item.productId,
+              quantity: item.quantity,
+            ),
+        ],
         notes: notes.value,
       );
       state.value = TransferState.success;
@@ -137,6 +233,7 @@ class TransferController extends GetxController {
     selectedProductId.value = null;
     quantity.value = null;
     notes.value = null;
+    cartItems.clear();
     _lastResult = null;
     state.value = TransferState.idle;
     errorMessage.value = null;

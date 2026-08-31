@@ -612,7 +612,7 @@ class _ProductDetailsScreenState
   String _money(int value) {
     return MoneyUtils.formatMoney(
       value,
-      symbol: 'د.أ',
+      symbol: '\$',
     );
   }
 }

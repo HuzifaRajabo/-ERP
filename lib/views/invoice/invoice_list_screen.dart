@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -204,7 +206,7 @@ class _InvoiceFilters extends GetView<InvoiceController> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(
         children: [
-          const AppSearchField(hint: 'بحث برقم الفاتورة أو اسم الطرف...'),
+          const _InvoiceSearchField(),
           const SizedBox(height: 12),
           Obx(
             () => Row(
@@ -243,6 +245,55 @@ class _InvoiceFilters extends GetView<InvoiceController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// حقل البحث الفعلي — مربوط بـ InvoiceController.setSearchQuery عبر
+/// debounce بسيط (350ms) لتفادي تنفيذ استعلام قاعدة بيانات مع كل
+/// ضغطة مفتاح. المسار الكامل: Widget → Controller → Repository → Database.
+class _InvoiceSearchField extends StatefulWidget {
+  const _InvoiceSearchField();
+
+  @override
+  State<_InvoiceSearchField> createState() => _InvoiceSearchFieldState();
+}
+
+class _InvoiceSearchFieldState extends State<_InvoiceSearchField> {
+  final _textController = TextEditingController();
+  Timer? _debounce;
+
+  final InvoiceController controller = Get.find<InvoiceController>();
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      controller.setSearchQuery(value);
+    });
+  }
+
+  void _onClear() {
+    _debounce?.cancel();
+    _textController.clear();
+    controller.setSearchQuery('');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(
+      () => AppSearchField(
+        hint: 'بحث برقم الفاتورة أو اسم الطرف...',
+        controller: _textController,
+        onChanged: _onChanged,
+        onClear: controller.searchQuery.value.isEmpty ? null : _onClear,
       ),
     );
   }
@@ -574,8 +625,8 @@ class _InvoiceCard extends GetView<InvoiceController> {
           ],
         ),
         content: Text(
-          'سيتم حذف الفاتورة ${invoice.invoiceNumber} '
-          'وعكس حركات المخزون المرتبطة بها.\n\n'
+          'سيتم حذف الفاتورة ${invoice.invoiceNumber} نهائياً.\n'
+          'لا يمكن حذف فاتورة أصبحت مرتبطة بحركات مخزون أو دفعات أو مرتجعات.\n\n'
           'هل أنت متأكد من المتابعة؟',
           style: const TextStyle(height: 1.6),
         ),
@@ -585,11 +636,23 @@ class _InvoiceCard extends GetView<InvoiceController> {
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
             ),
-            onPressed: () {
+            onPressed: () async {
               Get.back();
 
               if (invoice.id != null) {
-                controller.deleteInvoice(invoice.id!);
+                await controller.deleteInvoice(invoice.id!);
+                if (controller.hasError) {
+                  Get.snackbar(
+                    'تعذّر الحذف',
+                    controller.errorMessage.value ?? 'حدث خطأ غير متوقع',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: Colors.red,
+                    colorText: Colors.white,
+                    margin: const EdgeInsets.all(12),
+                    duration: const Duration(seconds: 4),
+                  );
+                  controller.clearError();
+                }
               }
             },
             child: const Text('حذف الفاتورة'),

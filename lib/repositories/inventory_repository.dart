@@ -446,6 +446,14 @@ class InventoryRepository {
         LEFT JOIN batches b2 ON b2.id = b.batch_id
       ), 0) AS value
     FROM products p
+    -- نقيّد النتيجة على المنتجات التي لها فعلاً حركة مخزون واحدة على الأقل
+    -- في هذا المستودع تحديداً (أي "منتجات مرتبطة بالمستودع")، بدل إرجاع
+    -- كل منتجات النظام كما كان سابقاً. هذا يمنع ظهور منتجات لا علاقة لها
+    -- بالمستودع، مع السماح بظهور المنتجات التي أصبح مخزونها صفراً.
+    INNER JOIN (
+      SELECT DISTINCT product_id FROM inventory_transactions
+      WHERE warehouse_id = ?
+    ) assoc ON assoc.product_id = p.id
     LEFT JOIN inventory_transactions it
       ON it.product_id = p.id AND it.warehouse_id = ?
     LEFT JOIN product_units pu
@@ -453,7 +461,7 @@ class InventoryRepository {
     GROUP BY p.id, p.name, p.description, pu.unit_name
     ORDER BY p.name ASC
   ''',
-      [warehouseId, warehouseId],
+      [warehouseId, warehouseId, warehouseId],
     );
 
     return result.map((row) {

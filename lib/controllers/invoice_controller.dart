@@ -41,6 +41,7 @@ class InvoiceController extends GetxController {
   final RxBool hasMore = true.obs;
   final RxnString errorMessage = RxnString();
   final Rxn<InvoiceType> selectedType = Rxn<InvoiceType>();
+  final RxString searchQuery = ''.obs;
   final RxInt draftInitialPayment = 0.obs;
 
   int? _cursor;
@@ -113,12 +114,19 @@ class InvoiceController extends GetxController {
 
   Future<void> _fetchPage() async {
     try {
-      final page = selectedType.value == null
-          ? await repo.getAllInvoices(lastId: _cursor)
-          : await repo.getInvoicesByType(
-              type: selectedType.value!,
+      final query = searchQuery.value.trim();
+      final page = query.isNotEmpty
+          ? await repo.searchInvoices(
+              query: query,
+              type: selectedType.value,
               lastId: _cursor,
-            );
+            )
+          : selectedType.value == null
+              ? await repo.getAllInvoices(lastId: _cursor)
+              : await repo.getInvoicesByType(
+                  type: selectedType.value!,
+                  lastId: _cursor,
+                );
 
       invoices.addAll(page.invoices);
       _cursor = page.nextCursor;
@@ -136,10 +144,20 @@ class InvoiceController extends GetxController {
     loadInitial();
   }
 
+  /// يُستدعى من حقل البحث في شاشة الفواتير (رقم الفاتورة أو اسم الطرف).
+  /// يعيد ضبط الصفحات ويجلب من جديد عبر Repository → Database،
+  /// بدون أي فلترة محلية داخل الـ Widget.
+  void setSearchQuery(String query) {
+    if (searchQuery.value == query) return;
+    searchQuery.value = query;
+    loadInitial();
+  }
+
   Future<void> refreshInvoices() async => loadInitial();
 
   // ==============================
-  // حذف فاتورة (Reverse - يُعيد المخزون تلقائياً)
+  // حذف فاتورة — مسموح فقط إذا لم تترتب عليها أي حركة مخزون/دفعة/مرتجع
+  // (Repository يتحقق من هذا صراحة ويرمي استثناء بدل الحذف المتسلسل الأعمى)
   // ==============================
 
   Future<void> deleteInvoice(int id) async {
@@ -218,6 +236,10 @@ class InvoiceController extends GetxController {
         ? unitRepo.getSellableUnits(productId)
         : unitRepo.getBuyableUnits(productId);
   }
+
+  /// رقم دفعة مقترح تلقائياً (قابل للتعديل من المستخدم) — يُستخدم عند
+  /// إضافة منتج لفاتورة شراء جديدة تتطلب دفعة.
+  Future<String> suggestNextBatchNumber() => batchRepo.generateNextBatchNumber();
 
   /// دفعات المنتج المتاحة في المستودع المختار، مرتبة FEFO
   /// (الأقرب انتهاءً أولاً) — نفس الترتيب الذي تستخدمه عملية الحفظ.
@@ -461,7 +483,7 @@ class InvoiceController extends GetxController {
         address: party.address,
       );
       availableParties.insert(0, created);
-      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyPartyChanged();
       return created;
     } catch (e) {
       invoiceFormError.value = 'فشل إضافة الطرف: $e';

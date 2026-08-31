@@ -312,7 +312,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       AlertDialog(
         title: const Text('حذف الفاتورة'),
         content: Text(
-          'سيتم حذف ${invoice.invoiceNumber} وإعادة تأثيرها على المخزون. هل تريد المتابعة؟',
+          'سيتم حذف ${invoice.invoiceNumber} نهائياً. '
+          'لا يمكن حذف فاتورة أصبحت مرتبطة بحركات مخزون أو دفعات أو مرتجعات. '
+          'هل تريد المتابعة؟',
         ),
         actions: [
           TextButton(onPressed: Get.back, child: const Text('إلغاء')),
@@ -320,7 +322,20 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             onPressed: () async {
               Get.back();
               await controller.deleteInvoice(invoice.id!);
-              if (!controller.hasError) Get.back();
+              if (!controller.hasError) {
+                Get.back();
+              } else {
+                Get.snackbar(
+                  'تعذّر الحذف',
+                  controller.errorMessage.value ?? 'حدث خطأ غير متوقع',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                  margin: const EdgeInsets.all(12),
+                  duration: const Duration(seconds: 4),
+                );
+                controller.clearError();
+              }
             },
             child: const Text('حذف', style: TextStyle(color: Colors.red)),
           ),
