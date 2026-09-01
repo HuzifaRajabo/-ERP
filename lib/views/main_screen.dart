@@ -14,11 +14,92 @@ import 'debts/debts_screen.dart';
 import 'report/report_screen.dart';
 import 'warehouse/warehouse_list_screen.dart';
 
-class MainScreen extends StatelessWidget {
-  MainScreen({super.key});
+// ============================================================
+// NAV ITEM DEFINITIONS
+// ============================================================
+// Single source of truth for every section that lives inside the
+// scrollable bottom navigation. Order here == order on screen.
 
-  final RxInt currentIndex = 0.obs;
+class _NavItemData {
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
 
+  const _NavItemData({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+  });
+}
+
+const List<_NavItemData> _navItems = [
+  _NavItemData(
+    label: 'الرئيسية',
+    icon: Icons.dashboard_outlined,
+    selectedIcon: Icons.dashboard_rounded,
+  ),
+  _NavItemData(
+    label: 'المنتجات',
+    icon: Icons.inventory_2_outlined,
+    selectedIcon: Icons.inventory_2_rounded,
+  ),
+  _NavItemData(
+    label: 'الأطراف',
+    icon: Icons.people_outline,
+    selectedIcon: Icons.people_rounded,
+  ),
+  _NavItemData(
+    label: 'الفواتير',
+    icon: Icons.receipt_long_outlined,
+    selectedIcon: Icons.receipt_long_rounded,
+  ),
+  _NavItemData(
+    label: 'المستودعات',
+    icon: Icons.warehouse_outlined,
+    selectedIcon: Icons.warehouse_rounded,
+  ),
+  _NavItemData(
+    label: 'المصاريف',
+    icon: Icons.money_off_outlined,
+    selectedIcon: Icons.money_off_rounded,
+  ),
+  _NavItemData(
+    label: 'الديون',
+    icon: Icons.account_balance_wallet_outlined,
+    selectedIcon: Icons.account_balance_wallet_rounded,
+  ),
+  _NavItemData(
+    label: 'المخزون العام',
+    icon: Icons.inventory_outlined,
+    selectedIcon: Icons.inventory_rounded,
+  ),
+  _NavItemData(
+    label: 'التقارير',
+    icon: Icons.bar_chart_outlined,
+    selectedIcon: Icons.bar_chart_rounded,
+  ),
+];
+
+// ============================================================
+// MAIN SCREEN
+// ============================================================
+// Converted to a StatefulWidget only so the GetX RxInt survives
+// widget rebuilds the same way it did before (it's created once,
+// in initState, exactly like it used to be created once as a
+// final field). Everything else (IndexedStack + pages) is
+// unchanged in spirit.
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  late final RxInt currentIndex;
+
+  // Order MUST match _navItems above (index-for-index).
   final List<Widget> _pages = const [
     HomeScreen(),
     ProductListScreen(),
@@ -27,203 +108,213 @@ class MainScreen extends StatelessWidget {
     WarehouseListScreen(),
     ExpenseListScreen(),
     DebtsScreen(),
+    InventoryScreen(),
+    ReportScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = 0.obs;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Obx(
-          () => Scaffold(
+      () => Scaffold(
         backgroundColor: const Color(0xFFF7F8FC),
         drawer: const _MainDrawer(),
         body: IndexedStack(
           index: currentIndex.value,
           children: _pages,
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
+        bottomNavigationBar: _ScrollableBottomNav(
+          currentIndex: currentIndex.value,
+          onItemSelected: (index) => currentIndex.value = index,
+        ),
       ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return NavigationBar(
-      selectedIndex: currentIndex.value,
-      onDestinationSelected: (index) {
-        if (index == 5) {
-          _showMoreMenu();
-          return;
-        }
-        currentIndex.value = index;
-      },
-      backgroundColor: Colors.white,
-      elevation: 3,
-      height: 68,
-      indicatorColor: const Color(0xFFE8F0FF),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded),
-          label: 'الرئيسية',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.inventory_2_outlined),
-          selectedIcon: Icon(Icons.inventory_2_rounded),
-          label: 'المنتجات',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.people_outline),
-          selectedIcon: Icon(Icons.people_rounded),
-          label: 'الأطراف',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: 'الفواتير',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.warehouse_outlined),
-          selectedIcon: Icon(Icons.warehouse_rounded),
-          label: 'المستودعات',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.more_horiz_rounded),
-          selectedIcon: Icon(Icons.more_horiz_rounded),
-          label: 'المزيد',
-        ),
-      ],
     );
   }
 }
 
-void _showMoreMenu() {
-  Get.bottomSheet(
-    Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD1D5DB),
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
+// ============================================================
+// SCROLLABLE BOTTOM NAVIGATION
+// ============================================================
+// Replaces the old 5-item NavigationBar + "المزيد" bottom sheet.
+// A single horizontally scrollable row holds every section. The
+// active item is kept in view automatically via
+// Scrollable.ensureVisible whenever `currentIndex` changes
+// (including changes triggered from outside this widget, e.g. a
+// drawer link or Get.toNamed navigation that updates the index).
+//
+// RTL note: this app runs under Directionality.rtl (via the
+// Arabic locale). A horizontal ListView automatically resolves its
+// scroll/paint direction from the ambient TextDirection, so a drag
+// from the right edge naturally reveals the next items in reading
+// order — no manual `reverse:` flag is needed or wanted here.
 
-          const SizedBox(height: 18),
+class _ScrollableBottomNav extends StatefulWidget {
+  final int currentIndex;
+  final ValueChanged<int> onItemSelected;
 
-          const Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'المزيد',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          _MoreMenuItem(
-            icon: Icons.money_off_rounded,
-            title: 'المصاريف',
-            onTap: () {
-              Get.back();
-              Get.to(
-                () => const ExpenseListScreen(),
-              );
-            },
-          ),
-
-          _MoreMenuItem(
-            icon: Icons.account_balance_wallet_rounded,
-            title: 'الديون',
-            onTap: () {
-              Get.back();
-              Get.to(
-                () => const DebtsScreen(),
-              );
-            },
-          ),
-
-          _MoreMenuItem(
-            icon: Icons.inventory_rounded,
-            title: 'المخزون العام',
-            onTap: () {
-              Get.back();
-              Get.to(
-                () => const InventoryScreen(),
-              );
-            },
-          ),
-
-          _MoreMenuItem(
-            icon: Icons.bar_chart_rounded,
-            title: 'التقارير',
-            onTap: () {
-              Get.back();
-              Get.to(
-                () => const ReportScreen(),
-              );
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _MoreMenuItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-
-  const _MoreMenuItem({
-    required this.icon,
-    required this.title,
-    required this.onTap,
+  const _ScrollableBottomNav({
+    required this.currentIndex,
+    required this.onItemSelected,
   });
 
   @override
+  State<_ScrollableBottomNav> createState() => _ScrollableBottomNavState();
+}
+
+class _ScrollableBottomNavState extends State<_ScrollableBottomNav> {
+  final ScrollController _scrollController = ScrollController();
+  final List<GlobalKey> _itemKeys =
+      List.generate(_navItems.length, (_) => GlobalKey());
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScrollableBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
+    }
+  }
+
+  void _scrollToActive() {
+    if (!mounted) return;
+    final key = _itemKeys[widget.currentIndex];
+    final itemContext = key.currentContext;
+    if (itemContext == null) return;
+
+    Scrollable.ensureVisible(
+      itemContext,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 2,
-      ),
-      leading: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F4F6),
-          borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
         ),
-        child: Icon(
-          icon,
-          color: const Color(0xFF374151),
-          size: 21,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 76,
+          child: ListView.builder(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            itemCount: _navItems.length,
+            itemBuilder: (context, index) {
+              final item = _navItems[index];
+              final selected = index == widget.currentIndex;
+
+              return Padding(
+                key: _itemKeys[index],
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: _NavBarItem(
+                  label: item.label,
+                  icon: item.icon,
+                  selectedIcon: item.selectedIcon,
+                  selected: selected,
+                  onTap: () => widget.onItemSelected(index),
+                ),
+              );
+            },
+          ),
         ),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF374151),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static const Color _primary = Color(0xFF2563EB);
+  static const Color _inactive = Color(0xFF6B7280);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 82,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? _primary.withOpacity(0.10)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  selected ? selectedIcon : icon,
+                  size: 22,
+                  color: selected ? _primary : _inactive,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? _primary : _inactive,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      trailing: const Icon(
-        Icons.chevron_left_rounded,
-        color: Color(0xFF9CA3AF),
       ),
     );
   }
@@ -356,17 +447,17 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       actions: [
         Obx(
-              () => IconButton(
+          () => IconButton(
             tooltip: 'تحديث البيانات',
             onPressed: controller.isLoading.value ? null : _refresh,
             icon: controller.isLoading.value
                 ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
                 : const Icon(Icons.refresh_rounded),
           ),
         ),
@@ -451,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPeriodSelector() {
     return Obx(
-          () => Container(
+      () => Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -511,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : const Color(0xFF6B7280),
               fontSize: 12,
               fontWeight:
-              selected ? FontWeight.w800 : FontWeight.w600,
+                  selected ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
         ),
@@ -531,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   overview.saleNetTotal,
                 ),
                 subtitle:
-                '${overview.saleInvoiceCount} فاتورة',
+                    '${overview.saleInvoiceCount} فاتورة',
                 icon: Icons.trending_up_rounded,
                 color: const Color(0xFF16A34A),
               ),
@@ -544,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   overview.purchaseNetTotal,
                 ),
                 subtitle:
-                '${overview.purchaseInvoiceCount} فاتورة',
+                    '${overview.purchaseInvoiceCount} فاتورة',
                 icon: Icons.shopping_cart_checkout_rounded,
                 color: const Color(0xFFF59E0B),
               ),
@@ -561,7 +652,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   overview.netProfit,
                 ),
                 subtitle:
-                'مجمل الربح ${MoneyUtils.formatMoney(overview.grossProfit)}',
+                    'مجمل الربح ${MoneyUtils.formatMoney(overview.grossProfit)}',
                 icon: overview.netProfit >= 0
                     ? Icons.account_balance_wallet_rounded
                     : Icons.trending_down_rounded,
@@ -762,6 +853,8 @@ class _HomeScreenState extends State<HomeScreen> {
 // ============================================================
 // MAIN DRAWER
 // ============================================================
+// Kept as-is: it's still a valid secondary way to jump to a
+// section, and none of it depended on the old "More" bottom sheet.
 
 class _MainDrawer extends StatelessWidget {
   const _MainDrawer();
@@ -840,7 +933,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const ProductListScreen(),
+                        () => const ProductListScreen(),
                       );
                     },
                   ),
@@ -850,7 +943,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const PartyListScreen(),
+                        () => const PartyListScreen(),
                       );
                     },
                   ),
@@ -864,7 +957,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const InvoiceListScreen(),
+                        () => const InvoiceListScreen(),
                       );
                     },
                   ),
@@ -879,7 +972,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const DebtsScreen(),
+                        () => const DebtsScreen(),
                       );
                     },
                   ),
@@ -893,7 +986,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const WarehouseListScreen(),
+                        () => const WarehouseListScreen(),
                       );
                     },
                   ),
@@ -903,7 +996,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const InventoryScreen(),
+                        () => const InventoryScreen(),
                       );
                     },
                   ),
@@ -917,7 +1010,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const ExpenseListScreen(),
+                        () => const ExpenseListScreen(),
                       );
                     },
                   ),
@@ -927,7 +1020,7 @@ class _MainDrawer extends StatelessWidget {
                     onTap: () {
                       Get.back();
                       Get.to(
-                            () => const ReportScreen(),
+                        () => const ReportScreen(),
                       );
                     },
                   ),
@@ -1173,7 +1266,7 @@ class _FinancialRow extends StatelessWidget {
               color: const Color(0xFF4B5563),
               fontSize: 13,
               fontWeight:
-              emphasize ? FontWeight.w800 : FontWeight.w600,
+                  emphasize ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
         ),
@@ -1185,7 +1278,7 @@ class _FinancialRow extends StatelessWidget {
                 : const Color(0xFF111827),
             fontSize: emphasize ? 15 : 13,
             fontWeight:
-            emphasize ? FontWeight.w900 : FontWeight.w700,
+                emphasize ? FontWeight.w900 : FontWeight.w700,
           ),
         ),
       ],
