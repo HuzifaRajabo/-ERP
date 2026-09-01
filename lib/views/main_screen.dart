@@ -962,11 +962,6 @@ class _MainDrawer extends StatelessWidget {
                     },
                   ),
                   _DrawerItem(
-                    icon: Icons.undo_rounded,
-                    title: 'المرتجعات',
-                    onTap: () => Get.toNamed('/return-form'),
-                  ),
-                  _DrawerItem(
                     icon: Icons.account_balance_wallet_rounded,
                     title: 'الديون والمدفوعات',
                     onTap: () {
