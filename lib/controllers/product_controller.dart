@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/product_unit_repository.dart';
@@ -98,11 +99,13 @@ class ProductController extends GetxController {
           ? await repo.getAllProducts(
               lastId: _cursor,
               categoryId: selectedCategoryId.value,
+              includeInactive: true,
             )
           : await repo.searchProductsByName(
               searchKeyword.value,
               lastId: _cursor,
               categoryId: selectedCategoryId.value,
+              includeInactive: true,
             );
 
       products.addAll(page.products);
@@ -317,19 +320,74 @@ class ProductController extends GetxController {
     }
   }
 
+  /// حذف منتج — يفوّض للـ Repository منطق "حذف فعلي أو إيقاف".
+  ///
+  /// - [ProductDeleteResult.deleted]     → رسالة نجاح "تم حذف المنتج".
+  /// - [ProductDeleteResult.deactivated] → رسالة توضيحية بـ"تم إيقافه".
+  /// - [ProductDeleteResult.notFound]    → لا يُظهر خطأً، المنتج غير موجود.
   Future<void> deleteProduct(int id) async {
     try {
-      await repo.deleteProduct(id);
+      final result = await repo.deleteOrDeactivateProduct(id);
+
       AppEventBus.instance.notifyProductChanged();
       AppEventBus.instance.notifyInventoryChanged();
+
+      switch (result) {
+        case ProductDeleteResult.deleted:
+          errorMessage.value = null;
+          Get.snackbar(
+            'حذف المنتج',
+            'تم حذف المنتج',
+            snackPosition: SnackPosition.BOTTOM,
+            margin: const EdgeInsets.all(12),
+          );
+        case ProductDeleteResult.hasStock:
+          errorMessage.value = null;
+          Get.snackbar(
+            'لا يمكن حذف المنتج',
+            'ما زال لهذا المنتج مخزون متبقٍ، '
+            'يجب تصفية المخزون أولاً قبل حذفه.',
+            snackPosition: SnackPosition.BOTTOM,
+            margin: const EdgeInsets.all(12),
+            duration: const Duration(seconds: 4),
+          );
+        case ProductDeleteResult.deactivated:
+          errorMessage.value = null;
+          Get.snackbar(
+            'إيقاف المنتج',
+            'لا يمكن حذف المنتج لأنه مرتبط بسجلات تاريخية، '
+            'لذلك تم إيقافه.',
+            snackPosition: SnackPosition.BOTTOM,
+            margin: const EdgeInsets.all(12),
+            duration: const Duration(seconds: 4),
+          );
+        case ProductDeleteResult.notFound:
+          errorMessage.value = null;
+      }
     } catch (e) {
-      state.value = ProductLoadState.error;
       errorMessage.value = DbErrorHandler.handle(e, entityName: 'المنتج');
     }
   }
 
   Future<ProductModel?> getProductById(int id) {
     return repo.getProductById(id);
+  }
+
+  /// إعادة تفعيل منتج موقوف (is_active = 1).
+  Future<void> reactivateProduct(int id) async {
+    try {
+      await repo.setProductActive(id, true);
+      AppEventBus.instance.notifyProductChanged();
+      AppEventBus.instance.notifyInventoryChanged();
+      Get.snackbar(
+        'إعادة التفعيل',
+        'تمت إعادة تفعيل المنتج',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(12),
+      );
+    } catch (e) {
+      errorMessage.value = DbErrorHandler.handle(e, entityName: 'المنتج');
+    }
   }
 
   /// إحضار وحدات منتج بعينه (للقراءة فقط، لا يُغيّر tempUnits)

@@ -67,12 +67,24 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
                 ),
                 title: Text(category.name),
                 subtitle: Text(category.isPreset ? 'صنف جاهز' : 'صنف مضاف يدويًا'),
-                trailing: category.isPreset
-                    ? const Icon(Icons.lock_outline, color: Colors.grey)
-                    : IconButton(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'تعديل الصنف',
+                      onPressed: () => _editCategory(category),
+                    ),
+                    if (category.isPreset)
+                      const Icon(Icons.lock_outline, color: Colors.grey)
+                    else
+                      IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        tooltip: 'حذف الصنف',
                         onPressed: () => _deleteCategory(category),
                       ),
+                  ],
+                ),
               ),
             );
           },
@@ -121,6 +133,48 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
       await controller.loadCategories();
     } else {
       Get.snackbar('خطأ', controller.errorMessage.value ?? 'تعذر إضافة الصنف');
+    }
+  }
+
+  Future<void> _editCategory(CategoryModel category) async {
+    final nameController = TextEditingController(text: category.name);
+
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('تعديل اسم الصنف'),
+        content: TextField(
+          controller: nameController,
+          textDirection: TextDirection.rtl,
+          decoration: const InputDecoration(
+            hintText: 'اسم الصنف',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    final name = nameController.text.trim();
+    if (name.isEmpty) {
+      Get.snackbar('تنبيه', 'اسم الصنف مطلوب');
+      return;
+    }
+
+    await controller.updateCategory(category.copyWith(name: name));
+
+    if (controller.errorMessage.value == null) {
+      Get.snackbar('نجاح', 'تم تعديل اسم الصنف بنجاح');
+    } else {
+      Get.snackbar('خطأ', controller.errorMessage.value ?? 'تعذر تعديل الصنف');
     }
   }
 

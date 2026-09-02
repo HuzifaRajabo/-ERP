@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -105,20 +107,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           isEditing ? 'تعديل المنتج' : 'إضافة منتج',
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildBasicInformation(),
-            const SizedBox(height: 18),
-            _buildUnitsManager(),
-            const SizedBox(height: 18),
-            _buildSaveError(),
-            const SizedBox(height: 8),
-            _buildSaveButton(),
-            const SizedBox(height: 24),
-          ],
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            children: [
+              _buildBasicInformation(),
+              const SizedBox(height: 18),
+              _buildUnitsManager(),
+              const SizedBox(height: 18),
+              _buildSaveError(),
+              const SizedBox(height: 8),
+              _buildSaveButton(),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
@@ -184,7 +188,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           const SizedBox(height: 10),
 
           Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerStart,
             child: Text(
               'الوحدة الأساسية هي الوحدة التي يحسب بها المخزون، '
               'ومعامل تحويلها يساوي 1.',
@@ -192,7 +196,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 fontSize: 12,
                 color: Colors.grey.shade600,
               ),
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.start,
             ),
           ),
         ],
@@ -494,25 +498,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
             const Divider(height: 24),
 
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: _UnitPrice(
-                    label: 'التكلفة',
-                    value: unit.costPrice == null
-                        ? '-'
-                        : _money(unit.costPrice!),
-                    icon: Icons.price_change_outlined,
-                  ),
+                _UnitPrice(
+                  label: 'التكلفة',
+                  value: unit.costPrice == null
+                      ? '-'
+                      : _money(unit.costPrice!),
+                  icon: Icons.price_change_outlined,
                 ),
-                Expanded(
-                  child: _UnitPrice(
-                    label: 'سعر البيع',
-                    value: _money(
-                      unit.defaultSalePrice,
-                    ),
-                    icon: Icons.sell_outlined,
+                const SizedBox(height: 10),
+                _UnitPrice(
+                  label: 'سعر البيع',
+                  value: _money(
+                    unit.defaultSalePrice,
                   ),
+                  icon: Icons.sell_outlined,
                 ),
               ],
             ),
@@ -900,12 +902,15 @@ class _UnitFormDialogState
             ? 'تعديل وحدة التوزيع'
             : 'إضافة وحدة توزيع',
       ),
-      content: SizedBox(
-        width: 500,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
+      content: SafeArea(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: _dialogMaxWidth(context),
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _field(
@@ -994,7 +999,8 @@ class _UnitFormDialogState
                       ],
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1012,6 +1018,13 @@ class _UnitFormDialogState
           ),
         ),
       ],
+    );
+  }
+
+  double _dialogMaxWidth(BuildContext context) {
+    return math.min(
+      MediaQuery.sizeOf(context).width - 32,
+      500,
     );
   }
 
@@ -1231,8 +1244,9 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -1244,7 +1258,7 @@ class _SectionCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
           child,
         ],
       ),
@@ -1316,25 +1330,28 @@ class _UnitPrice extends StatelessWidget {
           color: Colors.grey.shade600,
         ),
         const SizedBox(width: 7),
-        Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 3),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

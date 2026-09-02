@@ -321,6 +321,7 @@ class InventoryRepository {
       ), 0) AS total_out
     FROM products p
     LEFT JOIN inventory_transactions it ON it.product_id = p.id
+    WHERE p.is_active = 1
     GROUP BY p.id, p.name, p.description
     ORDER BY p.name ASC
   ''');
@@ -458,6 +459,7 @@ class InventoryRepository {
       ON it.product_id = p.id AND it.warehouse_id = ?
     LEFT JOIN product_units pu
       ON pu.product_id = p.id AND pu.is_base_unit = 1
+    WHERE p.is_active = 1
     GROUP BY p.id, p.name, p.description, pu.unit_name
     ORDER BY p.name ASC
   ''',

@@ -10,6 +10,7 @@ import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
 import '../../repositories/return_repository.dart';
 import '../../repositories/payment_repository.dart';
+import '../../repositories/invoice_repository.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/services/invoice_pdf_service.dart';
@@ -321,20 +322,20 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           TextButton(
             onPressed: () async {
               Get.back();
-              await controller.deleteInvoice(invoice.id!);
-              if (!controller.hasError) {
+              final result =
+                  await controller.deleteInvoice(invoice.id!);
+              if (result == InvoiceDeleteResult.allowed) {
                 Get.back();
               } else {
                 Get.snackbar(
                   'تعذّر الحذف',
-                  controller.errorMessage.value ?? 'حدث خطأ غير متوقع',
+                  result.reason ?? 'حدث خطأ غير متوقع',
                   snackPosition: SnackPosition.BOTTOM,
                   backgroundColor: Colors.red,
                   colorText: Colors.white,
                   margin: const EdgeInsets.all(12),
                   duration: const Duration(seconds: 4),
                 );
-                controller.clearError();
               }
             },
             child: const Text('حذف', style: TextStyle(color: Colors.red)),

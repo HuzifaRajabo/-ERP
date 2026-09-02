@@ -231,86 +231,110 @@ class InvoiceRepository {
   /// يُحذف شيء إطلاقاً — لا الفاتورة ولا أي سجل مرتبط بها. هذا يمنع
   /// الاعتماد على الحذف المتسلسل (ON DELETE CASCADE في قاعدة البيانات)
   /// الذي كان يحذف حركات المخزون والحركات المالية تلقائياً دون تحقق.
-  Future<bool> deleteInvoice(int invoiceId) async {
+  /// حذف فاتورة بحسب [deleteInvoice] مع منطق أمان محسّن:
+  ///
+  /// 1. تُرفض الفاتورة التي عليها مرتجعات (`returns` مرتبطة بها).
+  /// 2. تُرفض الفاتورة إذا كانت حركات مخزونها تستخدم `batch_id` تم استخدامه
+  ///    لاحقاً في حركات أخرى (بيع/شراء/تحويل...) — لأن حذفها سيُفسد السجلات
+  ///    اللاحقة واستمرارية سلسلة الدُفعات.
+  /// 3. الدفعات والحركات المالية لا تمنع الحذف في حد ذاتها؛ تُحذف تلقائياً
+  ///    مع الفاتورة (وهو سلوك آمن لأنها جزء من معاملة الفاتورة نفسها).
+  Future<InvoiceDeleteResult> deleteInvoice(int invoiceId) async {
     final db = await _db;
 
-    return await db.transaction<bool>((txn) async {
-      final invoiceResult = await txn.query(
-        'invoices',
-        where: 'id = ?',
-        whereArgs: [invoiceId],
-        limit: 1,
-      );
-      if (invoiceResult.isEmpty) return false;
-
-      // ── التحقق من الاعتماديات قبل أي حذف ──
-
-      final movementRows = await txn.query(
-        'inventory_transactions',
-        columns: ['id'],
-        where: 'invoice_id = ?',
-        whereArgs: [invoiceId],
-        limit: 1,
-      );
-      if (movementRows.isNotEmpty) {
-        throw InvoiceHasDependenciesException(
-          invoiceId: invoiceId,
-          reason: 'حركات مخزون',
+    try {
+      return await db.transaction<InvoiceDeleteResult>((txn) async {
+        final invoiceResult = await txn.query(
+          'invoices',
+          where: 'id = ?',
+          whereArgs: [invoiceId],
+          limit: 1,
         );
-      }
+        if (invoiceResult.isEmpty) {
+          return InvoiceDeleteResult.blocked(reason: 'الفاتورة غير موجودة');
+        }
 
-      final paymentRows = await txn.query(
-        'payments',
-        columns: ['id'],
-        where: 'invoice_id = ?',
-        whereArgs: [invoiceId],
-        limit: 1,
-      );
-      if (paymentRows.isNotEmpty) {
-        throw InvoiceHasDependenciesException(
-          invoiceId: invoiceId,
-          reason: 'دفعات مسجّلة',
+        // ── 1) منع الحذف إذا كانت هناك مرتجعات مرتبطة ──
+        final returnRows = await txn.query(
+          'returns',
+          columns: ['id'],
+          where: 'original_invoice_id = ?',
+          whereArgs: [invoiceId],
+          limit: 1,
         );
-      }
+        if (returnRows.isNotEmpty) {
+          return InvoiceDeleteResult.blocked(reason: 'مرتجعات مرتبطة');
+        }
 
-      final returnRows = await txn.query(
-        'returns',
-        columns: ['id'],
-        where: 'original_invoice_id = ?',
-        whereArgs: [invoiceId],
-        limit: 1,
-      );
-      if (returnRows.isNotEmpty) {
-        throw InvoiceHasDependenciesException(
-          invoiceId: invoiceId,
-          reason: 'مرتجعات مرتبطة',
+        // ── 2) التحقق من سلامة سلسلة الدُفعات (batch_id) ──
+        final movementRows = await txn.query(
+          'inventory_transactions',
+          columns: ['id', 'product_id', 'batch_id'],
+          where: 'invoice_id = ?',
+          whereArgs: [invoiceId],
         );
-      }
 
-      final financialRows = await txn.query(
-        'financial_transactions',
-        columns: ['id'],
-        where: 'invoice_id = ?',
-        whereArgs: [invoiceId],
-        limit: 1,
-      );
-      if (financialRows.isNotEmpty) {
-        throw InvoiceHasDependenciesException(
-          invoiceId: invoiceId,
-          reason: 'حركات مالية',
+        // اجمع الـ batch_id الفريدة التي أنشأتها هذه الفاتورة
+        final batchIds = <int>{};
+        for (final row in movementRows) {
+          final batchId = row['batch_id'];
+          if (batchId is int) batchIds.add(batchId);
+        }
+
+        // إذا كانت أي من هذه الدُفعات تُستخدم في حركات لاحقة لهذه الفاتورة،
+        // فهذا يعني أن الحذف سيُخلّ باتساق سلسلة المخزون → ارفض الحذف.
+        if (batchIds.isNotEmpty) {
+          final batchPlaceholders = List.filled(batchIds.length, '?').join(',');
+          final laterRows = await txn.rawQuery(
+            '''
+            SELECT COUNT(*) AS cnt
+            FROM inventory_transactions
+            WHERE batch_id IN ($batchPlaceholders)
+              AND (invoice_id IS NULL OR invoice_id != ?)
+            ''',
+            [...batchIds, invoiceId],
+          );
+          final laterCount = (laterRows.first['cnt'] as int);
+          if (laterCount > 0) {
+            return InvoiceDeleteResult.blocked(
+              reason:
+                  'هذه الفاتورة تكمل أو تُكمل منها حركات لاحقة على نفس الدفعات '
+                  '(سلسلة مخزون مرتبطة)، فلا يمكن حذفها بأمان.',
+            );
+          }
+        }
+
+        // ── 3) الحذف الآمن + تنظيف السجلات المرتبطة ──
+        // الدفعات والحركات المالية تُحذف، لأنها انعكاس صرف للفواتير الأصلية
+        // ولا تُستخدم من قبل أي سجل مستقل.
+        await txn.delete(
+          'payments',
+          where: 'invoice_id = ?',
+          whereArgs: [invoiceId],
         );
-      }
+        await txn.delete(
+          'financial_transactions',
+          where: 'invoice_id = ?',
+          whereArgs: [invoiceId],
+        );
+        await txn.delete(
+          'inventory_transactions',
+          where: 'invoice_id = ?',
+          whereArgs: [invoiceId],
+        );
 
-      // لا يوجد أي أثر — الفاتورة مستقلة ويمكن حذفها بأمان.
-      // (invoice_items تُحذف تلقائياً عبر ON DELETE CASCADE، وهي آمنة
-      // لأنها ليست سجلاً محاسبياً/مخزنياً مستقلاً بل جزء من الفاتورة نفسها)
-      final rows = await txn.delete(
-        'invoices',
-        where: 'id = ?',
-        whereArgs: [invoiceId],
-      );
-      return rows > 0;
-    });
+        // (invoice_items تُحذف تلقائياً عبر ON DELETE CASCADE)
+        await txn.delete(
+          'invoices',
+          where: 'id = ?',
+          whereArgs: [invoiceId],
+        );
+
+        return InvoiceDeleteResult.allowed;
+      });
+    } on DatabaseException {
+      return InvoiceDeleteResult.blocked(reason: 'تعذّر حذف الفاتورة');
+    }
   }
 
   // الكمية المتاحة — اختيارياً مفلترة حسب المستودع
@@ -603,6 +627,33 @@ class InvoicePage {
     required this.hasNextPage,
     this.nextCursor,
   });
+}
+
+// ==============================
+// Result of Invoice Delete
+// ==============================
+
+/// نتيجة محاولة حذف فاتورة.
+///
+/// - [allowed]  : حُذفت الفاتورة بنجاح (مع تنظيف الدفعات والحركات المالية).
+/// - [blocked]  : مُنع الحذف، والسبب في [reason] (نص واضح بالعربية).
+class InvoiceDeleteResult {
+  final bool success;
+  final String? reason;
+
+  const InvoiceDeleteResult._(this.success, this.reason);
+
+  static const InvoiceDeleteResult allowed =
+      InvoiceDeleteResult._(true, null);
+
+  const InvoiceDeleteResult.blocked({this.reason})
+      : success = false;
+
+  bool get isBlocked => !success;
+
+  @override
+  String toString() =>
+      success ? 'allowed' : 'blocked($reason)';
 }
 
 // ==============================

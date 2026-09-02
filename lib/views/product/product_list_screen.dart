@@ -213,9 +213,23 @@ class _ProductCard extends GetView<ProductController> {
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm,
         ),
-        title: Text(
-          product.name,
-          style: Theme.of(context).textTheme.titleSmall,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                product.name,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            if (!product.isActive) ...[
+              const SizedBox(width: 8),
+              AppStatusBadge(
+                label: 'غير فعال',
+                color: AppColors.error,
+                icon: Icons.block,
+              ),
+            ],
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,6 +258,13 @@ class _ProductCard extends GetView<ProductController> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!product.isActive)
+              IconButton(
+                tooltip: 'إعادة تفعيل المنتج',
+                icon: const Icon(Icons.restore),
+                color: const Color(0xFF22C55E),
+                onPressed: () => _confirmReactivate(context),
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => Get.toNamed('/product-form', arguments: product),
@@ -275,6 +296,28 @@ class _ProductCard extends GetView<ProductController> {
               controller.deleteProduct(product.id!);
             },
             child: const Text('حذف', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmReactivate(BuildContext context) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('إعادة تفعيل المنتج'),
+        content: Text('هل تريد إعادة تفعيل "${product.name}"؟'),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Get.back();
+              controller.reactivateProduct(product.id!);
+            },
+            child: const Text('إعادة التفعيل'),
           ),
         ],
       ),

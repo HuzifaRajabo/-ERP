@@ -6,6 +6,7 @@ class ProductModel {
   final int salePrice;
   final int? categoryId;
   final String? categoryName; // ← مجلوب بـ JOIN من product_categories (للعرض فقط)
+  final bool isActive; // ← soft delete: 1 = فعال، 0 = موقوف
   final String? createdAt;
 
   ProductModel({
@@ -16,6 +17,7 @@ class ProductModel {
     required this.salePrice,
     this.categoryId,
     this.categoryName,
+    this.isActive = true,
     this.createdAt,
   });
 
@@ -27,6 +29,7 @@ class ProductModel {
       'cost_price': costPrice,
       'sale_price': salePrice,
       'category_id': categoryId,
+      'is_active': isActive ? 1 : 0,
       // categoryName لا يُكتب في قاعدة البيانات (مجرد عرض)
       'created_at': createdAt,
     };
@@ -41,7 +44,33 @@ class ProductModel {
       salePrice: map['sale_price'],
       categoryId: map['category_id'],
       categoryName: map['category_name'], // ← يأتي من JOIN في الريبو
+      isActive: (map['is_active'] ?? 1) == 1 ||
+          (map['is_active'] is bool && map['is_active'] == true),
       createdAt: map['created_at'],
+    );
+  }
+
+  ProductModel copyWith({
+    int? id,
+    String? name,
+    String? description,
+    int? costPrice,
+    int? salePrice,
+    int? categoryId,
+    String? categoryName,
+    bool? isActive,
+    String? createdAt,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      costPrice: costPrice ?? this.costPrice,
+      salePrice: salePrice ?? this.salePrice,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

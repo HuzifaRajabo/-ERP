@@ -160,16 +160,16 @@ class InvoiceController extends GetxController {
   // (Repository يتحقق من هذا صراحة ويرمي استثناء بدل الحذف المتسلسل الأعمى)
   // ==============================
 
-  Future<void> deleteInvoice(int id) async {
-    try {
-      await repo.deleteInvoice(id);
+  Future<InvoiceDeleteResult> deleteInvoice(int id) async {
+    final result = await repo.deleteInvoice(id);
+
+    if (result == InvoiceDeleteResult.allowed) {
       AppEventBus.instance.notifyProductChanged();
       AppEventBus.instance.notifyInventoryChanged();
       AppEventBus.instance.notifyInvoiceChanged();
-    } catch (e) {
-      state.value = InvoiceLoadState.error;
-      errorMessage.value = e.toString();
     }
+
+    return result;
   }
 
   // ==============================

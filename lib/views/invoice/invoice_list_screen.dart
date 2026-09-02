@@ -7,6 +7,7 @@ import '../../controllers/invoice_controller.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/invoice_model.dart';
 import '../../core/theme/app_colors.dart';
+import '../../repositories/invoice_repository.dart';
 import '../shared/shared_components.dart';
 
 class InvoiceListScreen extends GetView<InvoiceController> {
@@ -640,18 +641,28 @@ class _InvoiceCard extends GetView<InvoiceController> {
               Get.back();
 
               if (invoice.id != null) {
-                await controller.deleteInvoice(invoice.id!);
-                if (controller.hasError) {
+                final result =
+                    await controller.deleteInvoice(invoice.id!);
+
+                if (result == InvoiceDeleteResult.allowed) {
+                  Get.snackbar(
+                    'حذف الفاتورة',
+                    'تم حذف الفاتورة',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: const Color(0xFF22C55E),
+                    colorText: Colors.white,
+                    margin: const EdgeInsets.all(12),
+                  );
+                } else {
                   Get.snackbar(
                     'تعذّر الحذف',
-                    controller.errorMessage.value ?? 'حدث خطأ غير متوقع',
+                    result.reason ?? 'حدث خطأ غير متوقع',
                     snackPosition: SnackPosition.BOTTOM,
                     backgroundColor: Colors.red,
                     colorText: Colors.white,
                     margin: const EdgeInsets.all(12),
                     duration: const Duration(seconds: 4),
                   );
-                  controller.clearError();
                 }
               }
             },

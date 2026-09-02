@@ -58,6 +58,7 @@ class ProductRepository {
     int? lastId,
     int pageSize = _defaultPageSize,
     int? categoryId,
+    bool includeInactive = false,
   }) async {
     try {
       final db = await _db;
@@ -65,6 +66,9 @@ class ProductRepository {
       final conditions = <String>[];
       final args = <Object?>[];
 
+      if (!includeInactive) {
+        conditions.add('p.is_active = 1');
+      }
       if (categoryId != null) {
         conditions.add('p.category_id = ?');
         args.add(categoryId);
@@ -130,17 +134,135 @@ class ProductRepository {
     }
   }
 
-  Future<int> deleteProduct(int id,) async {
-    try {
-      final db = await _db;
-      return await db.delete(
+  /// فعّل أو أوقف منتجاً مباشرة (is_active).
+  Future<void> setProductActive(int productId, bool active) async {
+    final db = await _db;
+    await db.update(
+      'products',
+      {'is_active': active ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [productId],
+    );
+  }
+
+  /// حذف أو إيقاف منتج وفق منطق آمن للحفاظ على التاريخ المحاسبي والمخزني.
+  ///
+  /// القواعد:
+  /// 1. إذا كان للمنتج مخزون > 0 في أي مستودع → لا يُحذف ولا يُوقف،
+  ///    وتُعاد النتيجة [ProductDeleteResult.hasStock] (يجب تصفية المخزون أولاً).
+  /// 2. إذا كان المخزون = 0 لكن المنتج مرتبط بسجلات تاريخية (فواتير /
+  ///    حركات مخزون / مرتجعات / دفعات) → لا يُحذف فعلياً، يُوقَف فقط
+  ///    (is_active = 0) وتُعاد النتيجة [ProductDeleteResult.deactivated].
+  /// 3. DELETE الفعلي لا يحدث إلا إذا كان المنتج جديداً تماماً:
+  ///    بلا مخزون وبلا أي سجل تاريخي (واستثناء: المستودعات/الدفعات
+  ///    المتعلقة به تُحذف عبر CASCADE الآمن، لأنها لم تدخل أي دورة تاريخية).
+  ///
+  /// يُنفَّذ الحساب والفشل داخل transaction واحدة لضمان عدم السباق.
+  Future<ProductDeleteResult> deleteOrDeactivateProduct(int productId) async {
+    final db = await _db;
+
+    return db.transaction<ProductDeleteResult>((txn) async {
+      final productRows = await txn.query(
+        'products',
+        columns: ['id'],
+        where: 'id = ?',
+        whereArgs: [productId],
+        limit: 1,
+      );
+      if (productRows.isEmpty) return ProductDeleteResult.notFound;
+
+      // ── 1) إجمالي المخزون على مستوى كل المستودعات ──
+      final stockResult = await txn.rawQuery(
+        '''
+        SELECT COALESCE(SUM(
+          CASE
+            WHEN type = 'PURCHASE'        THEN quantity
+            WHEN type = 'SALE_RETURN'     THEN quantity
+            WHEN type = 'TRANSFER_IN'     THEN quantity
+            WHEN type = 'SALE'             THEN -quantity
+            WHEN type = 'PURCHASE_RETURN'  THEN -quantity
+            WHEN type = 'TRANSFER_OUT'     THEN -quantity
+            ELSE 0
+          END
+        ), 0) AS available
+        FROM inventory_transactions
+        WHERE product_id = ?
+        ''',
+        [productId],
+      );
+      final available = (stockResult.first['available'] as num).toDouble();
+
+      // ── 2) سجلات تاريخية مرتبطة بالمنتج ──
+      final hasHistory = await _productHasHistory(txn, productId);
+
+      if (available > 0) {
+        // ما دام هناك مخزون غير صفري، لا يُحذف ولا يُوقف.
+        return ProductDeleteResult.hasStock;
+      }
+
+      if (hasHistory) {
+        // لا نحذف أي سجل — فقط نوقف المنتج (مخزونه صفر لكن له تاريخ)
+        await txn.update(
+          'products',
+          {'is_active': 0},
+          where: 'id = ?',
+          whereArgs: [productId],
+        );
+        return ProductDeleteResult.deactivated;
+      }
+
+      // ── 3) المنتج جديد تماماً: حذف فعلي آمن ──
+      // (invoice_items لا ترتبط به أبداً هنا لأن hasHistory = false؛
+      //  product_units وbatches تُحذف عبر ON DELETE CASCADE)
+      await txn.delete(
         'products',
         where: 'id = ?',
-        whereArgs: [id],
+        whereArgs: [productId],
       );
-    } catch (e) {
-      throw Exception('Failed to delete product: $e');
-    }
+      return ProductDeleteResult.deleted;
+    });
+  }
+
+  /// هل للمنتج أي سجل تاريخي يمنع DELETE الفعلي؟
+  /// الفواتير (عبر أسطرها)، حركات المخزون، المرتجعات (عبر أسطرها)،
+  /// والدفعات تُعدّ كلها تاريخاً محاسبياً أو مخزنياً يجب الحفاظ عليه.
+  Future<bool> _productHasHistory(
+    DatabaseExecutor txn,
+    int productId,
+  ) async {
+    final checks = <Future<List<Map<String, dynamic>>>>[
+      txn.query(
+        'invoice_items',
+        columns: ['id'],
+        where: 'product_id = ?',
+        whereArgs: [productId],
+        limit: 1,
+      ),
+      txn.query(
+        'inventory_transactions',
+        columns: ['id'],
+        where: 'product_id = ?',
+        whereArgs: [productId],
+        limit: 1,
+      ),
+      txn.query(
+        'return_items',
+        columns: ['id'],
+        where: 'product_id = ?',
+        whereArgs: [productId],
+        limit: 1,
+      ),
+      txn.query(
+        'batches',
+        columns: ['id'],
+        where: 'product_id = ?',
+        whereArgs: [productId],
+        limit: 1,
+      ),
+    ];
+
+    final results = await Future.wait(checks);
+    return results.any((rows) => rows.isNotEmpty);
   }
 
 
@@ -149,6 +271,7 @@ class ProductRepository {
         int? lastId,
         int pageSize = _defaultPageSize,
         int? categoryId,
+        bool includeInactive = false,
       }) async {
     try {
       final db = await _db;
@@ -156,6 +279,9 @@ class ProductRepository {
       final conditions = <String>['p.name LIKE ?'];
       final args = <Object?>['%$keyword%'];
 
+      if (!includeInactive) {
+        conditions.add('p.is_active = 1');
+      }
       if (categoryId != null) {
         conditions.add('p.category_id = ?');
         args.add(categoryId);
@@ -192,11 +318,16 @@ class ProductRepository {
 
   /// كل منتجات صنف معين (بدون ترقيم صفحات) — لقوائم مختصرة مثل
   /// اختيار منتج ضمن صنف عند إنشاء فاتورة.
-  Future<List<ProductModel>> getProductsByCategory(int categoryId) async {
+  Future<List<ProductModel>> getProductsByCategory(
+    int categoryId, {
+    bool includeInactive = false,
+  }) async {
     try {
       final db = await _db;
       final result = await db.rawQuery(
-        '$_selectWithCategory WHERE p.category_id = ? ORDER BY p.name ASC',
+        '$_selectWithCategory WHERE p.category_id = ? '
+        '${includeInactive ? '' : 'AND p.is_active = 1'} '
+        'ORDER BY p.name ASC',
         [categoryId],
       );
       return result.map((e) => ProductModel.fromMap(e)).toList();
@@ -354,3 +485,17 @@ class ProductPage{
     this.nextCursor,
   });
 }
+
+// ==============================
+// Result of Product Delete
+// ==============================
+
+/// نتيجة محاولة حذف منتج.
+///
+/// - [deleted]:     حُذف السجل فعلياً (منتج جديد تماماً بلا أي أثر).
+/// - [hasStock]:    لم يُحذف ولم يُوقف؛ المنتج ما زال لديه مخزون غير صفري
+///                  ولا يمكن التخلص منه ما دام المخزون موجوداً.
+/// - [deactivated]: لم يُحذف؛ أُوقف فقط (is_active = 0) بسبب سجلات تاريخية
+///                  مرتبطة (بينما مخزونه صفر).
+/// - [notFound]:    المنتج غير موجود في قاعدة البيانات.
+enum ProductDeleteResult { deleted, hasStock, deactivated, notFound }

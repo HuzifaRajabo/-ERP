@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -7,6 +8,13 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static Database? _database;
+
+  /// للاختبارات فقط: يستبدل قاعدة البيانات الحالية بقاعدة بيانات مُجهّزة
+  /// (مثل in-memory عبر sqflite_common_ffi) أو يُعيد تعيينها إلى null.
+  @visibleForTesting
+  static void overrideDatabaseForTesting(Database? db) {
+    _database = db;
+  }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -22,7 +30,7 @@ class DatabaseHelper {
 
     final database = await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -76,6 +84,7 @@ class DatabaseHelper {
       cost_price INTEGER NOT NULL,
       sale_price INTEGER NOT NULL,
       category_id INTEGER,
+      is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE SET NULL
     )
@@ -816,6 +825,23 @@ class DatabaseHelper {
           AND returned_quantity > 0
         ''',
       );
+    }
+
+    if (oldVersion < 9) {
+      // ==============================
+      // v9: الحذف اللين للمنتجات (soft delete)
+      //   - إضافة عمود is_active لجدول products للتحكم بظهور المنتج
+      //     في المستودع وقوائم اختيار الفواتير دون فقدان أي سجل تاريخي.
+      //   - المسار آمن: ALTER في try/catch بحيث لا ينكسر إذا كان العمود
+      //     موجوداً مسبقاً (قواعد بيانات مطورة بشكل غير قياسي).
+      // ==============================
+      try {
+        await db.execute(
+          'ALTER TABLE products ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+        );
+      } catch (_) {
+        // العمود موجود مسبقاً — لا شيء يُفعل
+      }
     }
   }
 
