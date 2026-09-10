@@ -3,12 +3,14 @@ import '../repositories/invoice_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/party_repository.dart';
 import '../repositories/product_unit_repository.dart';
+import '../repositories/category_repository.dart';
 import '../repositories/batch_repository.dart';
 import '../repositories/warehouse_repository.dart';
 import '../models/invoice_model.dart';
 import '../models/product_model.dart';
 import '../models/party_model.dart';
 import '../models/product_unit_model.dart';
+import '../models/category_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/invoice_draft.dart';
 import '../core/services/app_event_bus.dart';
@@ -20,6 +22,7 @@ class InvoiceController extends GetxController {
   final ProductRepository productRepo;
   final PartyRepository partyRepo;
   final ProductUnitRepository unitRepo;
+  final CategoryRepository categoryRepo;
   final BatchRepository batchRepo;
   final WarehouseRepository warehouseRepo;
 
@@ -28,6 +31,7 @@ class InvoiceController extends GetxController {
     this.productRepo,
     this.partyRepo, {
     required this.unitRepo,
+    required this.categoryRepo,
     required this.batchRepo,
     required this.warehouseRepo,
   });
@@ -68,6 +72,7 @@ class InvoiceController extends GetxController {
   final RxList<ProductModel> availableProducts = <ProductModel>[].obs;
   final RxList<PartyModel> availableParties = <PartyModel>[].obs;
   final RxList<WarehouseModel> availableWarehouses = <WarehouseModel>[].obs;
+  final RxList<CategoryModel> categories = <CategoryModel>[].obs;
 
   /// المستودع المختار ككائن (لعرض الاسم في الواجهة)
   WarehouseModel? get selectedWarehouse {
@@ -201,7 +206,14 @@ class InvoiceController extends GetxController {
         defaultWarehouse?.id ?? availableWarehouses.firstOrNull?.id;
 
     await loadAvailableProducts();
+    await loadCategories();
     await _loadPartiesForType(InvoiceType.sale); // ← فلترة من البداية
+  }
+
+  Future<void> loadCategories() async {
+    try {
+      categories.value = await categoryRepo.getAllCategories();
+    } catch (_) {}
   }
 
   Future<void> loadAvailableProducts() async {
@@ -434,11 +446,33 @@ class InvoiceController extends GetxController {
   // الإضافة السريعة: منتج جديد بدون مغادرة شاشة الفاتورة
   // ==============================
 
-  Future<ProductModel?> quickAddProduct(ProductModel product) async {
+  Future<ProductModel?> quickAddProduct(
+    ProductModel product, {
+    String unitName = 'قطعة',
+    int? categoryId,
+  }) async {
     try {
       invoiceFormError.value = null;
 
-      final id = await productRepo.insertProduct(product);
+      final productToSave = product.copyWith(categoryId: categoryId);
+
+      // الوحدة الأساسية تُنشأ تلقائياً للمنتج الجديد مع نفس أسعار المنتج.
+      final baseUnit = ProductUnitModel(
+        productId: 0, // يُعيَّن لاحقاً داخل createProductWithUnits
+        unitName: unitName.trim().isEmpty ? 'قطعة' : unitName.trim(),
+        conversionFactor: 1,
+        costPrice: product.costPrice,
+        defaultSalePrice: product.salePrice,
+        canBuy: true,
+        canSell: true,
+        isDefaultSellUnit: true,
+        isBaseUnit: true,
+      );
+
+      final id = await productRepo.createProductWithUnits(
+        productToSave,
+        [baseUnit],
+      );
 
       if (id <= 0) {
         throw Exception('لم يتم إنشاء المنتج بشكل صحيح');
@@ -448,6 +482,7 @@ class InvoiceController extends GetxController {
         id: id,
         name: product.name,
         description: product.description,
+        categoryId: productToSave.categoryId,
         costPrice: product.costPrice,
         salePrice: product.salePrice,
       );

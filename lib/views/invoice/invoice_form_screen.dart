@@ -5,11 +5,13 @@ import '../../models/invoice_model.dart';
 import '../../models/product_model.dart';
 import '../../models/party_model.dart';
 import '../../models/product_unit_model.dart';
+import '../../models/category_model.dart';
 import '../../models/warehouse_model.dart';
 import '../../models/invoice_draft.dart';
 import '../../repositories/batch_repository.dart' show BatchStock;
 import '../../core/utils/money_utils.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
 import '../shared/shared_components.dart';
 
 // ==============================
@@ -1454,130 +1456,409 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
   }
 
   void _showQuickAddProductDialog() {
-    final nameCtrl = TextEditingController();
-    final descriptionCtrl = TextEditingController();
-    final costCtrl = TextEditingController();
-    final saleCtrl = TextEditingController();
+    Get.dialog(const _QuickAddProductDialog());
+  }
+}
 
-    Get.dialog(
-      AlertDialog(
-        title: const Text('إضافة منتج جديد'),
-        content: SingleChildScrollView(
+// ==============================
+// نافذة الإضافة السريعة لمنتج جديد
+// ==============================
+
+class _QuickAddProductDialog extends StatefulWidget {
+  const _QuickAddProductDialog();
+
+  @override
+  State<_QuickAddProductDialog> createState() =>
+      _QuickAddProductDialogState();
+}
+
+class _QuickAddProductDialogState extends State<_QuickAddProductDialog> {
+  final nameCtrl = TextEditingController();
+  final descriptionCtrl = TextEditingController();
+  final unitCtrl = TextEditingController(text: 'قطعة');
+  final costCtrl = TextEditingController();
+  final saleCtrl = TextEditingController();
+
+  int? _selectedCategoryId;
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    descriptionCtrl.dispose();
+    unitCtrl.dispose();
+    costCtrl.dispose();
+    saleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.92,
+        ),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'الاسم *'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: descriptionCtrl,
-                decoration: const InputDecoration(labelText: 'الوصف *'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'سعر التكلفة *'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: saleCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'سعر البيع *'),
-              ),
+              _buildHeader(context),
+              const SizedBox(height: AppSpacing.md),
+              _buildBasicCard(context),
+              const SizedBox(height: AppSpacing.md),
+              _buildUnitCard(context),
+              const SizedBox(height: AppSpacing.md),
+              _buildPricingCard(context),
+              const SizedBox(height: AppSpacing.lg),
+              _buildActions(context),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: Get.back, child: const Text('إلغاء')),
-          TextButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              final description = descriptionCtrl.text.trim();
+      ),
+    );
+  }
 
-              if (name.isEmpty) {
-                Get.snackbar('تنبيه', 'يرجى إدخال اسم المنتج');
-                return;
-              }
-              if (description.isEmpty) {
-                Get.snackbar('تنبيه', 'يرجى إدخال وصف المنتج');
-                return;
-              }
-
-              final costPrice = MoneyUtils.parseAmount(costCtrl.text);
-              final salePrice = MoneyUtils.parseAmount(saleCtrl.text);
-
-              if (costPrice == null) {
-                Get.snackbar('تنبيه', 'سعر التكلفة غير صحيح');
-                return;
-              }
-              if (salePrice == null) {
-                Get.snackbar('تنبيه', 'سعر البيع غير صحيح');
-                return;
-              }
-
-              Get.dialog(
-                const Center(child: CircularProgressIndicator()),
-                barrierDismissible: false,
-              );
-
-              try {
-                final product = await controller.quickAddProduct(
-                  ProductModel(
-                    name: name,
-                    description: description,
-                    costPrice: costPrice,
-                    salePrice: salePrice,
-                  ),
-                );
-
-                if (Get.isDialogOpen == true) {
-                  Get.back();
-                }
-
-                if (product == null) {
-                  Get.snackbar(
-                    'فشل الإضافة',
-                    controller.invoiceFormError.value ?? 'تعذر إضافة المنتج',
-                  );
-                  return;
-                }
-
-                // نفتح نافذة تهيئة السطر (الوحدة والكمية والدفعات)
-                Get.back();
-                if (product.id != null) {
-                  Get.bottomSheet(
-                    _ItemConfigSheet(product: product),
-                    isScrollControlled: true,
-                    backgroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (Get.isDialogOpen == true) {
-                  Get.back();
-                }
-                Get.snackbar(
-                  'خطأ',
-                  e.toString().replaceFirst('Exception: ', ''),
-                );
-              }
-            },
-            child: const Text('إضافة'),
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+            ),
+            child: Icon(
+              Icons.add_box_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'إضافة منتج جديد',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'بيانات المنتج الأساسية',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildBasicCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionTitle(
+              context,
+              icon: Icons.inventory_2_outlined,
+              title: 'البيانات الأساسية',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _QuickAddField(
+              controller: nameCtrl,
+              label: 'اسم المنتج',
+              hint: 'مثال: مياه معدنية',
+              icon: Icons.inventory_2_outlined,
+              required: true,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _QuickAddField(
+              controller: descriptionCtrl,
+              label: 'الوصف',
+              hint: 'وصف اختياري للمنتج',
+              icon: Icons.description_outlined,
+              maxLines: 2,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildCategoryDropdown(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryDropdown(BuildContext context) {
+    final categories = Get.find<InvoiceController>().categories;
+    return Obx(
+      () => DropdownButtonFormField<int?>(
+        initialValue: _selectedCategoryId,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'التصنيف',
+          prefixIcon: Icon(
+            Icons.category_outlined,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
+          ),
+        ),
+        items: [
+          const DropdownMenuItem<int?>(
+            value: null,
+            child: Text('بدون تصنيف'),
+          ),
+          ...categories
+              .where((c) => c.isActive)
+              .map(
+                (CategoryModel c) => DropdownMenuItem<int?>(
+                  value: c.id,
+                  child: Text(c.name),
+                ),
+              ),
+        ],
+        onChanged: (value) {
+          setState(() => _selectedCategoryId = value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildUnitCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionTitle(
+              context,
+              icon: Icons.straighten_outlined,
+              title: 'الوحدة الأساسية',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _QuickAddField(
+              controller: unitCtrl,
+              label: 'اسم الوحدة',
+              hint: 'قطعة',
+              icon: Icons.straighten_outlined,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'الوحدة الأساسية تُستخدم لحساب المخزون · معامل التحويل = 1\n'
+              'يمكنك إضافة وحدات توزيع أخرى بعد حفظ المنتج.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPricingCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionTitle(
+              context,
+              icon: Icons.price_change_outlined,
+              title: 'الأسعار',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _QuickAddField(
+              controller: costCtrl,
+              label: 'التكلفة',
+              hint: '0.00',
+              icon: Icons.price_change_outlined,
+              required: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _QuickAddField(
+              controller: saleCtrl,
+              label: 'سعر البيع',
+              hint: '0.00',
+              icon: Icons.sell_outlined,
+              required: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context, {required IconData icon, required String title}) {
+    return Row(
+      children: [
+        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
+        const SizedBox(width: AppSpacing.sm),
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+      ],
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: Get.back,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.md,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                ),
+              ),
+              child: const Text('إلغاء'),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              onPressed: _submit,
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text('إضافة المنتج'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.md,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    final controller = Get.find<InvoiceController>();
+
+    final name = nameCtrl.text.trim();
+    final description = descriptionCtrl.text.trim();
+    final unitName = unitCtrl.text.trim();
+
+    if (name.isEmpty) {
+      Get.snackbar('تنبيه', 'يرجى إدخال اسم المنتج');
+      return;
+    }
+    if (unitName.isEmpty) {
+      Get.snackbar('تنبيه', 'يرجى إدخال اسم الوحدة الأساسية');
+      return;
+    }
+
+    final costPrice = MoneyUtils.parseAmount(costCtrl.text);
+    final salePrice = MoneyUtils.parseAmount(saleCtrl.text);
+
+    if (costPrice == null) {
+      Get.snackbar('تنبيه', 'سعر التكلفة غير صحيح');
+      return;
+    }
+    if (salePrice == null) {
+      Get.snackbar('تنبيه', 'سعر البيع غير صحيح');
+      return;
+    }
+
+    Get.dialog(
+      const Center(child: CircularProgressIndicator()),
+      barrierDismissible: false,
+    );
+
+    try {
+      final product = await controller.quickAddProduct(
+        ProductModel(
+          name: name,
+          description: description,
+          costPrice: costPrice,
+          salePrice: salePrice,
+        ),
+        unitName: unitName,
+        categoryId: _selectedCategoryId,
+      );
+
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+
+      if (product == null) {
+        Get.snackbar(
+          'فشل الإضافة',
+          controller.invoiceFormError.value ?? 'تعذر إضافة المنتج',
+        );
+        return;
+      }
+
+      Get.back();
+      if (product.id != null) {
+        Get.bottomSheet(
+          _ItemConfigSheet(product: product),
+          isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+      Get.snackbar(
+        'خطأ',
+        e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 }
 
@@ -3065,6 +3346,53 @@ class _PaymentSection extends GetView<InvoiceController> {
         ),
       );
     });
+  }
+}
+
+// ==============================
+// حقل إدخال مخصص لإضافة المنتج السريعة
+// ==============================
+
+class _QuickAddField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final String? hint;
+  final IconData icon;
+  final bool required;
+  final int maxLines;
+  final TextInputType? keyboardType;
+
+  const _QuickAddField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    this.hint,
+    this.required = false,
+    this.maxLines = 1,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      textDirection: TextDirection.rtl,
+      style: Theme.of(context).textTheme.bodyMedium,
+      decoration: InputDecoration(
+        labelText: required ? '$label *' : label,
+        hintText: hint,
+        prefixIcon: Icon(icon, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: maxLines > 1 ? AppSpacing.lg : AppSpacing.md,
+        ),
+      ),
+    );
   }
 }
 

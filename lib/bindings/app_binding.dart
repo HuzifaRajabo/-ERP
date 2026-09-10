@@ -74,6 +74,7 @@ class AppBinding extends Bindings {
         Get.find<ProductRepository>(),
         Get.find<PartyRepository>(),
         unitRepo: Get.find<ProductUnitRepository>(),
+        categoryRepo: Get.find<CategoryRepository>(),
         batchRepo: Get.find<BatchRepository>(),
         warehouseRepo: Get.find<WarehouseRepository>(),
       ),
