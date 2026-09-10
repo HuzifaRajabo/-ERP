@@ -32,6 +32,12 @@ class ProductRepository {
       // لا نرسل ID عند إنشاء منتج جديد.
       data.remove('id');
 
+      final productCols = await db.rawQuery('PRAGMA table_info(products)');
+      final hasSku = productCols.any((c) => c['name'] == 'sku');
+      if (hasSku && (data['sku'] == null || '${data['sku']}'.isEmpty)) {
+        data['sku'] = 'P${DateTime.now().microsecondsSinceEpoch}';
+      }
+
       final id = await db.insert(
         'products',
         data,
