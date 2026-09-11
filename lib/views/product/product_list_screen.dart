@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/product_controller.dart';
+import '../../controllers/packaging_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/product_model.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
@@ -207,33 +210,44 @@ class _ProductCard extends GetView<ProductController> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm,
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                product.name,
-                style: Theme.of(context).textTheme.titleSmall,
+    return Obx(() {
+      final mapping = product.id != null &&
+              Get.isRegistered<PackagingController>()
+          ? Get.find<PackagingController>().mappingByProductId[product.id!]
+          : null;
+      return AppCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  product.name,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
-            ),
-            if (!product.isActive) ...[
-              const SizedBox(width: 8),
-              AppStatusBadge(
-                label: 'غير فعال',
-                color: AppColors.error,
-                icon: Icons.block,
-              ),
+              if (!product.isActive) ...[
+                const SizedBox(width: 8),
+                AppStatusBadge(
+                  label: 'غير فعال',
+                  color: AppColors.error,
+                  icon: Icons.block,
+                ),
+              ],
             ],
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (featureEnabled(AppFeature.returnablePackaging) &&
+                  mapping != null)
+                Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: PackagingEmptyBadge(typeName: mapping.typeName),
+                ),
             if (product.description.isNotEmpty)
               Text(
                 product.description,
@@ -278,6 +292,7 @@ class _ProductCard extends GetView<ProductController> {
         onTap: () => Get.toNamed('/product-details', arguments: product),
       ),
     );
+    });
   }
 
   void _confirmDelete(BuildContext context) {

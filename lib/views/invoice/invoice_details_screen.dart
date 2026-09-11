@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/invoice_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/invoice_draft.dart';
@@ -14,6 +16,7 @@ import '../../repositories/invoice_repository.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/services/invoice_pdf_service.dart';
+import '../../core/services/company_profile_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../shared/shared_components.dart';
@@ -118,7 +121,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               AppCard(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _CompanyIdentityBlock(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -139,16 +144,19 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                                   ? Icons.point_of_sale_outlined
                                   : Icons.shopping_cart_outlined,
                             ),
-                            const SizedBox(width: 6),
-                            AppStatusBadge(
-                              label: invoice.paymentStatus.label,
-                              color: statusColor,
-                            ),
+                            if (featureEnabled(AppFeature.debts)) ...[
+                              const SizedBox(width: 6),
+                              AppStatusBadge(
+                                label: invoice.paymentStatus.label,
+                                color: statusColor,
+                              ),
+                            ],
                           ],
                         ),
                       ],
                     ),
-                    if (data.warehouseName != null) ...[
+                    if (featureEnabled(AppFeature.warehouses) &&
+                        data.warehouseName != null) ...[
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -514,7 +522,7 @@ class _ItemDetailCard extends StatelessWidget {
           ],
 
           // الدفعات المخصصة
-          if (allocations.isNotEmpty) ...[
+          if (featureEnabled(AppFeature.batches) && allocations.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -554,7 +562,7 @@ class _ItemDetailCard extends StatelessWidget {
                             child: Text(
                               '${allocation.batchNumber} — '
                               '${_fmtQty(allocation.quantity)}'
-                              '${allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
+                              '${featureEnabled(AppFeature.expiry) && allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 color: Color(0xFF065F46),
@@ -1087,8 +1095,9 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
 
     return Obx(() {
       final grossTotal = widget.invoice.originalTotalAmount;
+      final discount = widget.invoice.discountAmount;
       final returnsTotal = _returnsTotal.value;
-      final netTotal = grossTotal - returnsTotal;
+      final netTotal = grossTotal - discount - returnsTotal;
       final paid = widget.invoice.paidAmount;
       final balance = netTotal - paid;
 
@@ -1108,6 +1117,18 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                       fontSize: 15,
                     ),
                   ),
+                  if (discount > 0) ...[
+                    const SizedBox(height: 10),
+                    _SummaryRow(
+                      label: 'الحسم',
+                      value: '- ${MoneyUtils.formatMoney(discount)}',
+                      valueStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
                   if (returnsTotal > 0) ...[
                     const SizedBox(height: 10),
                     _SummaryRow(
@@ -1150,6 +1171,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                 ],
               ),
             ),
+            if (featureEnabled(AppFeature.debts))
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1267,5 +1289,48 @@ class _SummaryRow extends StatelessWidget {
         Text(value, style: valueStyle ?? const TextStyle(fontSize: 14)),
       ],
     );
+  }
+}
+
+class _CompanyIdentityBlock extends StatelessWidget {
+  const _CompanyIdentityBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Get.isRegistered<CompanyProfileService>()) {
+      return const SizedBox.shrink();
+    }
+    return Obx(() {
+      final lines =
+          Get.find<CompanyProfileService>().profile.value.headerLines;
+      if (lines.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < lines.length; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: i == lines.length - 1 ? 0 : 2),
+                child: Text(
+                  lines[i],
+                  softWrap: true,
+                  style: i == 0
+                      ? const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        )
+                      : TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 13,
+                        ),
+                ),
+              ),
+            const SizedBox(height: 10),
+            Divider(height: 1, color: Colors.grey[300]),
+          ],
+        ),
+      );
+    });
   }
 }

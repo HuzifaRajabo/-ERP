@@ -4,10 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/product_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
+import '../../core/services/app_event_bus.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/category_model.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
+import '../../models/returnable_packaging_model.dart';
+import '../../repositories/returnable_packaging_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../views/shared/shared_components.dart';
@@ -28,6 +33,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _baseUnitController;
+  late final TextEditingController _packagingUnitsController;
+  late final TextEditingController _barcodeController;
+  late final TextEditingController _minStockController;
 
   ProductModel? get product =>
       Get.arguments as ProductModel?;
@@ -35,6 +43,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   bool get isEditing => product != null;
 
   int? _selectedCategoryId;
+  int? _selectedPackagingTypeId;
+  List<PackagingType> _packagingTypes = [];
 
   @override
   void initState() {
@@ -53,10 +63,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _baseUnitController = TextEditingController(
       text: 'قطعة',
     );
+    _packagingUnitsController = TextEditingController(text: '1');
+    _barcodeController = TextEditingController(
+      text: currentProduct?.barcode ?? '',
+    );
+    _minStockController = TextEditingController(
+      text: currentProduct?.minStock == null
+          ? ''
+          : (currentProduct!.minStock! == currentProduct.minStock!.roundToDouble()
+              ? currentProduct.minStock!.toInt().toString()
+              : currentProduct.minStock.toString()),
+    );
 
     _selectedCategoryId = currentProduct?.categoryId;
 
     _initializeUnits();
+    _loadPackaging();
   }
 
   Future<void> _initializeUnits() async {
@@ -96,7 +118,31 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _nameController.dispose();
     _descriptionController.dispose();
     _baseUnitController.dispose();
+    _packagingUnitsController.dispose();
+    _barcodeController.dispose();
+    _minStockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPackaging() async {
+    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
+    final repo = Get.find<ReturnablePackagingRepository>();
+    final types = await repo.getTypes();
+    PackagingProductMapping? mapping;
+    if (product?.id != null) {
+      mapping = await repo.getProductMapping(product!.id!);
+    }
+    if (!mounted) return;
+    setState(() {
+      _packagingTypes = types;
+      _selectedPackagingTypeId = mapping?.typeId;
+      if (mapping != null) {
+        _packagingUnitsController.text =
+            mapping.unitsPerProductBase == mapping.unitsPerProductBase.roundToDouble()
+                ? mapping.unitsPerProductBase.toInt().toString()
+                : mapping.unitsPerProductBase.toString();
+      }
+    });
   }
 
   @override
@@ -116,6 +162,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               _buildBasicInformation(),
               const SizedBox(height: 18),
               _buildUnitsManager(),
+              if (featureEnabled(AppFeature.returnablePackaging)) ...[
+                const SizedBox(height: 18),
+                _buildPackagingSection(),
+              ],
               const SizedBox(height: 18),
               _buildSaveError(),
               const SizedBox(height: 8),
@@ -183,6 +233,25 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             onChanged: (value) {
               _syncBaseUnitName(value);
             },
+          ),
+
+          const SizedBox(height: 14),
+
+          _FormField(
+            controller: _barcodeController,
+            label: 'الباركود (اختياري)',
+            hint: 'اختياري',
+            icon: Icons.qr_code_outlined,
+          ),
+
+          const SizedBox(height: 14),
+
+          _FormField(
+            controller: _minStockController,
+            label: 'الحد الأدنى للمخزون (اختياري)',
+            hint: 'مثال: 10',
+            icon: Icons.low_priority_outlined,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
 
           const SizedBox(height: 10),
@@ -275,39 +344,48 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       child: Obx(
         () {
           final units = controller.tempUnits;
+          final showExtras = featureEnabled(AppFeature.productUnits);
+          final visibleUnits = showExtras
+              ? units
+              : units.where((unit) => unit.isBaseUnit).toList();
 
           return Column(
             children: [
-              if (units.isEmpty)
+              if (visibleUnits.isEmpty)
                 _buildEmptyUnits()
               else
-                ...units.asMap().entries.map(
-                  (entry) => _buildUnitCard(
-                    entry.key,
-                    entry.value,
-                  ),
+                ...visibleUnits.asMap().entries.map(
+                  (entry) {
+                    final originalIndex = units.indexOf(entry.value);
+                    return _buildUnitCard(
+                      originalIndex == -1 ? entry.key : originalIndex,
+                      entry.value,
+                    );
+                  },
                 ),
 
-              const SizedBox(height: 8),
+              if (showExtras) ...[
+                const SizedBox(height: 8),
 
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _openUnitDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text(
-                    'إضافة وحدة توزيع',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openUnitDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      'إضافة وحدة توزيع',
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           );
         },
@@ -660,6 +738,87 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 
+  Widget _buildPackagingSection() {
+    return _SectionCard(
+      title: 'العبوة القابلة للإرجاع',
+      icon: Icons.liquor_outlined,
+      child: Column(
+        children: [
+          DropdownButtonFormField<int?>(
+            key: ValueKey(
+              'pkg-$_selectedPackagingTypeId-${_packagingTypes.length}',
+            ),
+            initialValue: _selectedPackagingTypeId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'نوع العبوة',
+              prefixIcon: const Icon(Icons.liquor_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('بدون عبوة'),
+              ),
+              for (final type in _packagingTypes)
+                if (type.id != null)
+                  DropdownMenuItem<int?>(
+                    value: type.id,
+                    child: Text(type.name),
+                  ),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _selectedPackagingTypeId = value;
+              });
+            },
+          ),
+          if (_selectedPackagingTypeId != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: PackagingEmptyBadge(
+                typeName: _packagingTypes
+                    .where((type) => type.id == _selectedPackagingTypeId)
+                    .firstOrNull
+                    ?.name,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _FormField(
+            controller: _packagingUnitsController,
+            label: 'عبوات لكل وحدة أساسية',
+            hint: '1',
+            icon: Icons.numbers_outlined,
+            validator: (value) {
+              if (_selectedPackagingTypeId == null) return null;
+              final parsed = double.tryParse(value?.trim() ?? '');
+              if (parsed == null || parsed <= 0) {
+                return 'أدخل عدداً أكبر من صفر';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              'الشراء يعبّئ فوارغ من المستودع، والبيع يسلّم هذه العبوات للعميل. '
+              'لا تُضاف قيمتها إلى إجمالي الفاتورة.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ============================================================
   // Save
   // ============================================================
@@ -693,6 +852,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       return;
     }
 
+    final minStockRaw = _minStockController.text.trim();
     final productModel = ProductModel(
       id: product?.id,
       name: _nameController.text.trim(),
@@ -701,6 +861,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       categoryName: product?.categoryName,
       costPrice: baseUnit.costPrice ?? 0,
       salePrice: baseUnit.defaultSalePrice,
+      barcode: _barcodeController.text.trim().isEmpty
+          ? null
+          : _barcodeController.text.trim(),
+      minStock: minStockRaw.isEmpty ? null : double.tryParse(minStockRaw),
       createdAt: product?.createdAt,
     );
 
@@ -712,8 +876,30 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     if (!mounted) return;
 
     if (productId != null) {
+      if (featureEnabled(AppFeature.returnablePackaging)) {
+        await _savePackagingMapping(productId);
+      }
+      if (!mounted) return;
       Get.back(result: productId);
     }
+  }
+
+  Future<void> _savePackagingMapping(int productId) async {
+    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
+    final repo = Get.find<ReturnablePackagingRepository>();
+    final typeId = _selectedPackagingTypeId;
+    if (typeId == null) {
+      await repo.clearProductMapping(productId);
+      AppEventBus.instance.notifyPackagingChanged();
+      return;
+    }
+    final unitsPerBase = double.tryParse(_packagingUnitsController.text.trim()) ?? 1;
+    await repo.setProductMapping(
+      productId: productId,
+      typeId: typeId,
+      unitsPerProductBase: unitsPerBase,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
   }
 
   Widget _buildSaveError() {
@@ -1274,6 +1460,7 @@ class _FormField extends StatelessWidget {
   final String? Function(String?)? validator;
   final int maxLines;
   final ValueChanged<String>? onChanged;
+  final TextInputType? keyboardType;
 
   const _FormField({
     required this.controller,
@@ -1283,6 +1470,7 @@ class _FormField extends StatelessWidget {
     this.validator,
     this.maxLines = 1,
     this.onChanged,
+    this.keyboardType,
   });
 
   @override
@@ -1290,6 +1478,7 @@ class _FormField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       textDirection: TextDirection.rtl,
       validator: validator,
       onChanged: onChanged,

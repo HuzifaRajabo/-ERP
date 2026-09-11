@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
 import '../models/payment_model.dart';
+import 'returnable_packaging_repository.dart';
 
 class PaymentRepository {
   Future<Database> get _db async => DatabaseHelper.instance.database;
@@ -90,16 +91,16 @@ class PaymentRepository {
   }
 
   // ====================================================================
-  // توزيع دفعة عامة على فواتير الطرف (التوزيع اليدوي/التلقائي)
+  // توزيع دفعة عامة على فواتير الطرف ومطالبات تعويض العبوات
   // ====================================================================
   //
   // يستقبل قائمة PaymentDistributionItem التي بناها المستخدم
-  // (تلقائياً أو يدوياً) ويحفظها كدفعات مستقلة لكل فاتورة.
+  // (تلقائياً أو يدوياً) ويحفظها كدفعات مستقلة لكل فاتورة أو مطالبة عبوات.
   // كل هذا في transaction واحدة لضمان الذرية.
 
   Future<void> distributePayment(PaymentDistribution distribution) async {
     if (distribution.items.isEmpty) {
-      throw Exception('لا توجد فواتير لتوزيع الدفعة عليها');
+      throw Exception('لا توجد بنود لتوزيع الدفعة عليها');
     }
 
     if (distribution.items.any((i) => i.amount <= 0)) {
@@ -107,12 +108,28 @@ class PaymentRepository {
     }
 
     final db = await _db;
+    final packagingRepo = ReturnablePackagingRepository();
 
     await db.transaction((txn) async {
       // التحقق من أن مجموع التوزيع لا يتجاوز مجموع المتبقي
       int totalDistributed = 0;
 
       for (final item in distribution.items) {
+        if (item.packagingChargeId != null) {
+          await packagingRepo.payChargeInTxn(
+            txn,
+            chargeId: item.packagingChargeId!,
+            amount: item.amount,
+            notes: distribution.notes,
+          );
+          totalDistributed += item.amount;
+          continue;
+        }
+
+        if (item.invoiceId == null) {
+          throw Exception('بند التوزيع غير صالح');
+        }
+
         // جلب الفاتورة والتحقق من المتبقي
         final invoiceResult = await txn.query(
           'invoices',
@@ -190,6 +207,7 @@ class PaymentRepository {
   Future<List<InvoicePaymentInfo>> getUnpaidInvoicesForParty({
     required int partyId,
     required int availableAmount, // المبلغ المتاح للتوزيع
+    bool includePackagingCompensation = false,
   }) async {
     final db = await _db;
 
@@ -208,33 +226,75 @@ class PaymentRepository {
       orderBy: 'id ASC', // الأقدم أولاً
     );
 
-    // حساب التوزيع التلقائي (FIFO)
     int remaining = availableAmount;
     final invoices = <InvoicePaymentInfo>[];
+
+    void addItem({
+      int? invoiceId,
+      int? packagingChargeId,
+      required String invoiceNumber,
+      required int totalAmount,
+      required int paidAmount,
+      required int itemRemaining,
+    }) {
+      final suggested = remaining >= itemRemaining ? itemRemaining : remaining;
+      invoices.add(
+        InvoicePaymentInfo(
+          invoiceId: invoiceId,
+          packagingChargeId: packagingChargeId,
+          invoiceNumber: invoiceNumber,
+          totalAmount: totalAmount,
+          paidAmount: paidAmount,
+          remaining: itemRemaining,
+          suggestedPayment: suggested < 0 ? 0 : suggested,
+        ),
+      );
+      remaining -= suggested < 0 ? 0 : suggested;
+      if (remaining < 0) remaining = 0;
+    }
 
     for (final row in result) {
       final totalAmount = row['total_amount'] as int;
       final paidAmount = row['paid_amount'] as int;
-      final invoiceRemaining = totalAmount - paidAmount;
+      addItem(
+        invoiceId: row['id'] as int,
+        invoiceNumber: row['invoice_number'] as String,
+        totalAmount: totalAmount,
+        paidAmount: paidAmount,
+        itemRemaining: totalAmount - paidAmount,
+      );
+    }
 
-      // المقترح = أقل قيمة بين المتبقي على الفاتورة والمبلغ المتاح
-      final suggested = remaining >= invoiceRemaining
-          ? invoiceRemaining
-          : remaining;
-
-      invoices.add(
-        InvoicePaymentInfo(
-          invoiceId: row['id'] as int,
-          invoiceNumber: row['invoice_number'] as String,
+    if (includePackagingCompensation) {
+      final charges = await db.rawQuery(
+        '''
+        SELECT
+          c.id,
+          c.amount,
+          c.paid_amount,
+          s.settlement_number
+        FROM returnable_packaging_charges c
+        LEFT JOIN returnable_packaging_settlements s ON s.id = c.settlement_id
+        WHERE c.party_id = ? AND (c.amount - c.paid_amount) > 0
+        ORDER BY c.id ASC
+        ''',
+        [partyId],
+      );
+      for (final row in charges) {
+        final totalAmount = row['amount'] as int;
+        final paidAmount = row['paid_amount'] as int;
+        final settlementNumber = row['settlement_number'] as String?;
+        final label = settlementNumber == null || settlementNumber.isEmpty
+            ? 'تعويض عبوات'
+            : 'تعويض عبوات • $settlementNumber';
+        addItem(
+          packagingChargeId: row['id'] as int,
+          invoiceNumber: label,
           totalAmount: totalAmount,
           paidAmount: paidAmount,
-          remaining: invoiceRemaining,
-          suggestedPayment: suggested,
-        ),
-      );
-
-      remaining -= suggested;
-      if (remaining <= 0) break; // لا داعي لتحميل المزيد
+          itemRemaining: totalAmount - paidAmount,
+        );
+      }
     }
 
     return invoices;
@@ -393,23 +453,43 @@ class PaymentRepository {
       p.id   AS party_id,
       p.name AS party_name,
       p.phone AS party_phone,
-      COUNT(i.id) AS invoice_count,
-      COALESCE(
-        SUM(
-          CASE WHEN (i.total_amount - i.paid_amount) > 0
-            THEN (i.total_amount - i.paid_amount)
+      COALESCE(inv.invoice_count, 0) AS invoice_count,
+      COALESCE(inv.total_remaining, 0) AS invoice_remaining,
+      CASE WHEN ? = 'SALE' THEN COALESCE(chg.charge_remaining, 0) ELSE 0 END
+        AS packaging_compensation_remaining,
+      COALESCE(inv.total_remaining, 0)
+        + CASE WHEN ? = 'SALE' THEN COALESCE(chg.charge_remaining, 0) ELSE 0 END
+        AS total_remaining
+    FROM parties p
+    LEFT JOIN (
+      SELECT
+        party_id,
+        COUNT(
+          CASE WHEN (total_amount - paid_amount) > 0 THEN id END
+        ) AS invoice_count,
+        COALESCE(SUM(
+          CASE WHEN (total_amount - paid_amount) > 0
+            THEN (total_amount - paid_amount)
             ELSE 0
           END
-        ), 0
-      ) AS total_remaining
-    FROM parties p
-    INNER JOIN invoices i ON i.party_id = p.id
-    WHERE i.type = ?
-    GROUP BY p.id, p.name, p.phone
-    HAVING total_remaining > 0
+        ), 0) AS total_remaining
+      FROM invoices
+      WHERE type = ?
+      GROUP BY party_id
+    ) inv ON inv.party_id = p.id
+    LEFT JOIN (
+      SELECT
+        party_id,
+        SUM(amount - paid_amount) AS charge_remaining
+      FROM returnable_packaging_charges
+      WHERE (amount - paid_amount) > 0
+      GROUP BY party_id
+    ) chg ON chg.party_id = p.id
+    WHERE COALESCE(inv.total_remaining, 0)
+      + CASE WHEN ? = 'SALE' THEN COALESCE(chg.charge_remaining, 0) ELSE 0 END > 0
     ORDER BY total_remaining DESC
   ''',
-      [invoiceType],
+      [invoiceType, invoiceType, invoiceType, invoiceType],
     );
 
     return result
@@ -419,7 +499,9 @@ class PaymentRepository {
             partyName: row['party_name'] as String,
             partyPhone: row['party_phone'] as String?,
             invoiceCount: row['invoice_count'] as int,
-            totalRemaining: (row['total_remaining'] as num).toInt(),
+            invoiceRemaining: (row['invoice_remaining'] as num).toInt(),
+            packagingCompensationRemaining:
+                (row['packaging_compensation_remaining'] as num).toInt(),
           ),
         )
         .toList();
@@ -435,15 +517,19 @@ class PartyDebtSummary {
   final String partyName;
   final String? partyPhone;
   final int invoiceCount;
-  final int totalRemaining;
+  final int invoiceRemaining;
+  final int packagingCompensationRemaining;
 
   PartyDebtSummary({
     required this.partyId,
     required this.partyName,
     this.partyPhone,
     required this.invoiceCount,
-    required this.totalRemaining,
+    required this.invoiceRemaining,
+    this.packagingCompensationRemaining = 0,
   });
+
+  int get totalRemaining => invoiceRemaining + packagingCompensationRemaining;
 }
 
 // ==============================

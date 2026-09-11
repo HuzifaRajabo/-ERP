@@ -5,12 +5,14 @@ class InvoiceModel {
   final int partyId;
   final String partyNameSnapshot;
   final String partyAddressSnapshot;
-  final int totalAmount; // يتغير عند المرتجع (للعرض)
-  final int originalTotalAmount; // ← لا يتغير أبداً (للتقارير)
+  final int totalAmount; // الصافي بعد الحسم، ثم يتغير عند المرتجع
+  final int originalTotalAmount; // إجمالي البنود قبل الحسم — لا يتغير
+  final int discountAmount; // حسم بقيمة مالية على مستوى الفاتورة
   final int paidAmount;
   final PaymentStatus paymentStatus;
   final int? warehouseId;
   final String? notes;
+  final String? salesChannel;
   final String? createdAt;
 
   InvoiceModel({
@@ -22,10 +24,12 @@ class InvoiceModel {
     required this.partyAddressSnapshot,
     required this.totalAmount,
     required this.originalTotalAmount,
+    this.discountAmount = 0,
     this.paidAmount = 0,
     this.paymentStatus = PaymentStatus.unpaid,
     this.warehouseId,
     this.notes,
+    this.salesChannel,
     this.createdAt,
   });
 
@@ -43,10 +47,12 @@ class InvoiceModel {
     'party_address_snapshot': partyAddressSnapshot,
     'total_amount': totalAmount,
     'original_total_amount': originalTotalAmount,
+    'discount_amount': discountAmount,
     'paid_amount': paidAmount,
     'payment_status': paymentStatus.name.toUpperCase(),
     'warehouse_id': warehouseId,
     'notes': notes,
+    'sales_channel': salesChannel,
     'created_at': createdAt,
   };
 
@@ -60,12 +66,14 @@ class InvoiceModel {
     totalAmount: map['total_amount'] ?? 0,
     originalTotalAmount:
         map['original_total_amount'] ?? map['total_amount'] ?? 0,
+    discountAmount: map['discount_amount'] ?? 0,
     paidAmount: map['paid_amount'] ?? 0,
     paymentStatus: PaymentStatus.values.byName(
       (map['payment_status'] ?? 'UNPAID').toString().toLowerCase(),
     ),
     warehouseId: map['warehouse_id'],
     notes: map['notes'],
+    salesChannel: map['sales_channel'] as String?,
     createdAt: map['created_at'],
   );
 }

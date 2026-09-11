@@ -1,9 +1,12 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
+import '../core/database/inventory_stock_sql.dart';
 import '../models/invoice_model.dart';
 import '../models/invoice_item_model.dart';
 import '../models/invoice_draft.dart';
+import '../models/returnable_packaging_model.dart';
 import 'batch_repository.dart';
+import 'returnable_packaging_repository.dart';
 
 class InvoiceRepository {
   Future<Database> get _db async => DatabaseHelper.instance.database;
@@ -13,6 +16,15 @@ class InvoiceRepository {
   Future<int> createInvoice(InvoiceDraft draft) async {
     if (draft.items.isEmpty) {
       throw Exception('لا يمكن إنشاء فاتورة بدون أسطر');
+    }
+
+    if (draft.discountAmount < 0) {
+      throw Exception('لا يمكن أن يكون الحسم سالباً');
+    }
+    if (draft.discountAmount > draft.subtotal) {
+      throw Exception(
+        'الحسم لا يمكن أن يتجاوز إجمالي الفاتورة',
+      );
     }
 
     if (draft.initialPayment > draft.totalAmount) {
@@ -109,11 +121,13 @@ class InvoiceRepository {
         'party_name_snapshot': draft.partyNameSnapshot,
         'party_address_snapshot': draft.partyAddressSnapshot,
         'total_amount': draft.totalAmount,
-        'original_total_amount': draft.totalAmount,
+        'original_total_amount': draft.subtotal,
+        'discount_amount': draft.discountAmount,
         'paid_amount': draft.initialPayment,
         'payment_status': draft.paymentStatus.name.toUpperCase(),
         'warehouse_id': draft.warehouseId,
         'notes': draft.notes,
+        'sales_channel': draft.salesChannel,
       });
 
       // سجل الحركة المالية للفاتورة
@@ -195,6 +209,36 @@ class InvoiceRepository {
         }
       }
 
+      if (draft.type == InvoiceType.sale) {
+        await ReturnablePackagingRepository().issueForSaleInTransaction(
+          txn,
+          invoiceId: invoiceId,
+          partyId: draft.partyId,
+          warehouseId: draft.warehouseId,
+          items: [
+            for (final item in draft.items)
+              PackagingSaleItem(
+                productId: item.productId,
+                baseQuantity: item.baseQuantity,
+              ),
+          ],
+        );
+      } else {
+        await ReturnablePackagingRepository().fillForPurchaseInTransaction(
+          txn,
+          invoiceId: invoiceId,
+          warehouseId: draft.warehouseId,
+          purchasedEmptyByTypeId: draft.purchasedEmptyByTypeId,
+          items: [
+            for (final item in draft.items)
+              PackagingSaleItem(
+                productId: item.productId,
+                baseQuantity: item.baseQuantity,
+              ),
+          ],
+        );
+      }
+
       // الخطوة 5: الدفعة الأولية
       if (draft.initialPayment > 0) {
         final paymentId = await txn.insert('payments', {
@@ -266,6 +310,15 @@ class InvoiceRepository {
           return InvoiceDeleteResult.blocked(reason: 'مرتجعات مرتبطة');
         }
 
+        try {
+          await ReturnablePackagingRepository().assertIssuedCanBeDeletedForInvoice(
+            txn,
+            invoiceId: invoiceId,
+          );
+        } on PackagingException catch (e) {
+          return InvoiceDeleteResult.blocked(reason: e.message);
+        }
+
         // ── 2) التحقق من سلامة سلسلة الدُفعات (batch_id) ──
         final movementRows = await txn.query(
           'inventory_transactions',
@@ -322,6 +375,10 @@ class InvoiceRepository {
           where: 'invoice_id = ?',
           whereArgs: [invoiceId],
         );
+        await ReturnablePackagingRepository().deleteIssuedForInvoiceInTransaction(
+          txn,
+          invoiceId: invoiceId,
+        );
 
         // (invoice_items تُحذف تلقائياً عبر ON DELETE CASCADE)
         await txn.delete(
@@ -350,15 +407,7 @@ class InvoiceRepository {
       '''
       SELECT
         COALESCE(SUM(
-          CASE
-            WHEN type = 'PURCHASE'       THEN quantity
-            WHEN type = 'SALE_RETURN'    THEN quantity
-            WHEN type = 'TRANSFER_IN'    THEN quantity
-            WHEN type = 'SALE'            THEN -quantity
-            WHEN type = 'PURCHASE_RETURN' THEN -quantity
-            WHEN type = 'TRANSFER_OUT'    THEN -quantity
-            ELSE 0
-          END
+          ${InventoryStockSql.signedQuantityCase()}
         ), 0) AS available
       FROM inventory_transactions
       WHERE product_id = ? $warehouseFilter
@@ -477,6 +526,24 @@ class InvoiceRepository {
       );
     }
     return result;
+  }
+
+  Future<int> countUnpaidInvoices() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM invoices WHERE total_amount > paid_amount',
+    );
+    return (rows.first['c'] as int?) ?? 0;
+  }
+
+  Future<List<InvoiceModel>> getInvoicesWithRemaining() async {
+    final db = await _db;
+    final rows = await db.query(
+      'invoices',
+      where: 'total_amount > paid_amount',
+      orderBy: 'datetime(created_at) ASC, id ASC',
+    );
+    return rows.map(InvoiceModel.fromMap).toList();
   }
 
   Future<InvoicePage> getAllInvoices({

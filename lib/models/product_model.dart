@@ -7,6 +7,8 @@ class ProductModel {
   final int? categoryId;
   final String? categoryName; // ← مجلوب بـ JOIN من product_categories (للعرض فقط)
   final bool isActive; // ← soft delete: 1 = فعال، 0 = موقوف
+  final String? barcode;
+  final double? minStock;
   final String? createdAt;
 
   ProductModel({
@@ -18,6 +20,8 @@ class ProductModel {
     this.categoryId,
     this.categoryName,
     this.isActive = true,
+    this.barcode,
+    this.minStock,
     this.createdAt,
   });
 
@@ -30,6 +34,8 @@ class ProductModel {
       'sale_price': salePrice,
       'category_id': categoryId,
       'is_active': isActive ? 1 : 0,
+      'barcode': barcode,
+      'min_stock': minStock,
       // categoryName لا يُكتب في قاعدة البيانات (مجرد عرض)
       'created_at': createdAt,
     };
@@ -46,6 +52,8 @@ class ProductModel {
       categoryName: map['category_name'], // ← يأتي من JOIN في الريبو
       isActive: (map['is_active'] ?? 1) == 1 ||
           (map['is_active'] is bool && map['is_active'] == true),
+      barcode: map['barcode'] as String?,
+      minStock: (map['min_stock'] as num?)?.toDouble(),
       createdAt: map['created_at'],
     );
   }
@@ -59,6 +67,8 @@ class ProductModel {
     int? categoryId,
     String? categoryName,
     bool? isActive,
+    String? barcode,
+    double? minStock,
     String? createdAt,
   }) {
     return ProductModel(
@@ -70,6 +80,8 @@ class ProductModel {
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
       isActive: isActive ?? this.isActive,
+      barcode: barcode ?? this.barcode,
+      minStock: minStock ?? this.minStock,
       createdAt: createdAt ?? this.createdAt,
     );
   }

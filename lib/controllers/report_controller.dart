@@ -8,6 +8,9 @@ import 'package:printing/printing.dart';
 import '../models/report_model.dart';
 import '../repositories/report_repository.dart';
 import '../core/utils/money_utils.dart';
+import '../core/utils/packaging_quantity_format.dart';
+import '../core/services/company_profile_service.dart';
+import '../core/services/pdf_company_header.dart';
 
 class ReportController extends GetxController {
   final ReportRepository repo;
@@ -173,6 +176,9 @@ class ReportController extends GetxController {
       await rootBundle.load('assets/fonts/Cairo-Bold.ttf'),
     );
 
+    final identityLines =
+        await CompanyProfileService.headerLinesForDocument();
+
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -183,6 +189,12 @@ class ReportController extends GetxController {
         theme: pw.ThemeData.withFont(base: regular, bold: bold),
         build: (context) {
           return [
+            PdfCompanyHeader.build(
+              lines: identityLines,
+              regular: regular,
+              bold: bold,
+            ),
+            if (identityLines.isNotEmpty) pw.SizedBox(height: 8),
             // الآن سيتم عرض العنوان بشكل صحيح تماماً
             pw.Header(level: 0, text: 'التقرير المالي الشامل'),
             pw.SizedBox(height: 10),
@@ -191,6 +203,7 @@ class ReportController extends GetxController {
             _buildSection('المبيعات', [
               'عدد الفواتير: ${currentOverview.saleInvoiceCount}',
               'إجمالي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleTotal)}',
+              'الحسومات: ${MoneyUtils.formatMoney(currentOverview.saleDiscountTotal)}',
               'مرتجعات المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleReturnTotal)}',
               'صافي المبيعات: ${MoneyUtils.formatMoney(currentOverview.saleNetTotal)}',
               'المدفوع خلال الفترة: ${MoneyUtils.formatMoney(currentOverview.salePaid)}',
@@ -223,7 +236,17 @@ class ReportController extends GetxController {
               'تكلفة البضاعة المباعة: ${MoneyUtils.formatMoney(currentOverview.cogsTotal)}',
               'مجمل الربح: ${MoneyUtils.formatMoney(currentOverview.grossProfit)}',
               'المصاريف: ${MoneyUtils.formatMoney(currentOverview.expenseTotal)}',
+              'إتلاف المخزون: ${MoneyUtils.formatMoney(currentOverview.wasteCost)}',
+              'صافي خسارة المرتجع المنتهي: ${MoneyUtils.formatMoney(currentOverview.expiredReturnNetLoss)}',
               'صافي الربح: ${MoneyUtils.formatMoney(currentOverview.profit)}',
+            ]),
+            _buildSection('الإتلاف ومرتجع انتهاء الصلاحية', [
+              'عدد عمليات الإتلاف: ${currentOverview.wasteCount}',
+              'قيمة الإتلاف: ${MoneyUtils.formatMoney(currentOverview.wasteCost)}',
+              'عدد مرتجعات انتهاء الصلاحية: ${currentOverview.expiredReturnCount}',
+              'تكلفة البضاعة المرتجعة: ${MoneyUtils.formatMoney(currentOverview.expiredReturnInventoryCost)}',
+              'قيمة التعويض: ${MoneyUtils.formatMoney(currentOverview.expiredReturnCompensation)}',
+              'صافي الخسارة: ${MoneyUtils.formatMoney(currentOverview.expiredReturnNetLoss)}',
             ]),
             _buildSection('الأرصدة الحالية', [
               'الذمم المدينة: ${MoneyUtils.formatMoney(currentOverview.debtsOwedToUs)}',
@@ -232,6 +255,17 @@ class ReportController extends GetxController {
             ]),
             if (currentOverview.warehouseSummaries.isNotEmpty)
               _buildWarehouseSection(currentOverview.warehouseSummaries),
+            _buildSection('العبوات القابلة للإرجاع', [
+              'مسلّم: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingIssued)}',
+              'مستلم سليم: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingReturned)}',
+              'مكسر: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingBroken)}',
+              'مفقود: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingLost)}',
+              'غير مسوّى: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingUnsettled)}',
+              'مخزون فارغ: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingEmptyStock)}',
+              'ممتلئ في المخزون: ${PackagingQuantityFormat.formatQuantity(currentOverview.packagingFullInStock)}',
+              'إجمالي قيمة العبوات: ${MoneyUtils.formatMoney(currentOverview.packagingTotalValue)}',
+              'مطالبات الكسر والفقد: ${MoneyUtils.formatMoney(currentOverview.packagingChargeDue)}',
+            ]),
           ];
         },
       ),
@@ -280,6 +314,10 @@ class ReportController extends GetxController {
       0,
       (sum, item) => sum + item.salesReturns,
     );
+    final totalDiscounts = summaries.fold(
+      0,
+      (sum, item) => sum + item.discounts,
+    );
     final totalCogs = summaries.fold(0, (sum, item) => sum + item.cogs);
     final totalProfit = summaries.fold(
       0,
@@ -302,7 +340,7 @@ class ReportController extends GetxController {
       'الإجمالي',
       'المبيعات: ${MoneyUtils.formatMoney(totalSales)}',
       'مرتجعات المبيعات: ${MoneyUtils.formatMoney(totalReturns)}',
-      'صافي المبيعات: ${MoneyUtils.formatMoney(totalSales - totalReturns)}',
+      'صافي المبيعات: ${MoneyUtils.formatMoney(totalSales - totalDiscounts - totalReturns)}',
       'تكلفة البضاعة: ${MoneyUtils.formatMoney(totalCogs)}',
       'مجمل الربح: ${MoneyUtils.formatMoney(totalProfit)}',
       'قيمة المخزون: ${MoneyUtils.formatMoney(totalInventory)}',

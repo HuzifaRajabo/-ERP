@@ -5,7 +5,14 @@ import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/report_controller.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/report_model.dart';
+
+int _displayNetProfit(ReportOverview ov) {
+  if (featureEnabled(AppFeature.expenses)) return ov.netProfit;
+  return ov.netProfit + ov.expenseTotal;
+}
 
 class ReportScreen extends GetView<ReportController> {
   const ReportScreen({super.key});
@@ -34,6 +41,9 @@ class ReportScreen extends GetView<ReportController> {
           ),
         ),
         body: Obx(() {
+          if (Get.isRegistered<FeatureController>()) {
+            Get.find<FeatureController>().settings.value;
+          }
           if (controller.isLoading.value) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -164,7 +174,8 @@ class _SummaryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isProfit = ov.netProfit >= 0;
+    final displayedNet = _displayNetProfit(ov);
+    final isProfit = displayedNet >= 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -182,7 +193,7 @@ class _SummaryTab extends StatelessWidget {
             children: [
               _KpiCard(
                 label: 'صافي الربح',
-                value: ov.netProfit,
+                value: displayedNet,
                 icon: Icons.trending_up,
                 color: isProfit ? Colors.green : Colors.red,
                 prefix: isProfit ? '+' : '',
@@ -215,6 +226,9 @@ class _SummaryTab extends StatelessWidget {
           const SizedBox(height: 10),
           _InfoTable(
             rows: [
+              _InfoRow('إجمالي المبيعات', ov.saleTotal, Colors.blueGrey),
+              if (ov.saleDiscountTotal > 0)
+                _InfoRow('الحسومات', ov.saleDiscountTotal, Colors.purple),
               _InfoRow('صافي المبيعات', ov.saleNetTotal, Colors.green),
               _InfoRow('صافي المشتريات', ov.purchaseNetTotal, Colors.orange),
               _InfoRow(
@@ -228,17 +242,35 @@ class _SummaryTab extends StatelessWidget {
                 ov.grossProfit >= 0 ? Colors.green : Colors.red,
                 bold: true,
               ),
-              _InfoRow('المصاريف', ov.expenseTotal, Colors.red),
+              if (featureEnabled(AppFeature.expenses))
+                _InfoRow('المصاريف', ov.expenseTotal, Colors.red)
+              else
+                const _InfoRow(
+                  'المصاريف',
+                  0,
+                  Colors.grey,
+                  displayText: 'إدارة المصروفات غير مفعلة',
+                ),
+              if (featureEnabled(AppFeature.waste) && ov.wasteCost > 0)
+                _InfoRow('إتلاف المخزون', ov.wasteCost, Colors.brown),
+              if (featureEnabled(AppFeature.expiry) &&
+                  ov.expiredReturnNetLoss != 0)
+                _InfoRow(
+                  'صافي خسارة المرتجع المنتهي',
+                  ov.expiredReturnNetLoss,
+                  Colors.deepOrange,
+                ),
               _InfoRow('قيمة المخزون', ov.inventoryValue, Colors.teal),
               _InfoRow(
                 'صافي الربح',
-                ov.netProfit,
+                displayedNet,
                 isProfit ? Colors.green[800]! : Colors.red[800]!,
                 bold: true,
               ),
             ],
           ),
-          if (ov.warehouseSummaries.isNotEmpty) ...[
+          if (featureEnabled(AppFeature.warehouses) &&
+              ov.warehouseSummaries.isNotEmpty) ...[
             const SizedBox(height: 20),
             const _SectionTitle('أداء المستودعات'),
             const SizedBox(height: 10),
@@ -247,6 +279,73 @@ class _SummaryTab extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _WarehouseSummaryCard(summary: warehouse),
               ),
+            ),
+          ],
+          if (featureEnabled(AppFeature.returnablePackaging) &&
+              (ov.packagingIssued > 0 ||
+                  ov.packagingUnsettled > 0 ||
+                  ov.packagingEmptyStock > 0 ||
+                  ov.packagingFullInStock > 0 ||
+                  ov.packagingTotalValue > 0 ||
+                  ov.packagingChargeDue > 0)) ...[
+            const SizedBox(height: 20),
+            const _SectionTitle('العبوات القابلة للإرجاع'),
+            const SizedBox(height: 10),
+            _InfoTable(
+              rows: [
+                _InfoRow(
+                  'مسلّم',
+                  ov.packagingIssued.round(),
+                  Colors.blue,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'مستلم سليم',
+                  ov.packagingReturned.round(),
+                  Colors.green,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'مكسر',
+                  ov.packagingBroken.round(),
+                  Colors.red,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'مفقود',
+                  ov.packagingLost.round(),
+                  Colors.orange,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'غير مسوّى',
+                  ov.packagingUnsettled.round(),
+                  Colors.indigo,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'مخزون فارغ',
+                  ov.packagingEmptyStock.round(),
+                  Colors.teal,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'ممتلئ في المخزون',
+                  ov.packagingFullInStock.round(),
+                  Colors.cyan,
+                  isCount: true,
+                ),
+                _InfoRow(
+                  'إجمالي قيمة العبوات',
+                  ov.packagingTotalValue,
+                  Colors.deepPurple,
+                ),
+                _InfoRow(
+                  'مطالبات الكسر والفقد',
+                  ov.packagingChargeDue,
+                  Colors.brown,
+                ),
+              ],
             ),
           ],
         ],
@@ -280,6 +379,7 @@ class _WarehouseSummaryCard extends StatelessWidget {
           _InfoTable(
             rows: [
               _InfoRow('إجمالي المبيعات', summary.sales, Colors.green),
+              _InfoRow('الحسومات', summary.discounts, Colors.purple),
               _InfoRow('مرتجعات المبيعات', summary.salesReturns, Colors.purple),
               _InfoRow('صافي المبيعات', summary.netSales, Colors.green),
               _InfoRow('تكلفة البضاعة', summary.cogs, Colors.deepOrange),
@@ -318,6 +418,12 @@ class _SalesPurchasesTab extends StatelessWidget {
                 isCount: true,
               ),
               _InfoRow('إجمالي الفواتير', ov.saleTotal, null),
+              _InfoRow(
+                'الحسومات',
+                ov.saleDiscountTotal,
+                Colors.purple,
+                prefix: '-',
+              ),
               _InfoRow(
                 'المرتجعات',
                 ov.saleReturnTotal,
@@ -382,10 +488,11 @@ class _ProfitLossTab extends GetView<ReportController> {
 
   @override
   Widget build(BuildContext context) {
+    final displayedNet = _displayNetProfit(ov);
     final grossIsProfit = ov.grossProfit >= 0;
-    final netIsProfit = ov.netProfit >= 0;
+    final netIsProfit = displayedNet >= 0;
     final margin = ov.saleNetTotal > 0
-        ? (ov.netProfit / ov.saleNetTotal * 100)
+        ? (displayedNet / ov.saleNetTotal * 100)
         : 0.0;
 
     return SingleChildScrollView(
@@ -425,16 +532,37 @@ class _ProfitLossTab extends GetView<ReportController> {
                   highlight: true,
                 ),
                 _Divider(),
-                _PLRow(
-                  '(-) المصاريف التشغيلية',
-                  ov.expenseTotal,
-                  Colors.red,
-                  prefix: '-',
-                ),
+                if (featureEnabled(AppFeature.expenses))
+                  _PLRow(
+                    '(-) المصاريف التشغيلية',
+                    ov.expenseTotal,
+                    Colors.red,
+                    prefix: '-',
+                  )
+                else
+                  const _PLMessageRow('إدارة المصروفات غير مفعلة'),
+                if (featureEnabled(AppFeature.waste)) ...[
+                  _Divider(),
+                  _PLRow(
+                    '(-) إتلاف المخزون',
+                    ov.wasteCost,
+                    Colors.brown,
+                    prefix: '-',
+                  ),
+                ],
+                if (featureEnabled(AppFeature.expiry)) ...[
+                  _Divider(),
+                  _PLRow(
+                    '(-) صافي خسارة المرتجع المنتهي',
+                    ov.expiredReturnNetLoss,
+                    Colors.deepOrange,
+                    prefix: '-',
+                  ),
+                ],
                 _Divider(thick: true),
                 _PLRow(
                   '= صافي الربح',
-                  ov.netProfit,
+                  displayedNet,
                   netIsProfit ? Colors.green[800]! : Colors.red[800]!,
                   bold: true,
                   highlight: true,
@@ -468,6 +596,49 @@ class _ProfitLossTab extends GetView<ReportController> {
             ],
           ),
           const SizedBox(height: 20),
+          if (featureEnabled(AppFeature.waste) ||
+              featureEnabled(AppFeature.expiry)) ...[
+            const _SectionTitle('خسائر المخزون'),
+            const SizedBox(height: 10),
+            _InfoTable(
+              rows: [
+                if (featureEnabled(AppFeature.waste)) ...[
+                  _InfoRow(
+                    'عمليات الإتلاف',
+                    ov.wasteCount,
+                    Colors.brown,
+                    isCount: true,
+                  ),
+                  _InfoRow('قيمة الإتلاف', ov.wasteCost, Colors.brown),
+                ],
+                if (featureEnabled(AppFeature.expiry)) ...[
+                  _InfoRow(
+                    'مرتجعات منتهية الصلاحية',
+                    ov.expiredReturnCount,
+                    Colors.deepOrange,
+                    isCount: true,
+                  ),
+                  _InfoRow(
+                    'تكلفة البضاعة المرتجعة',
+                    ov.expiredReturnInventoryCost,
+                    Colors.deepOrange,
+                  ),
+                  _InfoRow(
+                    'تعويض المورد',
+                    ov.expiredReturnCompensation,
+                    Colors.teal,
+                  ),
+                  _InfoRow(
+                    'صافي خسارة المرتجع المنتهي',
+                    ov.expiredReturnNetLoss,
+                    Colors.deepOrange,
+                    bold: true,
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // جدول تفاصيل الأرباح
           const _SectionTitle('تفاصيل الأرباح لكل فاتورة'),
@@ -686,6 +857,7 @@ class _InfoRow {
   final String prefix;
   final bool bold;
   final bool isCount;
+  final String? displayText;
 
   const _InfoRow(
     this.label,
@@ -694,6 +866,7 @@ class _InfoRow {
     this.prefix = '',
     this.bold = false,
     this.isCount = false,
+    this.displayText,
   });
 }
 
@@ -720,20 +893,25 @@ class _InfoTable extends StatelessWidget {
                   : Border(bottom: BorderSide(color: Colors.grey.shade100)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  r.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: r.bold ? FontWeight.bold : FontWeight.normal,
-                    color: Colors.grey[700],
+                Expanded(
+                  child: Text(
+                    r.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: r.bold ? FontWeight.bold : FontWeight.normal,
+                      color: Colors.grey[700],
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Text(
-                  r.isCount
-                      ? '${r.value}'
-                      : '${r.prefix}${MoneyUtils.formatMoney(r.value)}',
+                  r.displayText ??
+                      (r.isCount
+                          ? '${r.value}'
+                          : '${r.prefix}${MoneyUtils.formatMoney(r.value)}'),
                   style: TextStyle(
                     color: r.color ?? Colors.black87,
                     fontWeight: r.bold ? FontWeight.bold : FontWeight.w500,
@@ -857,6 +1035,28 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+class _PLMessageRow extends StatelessWidget {
+  const _PLMessageRow(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: Colors.grey[600],
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _PLRow extends StatelessWidget {
   final String label;
   final int value;
@@ -887,16 +1087,20 @@ class _PLRow extends StatelessWidget {
             : BorderRadius.zero,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              color: bold ? Colors.black87 : Colors.grey[700],
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                color: bold ? Colors.black87 : Colors.grey[700],
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             '$prefix${MoneyUtils.formatMoney(value)}',
             style: TextStyle(

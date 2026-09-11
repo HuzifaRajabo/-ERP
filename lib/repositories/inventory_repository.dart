@@ -57,6 +57,7 @@ class ProductStockSummary {
   final double available;
   final String? unitName;
   final int value; // قيمة المتاح بالسنت (بسعر التكلفة)
+  final double? minStock;
 
   ProductStockSummary({
     required this.productId,
@@ -67,6 +68,7 @@ class ProductStockSummary {
     required this.available,
     this.unitName,
     this.value = 0,
+    this.minStock,
   });
 }
 
@@ -303,6 +305,7 @@ class InventoryRepository {
       p.id   AS product_id,
       p.name AS product_name,
       p.description  AS product_description,
+      p.min_stock AS min_stock,
       COALESCE(SUM(
         CASE
           WHEN it.type = 'PURCHASE'       THEN it.quantity
@@ -316,13 +319,15 @@ class InventoryRepository {
           WHEN it.type = 'SALE'            THEN it.quantity
           WHEN it.type = 'PURCHASE_RETURN' THEN it.quantity
           WHEN it.type = 'TRANSFER_OUT'    THEN it.quantity
+          WHEN it.type = 'WASTE'            THEN it.quantity
+          WHEN it.type = 'EXPIRED_RETURN'   THEN it.quantity
           ELSE 0
         END
       ), 0) AS total_out
     FROM products p
     LEFT JOIN inventory_transactions it ON it.product_id = p.id
     WHERE p.is_active = 1
-    GROUP BY p.id, p.name, p.description
+    GROUP BY p.id, p.name, p.description, p.min_stock
     ORDER BY p.name ASC
   ''');
 
@@ -336,6 +341,7 @@ class InventoryRepository {
         totalPurchased: totalIn,
         totalSold: totalOut,
         available: totalIn - totalOut,
+        minStock: (row['min_stock'] as num?)?.toDouble(),
       );
     }).toList();
   }
@@ -365,6 +371,8 @@ class InventoryRepository {
           WHEN it.type = 'SALE'            THEN it.quantity
           WHEN it.type = 'PURCHASE_RETURN' THEN it.quantity
           WHEN it.type = 'TRANSFER_OUT'    THEN it.quantity
+          WHEN it.type = 'WASTE'            THEN it.quantity
+          WHEN it.type = 'EXPIRED_RETURN'   THEN it.quantity
           ELSE 0
         END
       ), 0) AS total_out
@@ -419,6 +427,8 @@ class InventoryRepository {
           WHEN it.type = 'SALE'            THEN it.quantity
           WHEN it.type = 'PURCHASE_RETURN' THEN it.quantity
           WHEN it.type = 'TRANSFER_OUT'    THEN it.quantity
+          WHEN it.type = 'WASTE'            THEN it.quantity
+          WHEN it.type = 'EXPIRED_RETURN'   THEN it.quantity
           ELSE 0
         END
       ), 0) AS total_out,
@@ -434,6 +444,8 @@ class InventoryRepository {
                      WHEN it3.type = 'SALE'            THEN -it3.quantity
                      WHEN it3.type = 'PURCHASE_RETURN' THEN -it3.quantity
                      WHEN it3.type = 'TRANSFER_OUT'    THEN -it3.quantity
+                     WHEN it3.type = 'WASTE'            THEN -it3.quantity
+                     WHEN it3.type = 'EXPIRED_RETURN'   THEN -it3.quantity
                      ELSE 0
                    END
                  ), 0) AS available
@@ -500,6 +512,8 @@ class InventoryRepository {
           WHEN type = 'SALE'            THEN -quantity
           WHEN type = 'PURCHASE_RETURN' THEN -quantity
           WHEN type = 'TRANSFER_OUT'    THEN -quantity
+          WHEN type = 'WASTE'            THEN -quantity
+          WHEN type = 'EXPIRED_RETURN'   THEN -quantity
           ELSE 0
         END
       ), 0) AS available
@@ -541,6 +555,8 @@ class InventoryRepository {
             WHEN it.type = 'SALE'            THEN -it.quantity
             WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
             WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
+            WHEN it.type = 'WASTE'            THEN -it.quantity
+            WHEN it.type = 'EXPIRED_RETURN'   THEN -it.quantity
             ELSE 0
           END
         ), 0) AS available
@@ -598,6 +614,8 @@ class InventoryRepository {
               WHEN it.type = 'SALE'            THEN -it.quantity
               WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
               WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
+              WHEN it.type = 'WASTE'            THEN -it.quantity
+              WHEN it.type = 'EXPIRED_RETURN'   THEN -it.quantity
               ELSE 0
             END
           ), 0) AS available

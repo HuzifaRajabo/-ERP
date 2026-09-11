@@ -112,6 +112,22 @@ class AppStatusBadge extends StatelessWidget {
   }
 }
 
+class PackagingEmptyBadge extends StatelessWidget {
+  const PackagingEmptyBadge({super.key, this.typeName});
+  final String? typeName;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppStatusBadge(
+      label: typeName == null || typeName!.trim().isEmpty
+          ? 'عبوة فارغة'
+          : 'عبوة فارغة • $typeName',
+      color: AppColors.info,
+      icon: Icons.liquor_outlined,
+    );
+  }
+}
+
 class AppEmptyState extends StatelessWidget {
   final IconData icon;
   final String title;

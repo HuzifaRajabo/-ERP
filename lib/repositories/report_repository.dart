@@ -3,6 +3,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
 import '../models/report_model.dart';
+import 'returnable_packaging_repository.dart';
 
 class ReportRepository {
   ReportRepository({Future<Database> Function()? dbProvider})
@@ -61,6 +62,7 @@ class ReportRepository {
       SELECT
         COUNT(*) AS count,
         COALESCE(SUM(i.original_total_amount), 0) AS total,
+        COALESCE(SUM(i.discount_amount), 0) AS discount,
         COALESCE(SUM(i.paid_amount), 0) AS paid,
         COALESCE(SUM(
           CASE WHEN (i.total_amount - i.paid_amount) > 0
@@ -150,6 +152,27 @@ class ReportRepository {
         AND (i.total_amount - i.paid_amount) > 0
     ''');
 
+    final wasteQ = await db.rawQuery('''
+      SELECT COUNT(*) AS count,
+        COALESCE(SUM(total_cost), 0) AS total
+      FROM waste_records
+      $expFilter
+    ''');
+    final wasteQtyQ = await db.rawQuery('''
+      SELECT COALESCE(SUM(wi.base_quantity), 0) AS qty
+      FROM waste_items wi
+      INNER JOIN waste_records wr ON wr.id = wi.waste_id
+      ${expFilter.replaceAll('created_at', 'wr.created_at')}
+    ''');
+
+    final expiredQ = await db.rawQuery('''
+      SELECT COUNT(*) AS count,
+        COALESCE(SUM(inventory_cost), 0) AS inventory_cost,
+        COALESCE(SUM(compensation_amount), 0) AS compensation
+      FROM expired_returns
+      $expFilter
+    ''');
+
     // ── تكلفة البضاعة المباعة (COGS) ──
     // تُحسب بطريقة FIFO وفق الكميات الفعلية (بالوحدة الأساسية) التي
     // استهلكتها المبيعات، مع الأخذ في الاعتبار تحويل الوحدات والتكلفة
@@ -172,10 +195,14 @@ class ReportRepository {
     final payOut = payOutQ.first;
     final debtsToUs = debtsToUsQ.first;
     final debtsByUs = debtsByUsQ.first;
+    final waste = wasteQ.first;
+    final expired = expiredQ.first;
 
     final saleTotal = _toInt(sale['total']);
+    final saleDiscountTotal = _toInt(sale['discount']);
     final saleRetTotal = _toInt(saleRet['total']);
-    final saleNetTotal = ReportMath.netSales(saleTotal, saleRetTotal);
+    final saleNetTotal =
+        ReportMath.netSales(saleTotal, saleRetTotal, saleDiscountTotal);
 
     final purchTotal = _toInt(purchase['total']);
     final purchRetTotal = _toInt(purchRet['total']);
@@ -183,12 +210,69 @@ class ReportRepository {
 
     final grossProfit = ReportMath.grossProfit(saleNetTotal, cogsTotal);
     final expTotal = _toInt(exp['total']);
-    final netProfit = ReportMath.netProfit(grossProfit, expTotal);
+    final wasteCost = _toInt(waste['total']);
+    final expiredInventoryCost = _toInt(expired['inventory_cost']);
+    final expiredCompensation = _toInt(expired['compensation']);
+    final expiredNetLoss = expiredInventoryCost - expiredCompensation;
+    final netProfit = ReportMath.netProfit(
+      grossProfit,
+      expTotal,
+      wasteLoss: wasteCost,
+      expiredReturnNetLoss: expiredNetLoss,
+    );
     final warehouseSummaries = await _getWarehouseSummaries(
       db,
       from: from,
       to: to,
     );
+
+    final packagingPeriodArgs = <Object?>[];
+    var packagingPeriodWhere = '';
+    if (from != null) {
+      packagingPeriodWhere += ' AND created_at >= ?';
+      packagingPeriodArgs.add(_formatDateTimeForSqlite(from));
+    }
+    if (to != null) {
+      packagingPeriodWhere += ' AND created_at <= ?';
+      packagingPeriodArgs.add(_formatDateTimeForSqlite(to));
+    }
+    final packagingPeriodQ = await db.rawQuery(
+      '''
+      SELECT
+        COALESCE(SUM(CASE WHEN movement_type = 'ISSUED' THEN quantity ELSE 0 END), 0) AS issued,
+        COALESCE(SUM(CASE WHEN movement_type = 'RETURNED' THEN quantity ELSE 0 END), 0) AS returned,
+        COALESCE(SUM(CASE WHEN movement_type = 'BROKEN' THEN quantity ELSE 0 END), 0) AS broken,
+        COALESCE(SUM(CASE WHEN movement_type = 'LOST' THEN quantity ELSE 0 END), 0) AS lost,
+        COALESCE(SUM(CASE WHEN movement_type = 'REVERSED' THEN quantity ELSE 0 END), 0) AS reversed
+      FROM returnable_packaging_transactions
+      WHERE 1=1 $packagingPeriodWhere
+      ''',
+      packagingPeriodArgs,
+    );
+    final packagingCurrentQ = await db.rawQuery('''
+      SELECT
+        COALESCE(SUM(
+          CASE movement_type
+            WHEN 'ISSUED' THEN quantity
+            WHEN 'OPENING_ISSUED' THEN quantity
+            WHEN 'RETURNED' THEN -quantity
+            WHEN 'BROKEN' THEN -quantity
+            WHEN 'LOST' THEN -quantity
+            WHEN 'REVERSED' THEN -quantity
+            ELSE 0
+          END
+        ), 0) AS unsettled,
+        COALESCE(SUM(${ReturnablePackagingRepository.emptyStockSignedSql()}), 0) AS empty_stock
+      FROM returnable_packaging_transactions
+    ''');
+    final packagingChargesQ = await db.rawQuery('''
+      SELECT COALESCE(SUM(amount - paid_amount), 0) AS due
+      FROM returnable_packaging_charges
+      WHERE (amount - paid_amount) > 0
+    ''');
+    final packagingChargeDue = _toInt(packagingChargesQ.first['due']);
+    final packagingOwnership =
+        await ReturnablePackagingRepository().getOwnershipSummary();
 
     return ReportOverview(
       saleInvoiceCount: _toInt(sale['count']),
@@ -197,6 +281,7 @@ class ReportRepository {
       saleRemaining: _toInt(debtsToUs['total']),
       saleReturnTotal: saleRetTotal,
       saleReturnCount: _toInt(saleRet['count']),
+      saleDiscountTotal: saleDiscountTotal,
       saleNetTotal: saleNetTotal,
       purchaseInvoiceCount: _toInt(purchase['count']),
       purchaseTotal: purchTotal,
@@ -207,13 +292,35 @@ class ReportRepository {
       purchaseNetTotal: purchNetTotal,
       expenseCount: _toInt(exp['count']),
       expenseTotal: expTotal,
-      debtsOwedToUs: _toInt(debtsToUs['total']),
+      debtsOwedToUs: _toInt(debtsToUs['total']) + packagingChargeDue,
       debtsOwedByUs: _toInt(debtsByUs['total']),
       inventoryValue: inventoryValue,
       cogsTotal: cogsTotal,
       grossProfit: grossProfit,
+      wasteCount: _toInt(waste['count']),
+      wasteQuantity: (wasteQtyQ.first['qty'] as num?)?.round() ?? 0,
+      wasteCost: wasteCost,
+      expiredReturnCount: _toInt(expired['count']),
+      expiredReturnInventoryCost: expiredInventoryCost,
+      expiredReturnCompensation: expiredCompensation,
+      expiredReturnNetLoss: expiredNetLoss,
       netProfit: netProfit,
       warehouseSummaries: warehouseSummaries,
+      packagingIssued: (packagingPeriodQ.first['issued'] as num?)?.toDouble() ?? 0,
+      packagingReturned:
+          (packagingPeriodQ.first['returned'] as num?)?.toDouble() ?? 0,
+      packagingBroken:
+          (packagingPeriodQ.first['broken'] as num?)?.toDouble() ?? 0,
+      packagingLost: (packagingPeriodQ.first['lost'] as num?)?.toDouble() ?? 0,
+      packagingReversed:
+          (packagingPeriodQ.first['reversed'] as num?)?.toDouble() ?? 0,
+      packagingUnsettled:
+          (packagingCurrentQ.first['unsettled'] as num?)?.toDouble() ?? 0,
+      packagingEmptyStock:
+          (packagingCurrentQ.first['empty_stock'] as num?)?.toDouble() ?? 0,
+      packagingFullInStock: packagingOwnership.fullInStock,
+      packagingTotalValue: packagingOwnership.totalValue,
+      packagingChargeDue: packagingChargeDue,
     );
   }
 
@@ -234,7 +341,9 @@ class ReportRepository {
     }
 
     final salesRows = await db.rawQuery('''
-      SELECT i.warehouse_id, COALESCE(SUM(i.original_total_amount), 0) AS total
+      SELECT i.warehouse_id,
+        COALESCE(SUM(i.original_total_amount), 0) AS total,
+        COALESCE(SUM(i.discount_amount), 0) AS discount
       FROM invoices i
       WHERE i.type = 'SALE' AND i.warehouse_id IS NOT NULL $dateFilter
       GROUP BY i.warehouse_id
@@ -264,10 +373,12 @@ class ReportRepository {
     ]);
     final costs = await _loadUnitCosts(db);
     final sales = <int, int>{};
+    final discounts = <int, int>{};
     final returns = <int, int>{};
     final cogs = <int, double>{};
     for (final row in salesRows) {
       sales[row['warehouse_id'] as int] = _toInt(row['total']);
+      discounts[row['warehouse_id'] as int] = _toInt(row['discount']);
     }
     for (final row in returnRows) {
       returns[row['warehouse_id'] as int] = _toInt(row['total']);
@@ -288,7 +399,7 @@ class ReportRepository {
       SELECT warehouse_id, product_id, batch_id,
         SUM(CASE
           WHEN type IN ('PURCHASE','SALE_RETURN','TRANSFER_IN') THEN quantity
-          WHEN type IN ('SALE','PURCHASE_RETURN','TRANSFER_OUT') THEN -quantity
+          WHEN type IN ('SALE','PURCHASE_RETURN','TRANSFER_OUT','WASTE','EXPIRED_RETURN') THEN -quantity
           ELSE 0 END) AS quantity
       FROM inventory_transactions
       WHERE warehouse_id IS NOT NULL
@@ -315,14 +426,17 @@ class ReportRepository {
     return warehouses.map((warehouse) {
       final id = warehouse['id'] as int;
       final grossSales = sales[id] ?? 0;
+      final warehouseDiscount = discounts[id] ?? 0;
       final salesReturns = returns[id] ?? 0;
-      final netSales = ReportMath.netSales(grossSales, salesReturns);
+      final netSales =
+          ReportMath.netSales(grossSales, salesReturns, warehouseDiscount);
       final warehouseCogs = (cogs[id] ?? 0).round();
       return WarehouseReportSummary(
         warehouseId: id,
         warehouseName: warehouse['name'] as String,
         sales: grossSales,
         salesReturns: salesReturns,
+        discounts: warehouseDiscount,
         cogs: warehouseCogs,
         grossProfit: ReportMath.grossProfit(netSales, warehouseCogs),
         inventoryValue: (inventory[id] ?? 0).round(),
@@ -371,7 +485,7 @@ class ReportRepository {
         COALESCE(warehouse_id, 0) AS warehouse_id,
         SUM(CASE
           WHEN type IN ('PURCHASE','SALE_RETURN','TRANSFER_IN') THEN quantity
-          WHEN type IN ('SALE','PURCHASE_RETURN','TRANSFER_OUT') THEN -quantity
+          WHEN type IN ('SALE','PURCHASE_RETURN','TRANSFER_OUT','WASTE','EXPIRED_RETURN') THEN -quantity
           ELSE 0 END) AS quantity
       FROM inventory_transactions
       GROUP BY product_id, batch_id, warehouse_id

@@ -91,7 +91,9 @@ enum InventoryTransactionType {
   saleReturn,
   purchaseReturn,
   transferOut,
-  transferIn;
+  transferIn,
+  waste,
+  expiredReturn;
 
   String get label => switch (this) {
     InventoryTransactionType.sale            => 'بيع',
@@ -100,6 +102,8 @@ enum InventoryTransactionType {
     InventoryTransactionType.purchaseReturn  => 'مرتجع مشتريات',
     InventoryTransactionType.transferOut     => 'تحويل خارج',
     InventoryTransactionType.transferIn      => 'تحويل داخل',
+    InventoryTransactionType.waste           => 'إتلاف',
+    InventoryTransactionType.expiredReturn   => 'مرتجع منتهي الصلاحية',
   };
 
   String get dbValue => switch (this) {
@@ -109,6 +113,8 @@ enum InventoryTransactionType {
     InventoryTransactionType.purchaseReturn  => 'PURCHASE_RETURN',
     InventoryTransactionType.transferOut     => 'TRANSFER_OUT',
     InventoryTransactionType.transferIn      => 'TRANSFER_IN',
+    InventoryTransactionType.waste           => 'WASTE',
+    InventoryTransactionType.expiredReturn   => 'EXPIRED_RETURN',
   };
 
   static InventoryTransactionType fromDb(String value) =>
@@ -119,6 +125,8 @@ enum InventoryTransactionType {
         'PURCHASE_RETURN'  => InventoryTransactionType.purchaseReturn,
         'TRANSFER_OUT'     => InventoryTransactionType.transferOut,
         'TRANSFER_IN'      => InventoryTransactionType.transferIn,
+        'WASTE'            => InventoryTransactionType.waste,
+        'EXPIRED_RETURN'   => InventoryTransactionType.expiredReturn,
         _ => throw Exception('Unknown type: $value'),
       };
 
@@ -130,6 +138,8 @@ enum InventoryTransactionType {
     InventoryTransactionType.purchaseReturn  => false,
     InventoryTransactionType.transferOut     => false,
     InventoryTransactionType.transferIn      => true,
+    InventoryTransactionType.waste           => false,
+    InventoryTransactionType.expiredReturn   => false,
   };
 
   /// هل هذه الحركة ضمن عمليات التحويل بين المستودعات؟

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'bindings/app_binding.dart';
+import 'controllers/notification_controller.dart';
 import 'core/database/database_helper.dart';
 import 'core/theme/app_theme.dart';
 import 'views/main_screen.dart';
@@ -20,6 +21,12 @@ import 'views/expense/expense_form_screen.dart';
 import 'views/report/report_screen.dart';
 import 'views/warehouse/warehouse_form_screen.dart';
 import 'views/warehouse/transfer_screen.dart';
+import 'views/inventory/inventory_screen.dart';
+import 'views/inventory/stock_loss_screens.dart';
+import 'views/packaging/packaging_screens.dart';
+import 'views/notifications/notifications_screen.dart';
+import 'views/settings/settings_screen.dart';
+import 'views/settings/company_profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,8 +37,32 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (!Get.isRegistered<NotificationController>()) return;
+    Get.find<NotificationController>().scanAndRefresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +111,38 @@ class MyApp extends StatelessWidget {
         ),
         GetPage(name: '/warehouse-form', page: () => const WarehouseFormScreen()),
         GetPage(name: '/stock-transfer', page: () => const TransferScreen()),
+        GetPage(
+          name: '/stock-loss',
+          page: () => const InventoryScreen(initialTab: 2),
+        ),
+        GetPage(
+          name: '/waste-form',
+          page: () => const StockLossFormScreen(),
+        ),
+        GetPage(
+          name: '/expired-return-form',
+          page: () => const StockLossFormScreen(isExpiredReturn: true),
+        ),
+        GetPage(
+          name: '/packaging',
+          page: () => const PackagingHubScreen(),
+        ),
+        GetPage(
+          name: '/packaging-settle',
+          page: () => const PackagingSettlementScreen(),
+        ),
+        GetPage(
+          name: '/notifications',
+          page: () => const NotificationsScreen(),
+        ),
+        GetPage(
+          name: '/settings',
+          page: () => const SettingsScreen(),
+        ),
+        GetPage(
+          name: '/company-profile',
+          page: () => const CompanyProfileScreen(),
+        ),
       ],
     );
   }

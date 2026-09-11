@@ -9,7 +9,10 @@ class InvoiceDraft {
   final String? notes;
   final List<InvoiceItemDraft> items;
   final int initialPayment;
+  final int discountAmount;
   final int? warehouseId; // ← المستودع/السيارة التي تصدر منها الفاتورة
+  final String? salesChannel;
+  final Map<int, double> purchasedEmptyByTypeId;
 
   InvoiceDraft({
     required this.type,
@@ -19,10 +22,16 @@ class InvoiceDraft {
     this.notes,
     required this.items,
     this.initialPayment = 0,
+    this.discountAmount = 0,
     this.warehouseId,
+    this.salesChannel,
+    this.purchasedEmptyByTypeId = const {},
   });
 
-  int get totalAmount => items.fold(0, (sum, item) => sum + item.lineTotal);
+  int get subtotal => items.fold(0, (sum, item) => sum + item.lineTotal);
+
+  /// الصافي بعد الحسم — هذا ما تُبنى عليه الذمم والمدفوعات.
+  int get totalAmount => subtotal - discountAmount;
 
   int get remaining => totalAmount - initialPayment;
 

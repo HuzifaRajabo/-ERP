@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/product_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
+import '../../models/returnable_packaging_model.dart';
+import '../../repositories/returnable_packaging_repository.dart';
 import '../../views/shared/shared_components.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -28,6 +32,8 @@ class _ProductDetailsScreenState
   List<ProductUnitModel> units = [];
 
   bool isLoadingUnits = true;
+
+  PackagingProductMapping? packagingMapping;
 
   @override
   void initState() {
@@ -76,11 +82,17 @@ class _ProductDetailsScreenState
         product.id!,
         activeOnly: true,
       );
+      PackagingProductMapping? mapping;
+      if (Get.isRegistered<ReturnablePackagingRepository>()) {
+        mapping = await Get.find<ReturnablePackagingRepository>()
+            .getProductMapping(product.id!);
+      }
 
       if (!mounted) return;
 
       setState(() {
         units = _sortUnits(result);
+        packagingMapping = mapping;
         isLoadingUnits = false;
       });
     } catch (_) {
@@ -153,6 +165,11 @@ class _ProductDetailsScreenState
             _buildHeaderCard(),
             const SizedBox(height: 18),
             _buildUnitsSection(),
+            if (featureEnabled(AppFeature.returnablePackaging) &&
+                packagingMapping != null) ...[
+              const SizedBox(height: 18),
+              _buildPackagingSection(),
+            ],
             const SizedBox(height: 18),
             _buildLegacyPriceSummary(),
             const SizedBox(height: 24),
@@ -235,6 +252,21 @@ class _ProductDetailsScreenState
             ],
           ),
 
+          if (product.barcode != null &&
+              product.barcode!.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'الباركود: ${product.barcode}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+          if (product.minStock != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'الحد الأدنى للمخزون: ${product.minStock}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
           if (product.description.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
             Container(
@@ -283,7 +315,7 @@ class _ProductDetailsScreenState
         children: [
           AppSectionHeader(
             title: 'الوحدات والأسعار',
-            subtitle: '${units.length} وحدة',
+            subtitle: '${_visibleUnits.length} وحدة',
           ),
 
           const SizedBox(height: AppSpacing.lg),
@@ -295,13 +327,48 @@ class _ProductDetailsScreenState
                 child: CircularProgressIndicator(),
               ),
             )
-          else if (units.isEmpty)
+          else if (_visibleUnits.isEmpty)
             _buildNoUnits()
           else
             _buildUnitsList(),
         ],
       ),
     );
+  }
+
+  Widget _buildPackagingSection() {
+    final mapping = packagingMapping;
+    if (mapping == null) return const SizedBox.shrink();
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'العبوة القابلة للإرجاع',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          PackagingEmptyBadge(typeName: mapping.typeName),
+          const SizedBox(height: 8),
+          Text(mapping.typeName ?? 'نوع عبوة'),
+          Text(
+            '${mapping.unitsPerProductBase == mapping.unitsPerProductBase.roundToDouble() ? mapping.unitsPerProductBase.toInt() : mapping.unitsPerProductBase} عبوة لكل وحدة أساسية',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'الشراء يعبّئ فوارغ من المستودع، والبيع يسلّمها للعميل.',
+            style: TextStyle(color: AppColors.info, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<ProductUnitModel> get _visibleUnits {
+    if (featureEnabled(AppFeature.productUnits)) return units;
+    final base = units.where((unit) => unit.isBaseUnit).toList();
+    return base.isNotEmpty ? base : units.take(1).toList();
   }
 
   Widget _buildUnitsList() {
@@ -311,7 +378,7 @@ class _ProductDetailsScreenState
 
         const SizedBox(height: 8),
 
-        ...units.map(_buildUnitRow),
+        ..._visibleUnits.map(_buildUnitRow),
       ],
     );
   }

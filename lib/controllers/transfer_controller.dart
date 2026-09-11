@@ -220,6 +220,7 @@ class TransferController extends GetxController {
       state.value = TransferState.success;
       errorMessage.value = null;
       AppEventBus.instance.notifyInventoryChanged();
+      AppEventBus.instance.notifyPackagingChanged();
       return true;
     } catch (e) {
       state.value = TransferState.error;

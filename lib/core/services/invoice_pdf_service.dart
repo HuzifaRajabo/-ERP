@@ -9,6 +9,10 @@ import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
 import '../../models/invoice_draft.dart';
 import '../utils/money_utils.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
+import 'company_profile_service.dart';
+import 'pdf_company_header.dart';
 
 class InvoicePdfService {
   // ====================================================================
@@ -60,8 +64,12 @@ class InvoicePdfService {
 
     // حساب إجمالي المرتجعات
     final totalReturns = returns.fold(0, (s, r) => s + r.totalAmount);
-    final netTotal = invoice.originalTotalAmount - totalReturns;
+    final netTotal =
+        invoice.originalTotalAmount - invoice.discountAmount - totalReturns;
     final balance = netTotal - invoice.paidAmount;
+
+    final identityLines =
+        await CompanyProfileService.headerLinesForDocument();
 
     final doc = pw.Document();
 
@@ -74,7 +82,7 @@ class InvoicePdfService {
         footer: (context) => _buildFooter(context, ttf),
         build: (context) => [
           // ── رأس الفاتورة ──
-          _buildHeader(invoice, isSale, ttfBold),
+          _buildHeader(invoice, isSale, ttf, ttfBold, identityLines),
           pw.SizedBox(height: 12),
 
           // ── معلومات الطرف ──
@@ -129,47 +137,66 @@ class InvoicePdfService {
   static pw.Widget _buildHeader(
     InvoiceModel invoice,
     bool isSale,
+    pw.Font regular,
     pw.Font bold,
+    List<String> identityLines,
   ) {
     final typeLabel = isSale ? 'فاتورة مبيعات' : 'فاتورة مشتريات';
     final color = isSale ? PdfColors.green800 : PdfColors.orange800;
 
-    return pw.Container(
-      padding: const pw.EdgeInsets.fromLTRB(18, 14, 18, 14),
-      decoration: pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: color, width: 2)),
-      ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        PdfCompanyHeader.build(
+          lines: identityLines,
+          regular: regular,
+          bold: bold,
+        ),
+        if (identityLines.isNotEmpty) pw.SizedBox(height: 4),
+        pw.Container(
+          padding: const pw.EdgeInsets.fromLTRB(18, 14, 18, 14),
+          decoration: pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(color: color, width: 2)),
+          ),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text(
-                typeLabel,
-                style: pw.TextStyle(font: bold, fontSize: 20, color: color),
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    typeLabel,
+                    style: pw.TextStyle(font: bold, fontSize: 20, color: color),
+                  ),
+                  if (invoice.createdAt != null)
+                    pw.Text(
+                      _displayDate(invoice.createdAt),
+                      style: pw.TextStyle(
+                        color: PdfColors.grey600,
+                        fontSize: 10,
+                      ),
+                    ),
+                ],
               ),
-              if (invoice.createdAt != null)
-                pw.Text(
-                  _displayDate(invoice.createdAt),
-                  style: pw.TextStyle(color: PdfColors.grey600, fontSize: 10),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
+                decoration: pw.BoxDecoration(
+                  color: isSale ? PdfColors.green50 : PdfColors.orange50,
+                  border: pw.Border.all(color: color, width: 0.8),
+                  borderRadius: pw.BorderRadius.circular(5),
+                ),
+                child: pw.Text(
+                  invoice.invoiceNumber,
+                  style: pw.TextStyle(font: bold, color: color, fontSize: 12),
+                ),
+              ),
             ],
           ),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: pw.BoxDecoration(
-              color: isSale ? PdfColors.green50 : PdfColors.orange50,
-              border: pw.Border.all(color: color, width: 0.8),
-              borderRadius: pw.BorderRadius.circular(5),
-            ),
-            child: pw.Text(
-              invoice.invoiceNumber,
-              style: pw.TextStyle(font: bold, color: color, fontSize: 12),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -208,7 +235,10 @@ class InvoicePdfService {
           _pdfRow(title, invoice.partyNameSnapshot, ttf, bold),
           if (invoice.partyAddressSnapshot.isNotEmpty)
             _pdfRow('العنوان', invoice.partyAddressSnapshot, ttf, bold),
-          if (warehouseName != null && warehouseName.isNotEmpty)
+          if (featureEnabled(AppFeature.warehouses) &&
+              warehouseName != null &&
+              warehouseName.trim().isNotEmpty &&
+              warehouseName.trim() != 'Main')
             _pdfRow('المستودع', warehouseName, ttf, bold),
           _pdfRow('رقم الفاتورة', invoice.invoiceNumber, ttf, bold),
           if (invoice.createdAt != null)
@@ -255,7 +285,9 @@ class InvoicePdfService {
               ? item.quantity.toInt().toString()
               : item.quantity.toStringAsFixed(2);
           final unit = item.unitNameSnapshot;
-          final allocations = batchesByProductId[item.productId] ?? const [];
+          final allocations = featureEnabled(AppFeature.batches)
+              ? (batchesByProductId[item.productId] ?? const [])
+              : const <BatchAllocationSnapshot>[];
           final rows = <pw.TableRow>[
             pw.TableRow(
               children: [
@@ -272,7 +304,9 @@ class InvoicePdfService {
             ),
           ];
           for (final allocation in allocations) {
-            final expiry = allocation.expiryDate;
+            final expiry = featureEnabled(AppFeature.expiry)
+                ? allocation.expiryDate
+                : null;
             final allocationUnit =
                 item.conversionFactorSnapshot == 1 && unit != null
                 ? unit
@@ -481,6 +515,14 @@ class InvoicePdfService {
             ttf,
             bold,
           ),
+          if (invoice.discountAmount > 0)
+            _totalRow(
+              'الحسم',
+              '- ${MoneyUtils.formatMoney(invoice.discountAmount)}',
+              ttf,
+              bold,
+              valueColor: PdfColors.red700,
+            ),
           if (totalReturns > 0)
             _totalRow(
               'إجمالي المرتجعات',
@@ -505,20 +547,22 @@ class InvoicePdfService {
             bold,
             valueColor: PdfColors.green600,
           ),
-          pw.Divider(color: PdfColors.grey400, thickness: 1.5),
-          _totalRow(
-            balanceLabel,
-            ' ${MoneyUtils.formatMoney(balance.abs())}',
-            ttf,
-            bold,
-            isBold: true,
-            valueColor: balanceColor,
-            bgColor: balance > 0
-                ? PdfColors.red50
-                : balance < 0
-                ? PdfColors.blue50
-                : PdfColors.green50,
-          ),
+          if (featureEnabled(AppFeature.debts)) ...[
+            pw.Divider(color: PdfColors.grey400, thickness: 1.5),
+            _totalRow(
+              balanceLabel,
+              ' ${MoneyUtils.formatMoney(balance.abs())}',
+              ttf,
+              bold,
+              isBold: true,
+              valueColor: balanceColor,
+              bgColor: balance > 0
+                  ? PdfColors.red50
+                  : balance < 0
+                  ? PdfColors.blue50
+                  : PdfColors.green50,
+            ),
+          ],
         ],
       ),
     );

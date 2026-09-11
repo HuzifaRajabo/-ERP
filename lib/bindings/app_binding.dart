@@ -21,11 +21,28 @@ import '../controllers/payment_controller.dart';
 import '../controllers/expense_controller.dart';
 import '../controllers/report_controller.dart';
 import '../repositories/return_repository.dart';
+import '../repositories/waste_repository.dart';
+import '../repositories/expired_return_repository.dart';
+import '../repositories/returnable_packaging_repository.dart';
+import '../controllers/packaging_controller.dart';
 import '../controllers/return_controller.dart';
 import '../controllers/category_controller.dart';
 import '../controllers/batch_controller.dart';
 import '../controllers/product_unit_controller.dart';
 import '../controllers/warehouse_controller.dart';
+import '../repositories/app_settings_repository.dart';
+import '../repositories/business_settings_repository.dart';
+import '../repositories/company_profile_repository.dart';
+import '../repositories/notification_repository.dart';
+import '../core/services/company_profile_service.dart';
+import '../core/services/expiry_notification_service.dart';
+import '../core/services/stock_notification_service.dart';
+import '../core/services/debt_notification_service.dart';
+import '../core/services/packaging_notification_service.dart';
+import '../core/services/notification_scan_coordinator.dart';
+import '../controllers/notification_controller.dart';
+import '../controllers/feature_controller.dart';
+import '../controllers/company_profile_controller.dart';
 
 class AppBinding extends Bindings {
   @override
@@ -101,6 +118,11 @@ class AppBinding extends Bindings {
       ReportController(Get.find<ReportRepository>()),
       permanent: true,
     );
+    Get.put<WasteRepository>(WasteRepository(), permanent: true);
+    Get.put<ExpiredReturnRepository>(
+      ExpiredReturnRepository(),
+      permanent: true,
+    );
     Get.put<ReturnRepository>(ReturnRepository(), permanent: true);
 
     Get.put<ReturnController>(
@@ -122,6 +144,91 @@ class AppBinding extends Bindings {
     );
     Get.put<WarehouseController>(
       WarehouseController(Get.find<WarehouseRepository>()),
+      permanent: true,
+    );
+    Get.put<ReturnablePackagingRepository>(
+      ReturnablePackagingRepository(),
+      permanent: true,
+    );
+    Get.put<PackagingController>(
+      PackagingController(
+        repo: Get.find<ReturnablePackagingRepository>(),
+        partyRepo: Get.find<PartyRepository>(),
+        warehouseRepo: Get.find<WarehouseRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<AppSettingsRepository>(AppSettingsRepository(), permanent: true);
+    Get.put<BusinessSettingsRepository>(
+      BusinessSettingsRepository(
+        settings: Get.find<AppSettingsRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<FeatureController>(
+      FeatureController(Get.find<BusinessSettingsRepository>()),
+      permanent: true,
+    );
+    Get.put<CompanyProfileRepository>(
+      CompanyProfileRepository(),
+      permanent: true,
+    );
+    Get.put<CompanyProfileService>(
+      CompanyProfileService(Get.find<CompanyProfileRepository>()),
+      permanent: true,
+    );
+    Get.put<CompanyProfileController>(
+      CompanyProfileController(Get.find<CompanyProfileService>()),
+      permanent: true,
+    );
+    Get.put<NotificationRepository>(NotificationRepository(), permanent: true);
+    Get.put<ExpiryNotificationService>(
+      ExpiryNotificationService(
+        settingsRepo: Get.find<AppSettingsRepository>(),
+        notificationRepo: Get.find<NotificationRepository>(),
+        batchRepo: Get.find<BatchRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<StockNotificationService>(
+      StockNotificationService(
+        inventoryRepo: Get.find<InventoryRepository>(),
+        notificationRepo: Get.find<NotificationRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<DebtNotificationService>(
+      DebtNotificationService(
+        invoiceRepo: Get.find<InvoiceRepository>(),
+        notificationRepo: Get.find<NotificationRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<PackagingNotificationService>(
+      PackagingNotificationService(
+        packagingRepo: Get.find<ReturnablePackagingRepository>(),
+        notificationRepo: Get.find<NotificationRepository>(),
+      ),
+      permanent: true,
+    );
+    Get.put<NotificationScanCoordinator>(
+      NotificationScanCoordinator(
+        settingsRepo: Get.find<BusinessSettingsRepository>(),
+        notificationRepo: Get.find<NotificationRepository>(),
+        expiryService: Get.find<ExpiryNotificationService>(),
+        stockService: Get.find<StockNotificationService>(),
+        debtService: Get.find<DebtNotificationService>(),
+        packagingService: Get.find<PackagingNotificationService>(),
+      ),
+      permanent: true,
+    );
+    Get.put<NotificationController>(
+      NotificationController(
+        repo: Get.find<NotificationRepository>(),
+        settingsRepo: Get.find<AppSettingsRepository>(),
+        expiryService: Get.find<ExpiryNotificationService>(),
+        coordinator: Get.find<NotificationScanCoordinator>(),
+      ),
       permanent: true,
     );
   }

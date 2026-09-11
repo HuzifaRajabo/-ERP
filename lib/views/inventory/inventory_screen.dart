@@ -1,37 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/inventory_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../repositories/inventory_repository.dart';
+import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../shared/shared_components.dart';
+import 'stock_loss_screens.dart';
 
 class InventoryScreen extends GetView<InventoryController> {
-  const InventoryScreen({super.key});
+  final int initialTab;
+
+  const InventoryScreen({super.key, this.initialTab = 0});
 
   @override
   Widget build(BuildContext context) {
+    final showWaste = featureEnabled(AppFeature.waste);
+    final showExpiry = featureEnabled(AppFeature.expiry);
+    final tabs = <Tab>[
+      const Tab(icon: Icon(Icons.inventory_outlined), text: 'المخزون'),
+      const Tab(icon: Icon(Icons.history), text: 'الحركات'),
+      if (showWaste)
+        const Tab(icon: Icon(Icons.delete_forever_outlined), text: 'الإتلاف'),
+      if (showExpiry)
+        const Tab(icon: Icon(Icons.event_busy_outlined), text: 'مرتجع منتهي'),
+    ];
+    final views = <Widget>[
+      const _StockTab(),
+      const _TransactionsTab(),
+      if (showWaste) const WasteList(),
+      if (showExpiry) const ExpiredReturnList(),
+    ];
+    var initial = initialTab;
+    if (initial >= views.length) initial = 0;
     return DefaultTabController(
-      length: 2,
+      length: tabs.length,
+      initialIndex: initial < 0 ? 0 : initial,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('المستودع'),
+          title: const Text('المخزون العام'),
           centerTitle: true,
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: controller.refreshAll,
+              onPressed: AppEventBus.instance.notifyInventoryChanged,
             ),
           ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.inventory_outlined), text: 'المخزون'),
-              Tab(icon: Icon(Icons.history), text: 'الحركات'),
-            ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: tabs,
           ),
         ),
-        body: const TabBarView(children: [_StockTab(), _TransactionsTab()]),
+        body: TabBarView(children: views),
       ),
     );
   }
@@ -257,6 +280,27 @@ class _TransactionFilters extends StatelessWidget {
               onTap: () =>
                   controller.filterByType(InventoryTransactionType.sale),
             ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'إتلاف',
+              selected:
+                  controller.selectedType.value ==
+                  InventoryTransactionType.waste,
+              color: const Color(0xFFB91C1C),
+              onTap: () =>
+                  controller.filterByType(InventoryTransactionType.waste),
+            ),
+            const SizedBox(width: 8),
+            _FilterChip(
+              label: 'مرتجع منتهي',
+              selected:
+                  controller.selectedType.value ==
+                  InventoryTransactionType.expiredReturn,
+              color: const Color(0xFF9A3412),
+              onTap: () => controller.filterByType(
+                InventoryTransactionType.expiredReturn,
+              ),
+            ),
           ],
         ),
       ),
@@ -392,6 +436,8 @@ class _TransactionCard extends StatelessWidget {
         context,
       ).colorScheme.error,
       InventoryTransactionType.transferIn => AppColors.success,
+      InventoryTransactionType.waste => const Color(0xFFB91C1C),
+      InventoryTransactionType.expiredReturn => const Color(0xFF9A3412),
     };
 
     final IconData icon = switch (type) {
@@ -401,6 +447,8 @@ class _TransactionCard extends StatelessWidget {
       InventoryTransactionType.purchaseReturn => Icons.redo_rounded,
       InventoryTransactionType.transferOut => Icons.arrow_forward_rounded,
       InventoryTransactionType.transferIn => Icons.arrow_back_rounded,
+      InventoryTransactionType.waste => Icons.delete_forever_outlined,
+      InventoryTransactionType.expiredReturn => Icons.event_busy_outlined,
     };
 
     final String label = type.label;

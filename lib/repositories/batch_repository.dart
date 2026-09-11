@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
+import '../core/database/inventory_stock_sql.dart';
 import '../models/batch_model.dart';
 
 /// دفعة مع الكمية المتاحة منها (محسوبة من inventory_transactions،
@@ -23,6 +24,31 @@ class BatchAllocation {
     required this.batchNumber,
     required this.quantity,
     this.expiryDate,
+  });
+}
+
+/// دفعة لها مخزون فعلي في مستودع معيّن وتاريخ صلاحية ضمن نافذة التنبيه.
+class AlertableExpiryStock {
+  final int batchId;
+  final int productId;
+  final String? batchNumber;
+  final String? expiryDate;
+  final String productName;
+  final int warehouseId;
+  final String warehouseName;
+  final double available;
+  final String? unitName;
+
+  const AlertableExpiryStock({
+    required this.batchId,
+    required this.productId,
+    this.batchNumber,
+    this.expiryDate,
+    required this.productName,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.available,
+    this.unitName,
   });
 }
 
@@ -120,6 +146,8 @@ class BatchRepository {
             WHEN it.type = 'SALE'            THEN -it.quantity
             WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
             WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
+            WHEN it.type = 'WASTE'            THEN -it.quantity
+            WHEN it.type = 'EXPIRED_RETURN'   THEN -it.quantity
             ELSE 0
           END
         ), 0) AS available
@@ -177,6 +205,8 @@ class BatchRepository {
             WHEN it.type = 'SALE'            THEN -it.quantity
             WHEN it.type = 'PURCHASE_RETURN' THEN -it.quantity
             WHEN it.type = 'TRANSFER_OUT'    THEN -it.quantity
+            WHEN it.type = 'WASTE'            THEN -it.quantity
+            WHEN it.type = 'EXPIRED_RETURN'   THEN -it.quantity
             ELSE 0
           END
         ), 0) AS available
@@ -197,6 +227,63 @@ class BatchRepository {
       return BatchStock(
         batch: BatchModel.fromMap(row),
         available: (row['available'] as num).toDouble(),
+      );
+    }).toList();
+  }
+
+  /// دفعات لها تاريخ صلاحية صالح ومخزون > 0 في مستودع، ضمن نافذة التنبيه.
+  /// التجميع حسب (batch_id, warehouse_id) لأن المخزون محلي للمستودع.
+  Future<List<AlertableExpiryStock>> getAlertableExpiryStocks({
+    required String expiryOnOrBefore,
+  }) async {
+    final db = await _db;
+    final signedQty = InventoryStockSql.signedQuantityCase(
+      typeColumn: 'it.type',
+      quantityColumn: 'it.quantity',
+    );
+    final result = await db.rawQuery(
+      '''
+      SELECT
+        b.id AS batch_id,
+        b.product_id,
+        b.batch_number,
+        b.expiry_date,
+        p.name AS product_name,
+        it.warehouse_id AS warehouse_id,
+        w.name AS warehouse_name,
+        (
+          SELECT pu.unit_name
+          FROM product_units pu
+          WHERE pu.product_id = b.product_id AND pu.is_base_unit = 1
+          LIMIT 1
+        ) AS unit_name,
+        COALESCE(SUM($signedQty), 0) AS available
+      FROM batches b
+      INNER JOIN products p ON p.id = b.product_id
+      INNER JOIN inventory_transactions it
+        ON it.batch_id = b.id AND it.warehouse_id IS NOT NULL
+      INNER JOIN warehouses w ON w.id = it.warehouse_id
+      WHERE b.expiry_date IS NOT NULL
+        AND TRIM(b.expiry_date) != ''
+        AND b.expiry_date <= ?
+      GROUP BY b.id, it.warehouse_id
+      HAVING available > 0.0001
+      ORDER BY b.expiry_date ASC
+      ''',
+      [expiryOnOrBefore],
+    );
+
+    return result.map((row) {
+      return AlertableExpiryStock(
+        batchId: row['batch_id'] as int,
+        productId: row['product_id'] as int,
+        batchNumber: row['batch_number'] as String?,
+        expiryDate: row['expiry_date'] as String?,
+        productName: row['product_name'] as String? ?? '',
+        warehouseId: row['warehouse_id'] as int,
+        warehouseName: row['warehouse_name'] as String? ?? '',
+        available: (row['available'] as num).toDouble(),
+        unitName: row['unit_name'] as String?,
       );
     }).toList();
   }

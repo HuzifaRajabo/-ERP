@@ -188,6 +188,8 @@ class ProductRepository {
             WHEN type = 'SALE'             THEN -quantity
             WHEN type = 'PURCHASE_RETURN'  THEN -quantity
             WHEN type = 'TRANSFER_OUT'     THEN -quantity
+            WHEN type = 'WASTE'             THEN -quantity
+            WHEN type = 'EXPIRED_RETURN'    THEN -quantity
             ELSE 0
           END
         ), 0) AS available

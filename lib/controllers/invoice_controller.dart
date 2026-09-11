@@ -13,7 +13,10 @@ import '../models/product_unit_model.dart';
 import '../models/category_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/invoice_draft.dart';
+import '../models/business_config.dart';
 import '../core/services/app_event_bus.dart';
+import '../controllers/feature_controller.dart';
+import '../repositories/returnable_packaging_repository.dart';
 
 enum InvoiceLoadState { idle, loading, loadingMore, error }
 
@@ -47,6 +50,7 @@ class InvoiceController extends GetxController {
   final Rxn<InvoiceType> selectedType = Rxn<InvoiceType>();
   final RxString searchQuery = ''.obs;
   final RxInt draftInitialPayment = 0.obs;
+  final RxInt draftDiscountAmount = 0.obs;
 
   int? _cursor;
 
@@ -65,6 +69,7 @@ class InvoiceController extends GetxController {
   final Rx<InvoiceType> draftType = InvoiceType.sale.obs;
   final Rxn<PartyModel> draftParty = Rxn<PartyModel>();
   final RxnInt draftWarehouseId = RxnInt();
+  final RxnString draftSalesChannel = RxnString();
   final RxString draftNotes = ''.obs;
   final RxList<InvoiceItemDraft> draftItems = <InvoiceItemDraft>[].obs;
 
@@ -89,6 +94,11 @@ class InvoiceController extends GetxController {
 
   /// المجموع الكلي للفاتورة الحالية، يُحسب تلقائياً من الأسطر
   int get draftTotal => draftItems.fold(0, (sum, item) => sum + item.lineTotal);
+
+  int get draftNetTotal {
+    final net = draftTotal - draftDiscountAmount.value;
+    return net < 0 ? 0 : net;
+  }
 
   // ==============================
   // Lifecycle
@@ -191,13 +201,15 @@ class InvoiceController extends GetxController {
 
   /// يُستدعى عند فتح شاشة "فاتورة جديدة"
   /// يُحمِّل قوائم المنتجات والأطراف والمستودعات المتاحة للاختيار منها
-  Future<void> startNewInvoice() async {
-    draftType.value = InvoiceType.sale;
+  Future<void> startNewInvoice({InvoiceType type = InvoiceType.sale}) async {
+    draftType.value = type;
     draftParty.value = null;
     draftNotes.value = '';
     draftItems.clear();
     draftInitialPayment.value = 0;
+    draftDiscountAmount.value = 0;
     invoiceFormError.value = null;
+    draftSalesChannel.value = _defaultSalesChannel();
 
     // المستودع الافتراضي يُختار تلقائياً إن وُجد
     await loadAvailableWarehouses();
@@ -207,7 +219,18 @@ class InvoiceController extends GetxController {
 
     await loadAvailableProducts();
     await loadCategories();
-    await _loadPartiesForType(InvoiceType.sale); // ← فلترة من البداية
+    await _loadPartiesForType(type);
+  }
+
+  String? _defaultSalesChannel() {
+    if (!Get.isRegistered<FeatureController>()) return null;
+    final features = Get.find<FeatureController>();
+    final wholesale = features.isEnabled(AppFeature.wholesale);
+    final retail = features.isEnabled(AppFeature.retail);
+    if (wholesale && retail) return SalesMode.wholesale.key;
+    if (retail) return SalesMode.retail.key;
+    if (wholesale) return SalesMode.wholesale.key;
+    return null;
   }
 
   Future<void> loadCategories() async {
@@ -286,6 +309,10 @@ class InvoiceController extends GetxController {
 
   void setDraftWarehouse(int? warehouseId) {
     draftWarehouseId.value = warehouseId;
+  }
+
+  void setDraftSalesChannel(String? channel) {
+    draftSalesChannel.value = channel;
   }
 
   void setDraftNotes(String notes) {
@@ -534,7 +561,9 @@ class InvoiceController extends GetxController {
   // الذي يتولى كل التحققات (الطرف موجود، المنتجات موجودة، المخزون كافٍ)
   // داخل transaction واحدة ذرية.
 
-  Future<bool> saveInvoice() async {
+  Future<bool> saveInvoice({
+    Map<int, double> purchasedEmptyByTypeId = const {},
+  }) async {
     invoiceFormError.value = null;
 
     if (draftParty.value == null) {
@@ -547,9 +576,18 @@ class InvoiceController extends GetxController {
     }
 
     // التحقق من المبلغ المدفوع قبل الإرسال
-    if (draftInitialPayment.value > draftTotal) {
+    if (draftDiscountAmount.value < 0) {
+      invoiceFormError.value = 'لا يمكن أن يكون الحسم سالباً';
+      return false;
+    }
+    if (draftDiscountAmount.value > draftTotal) {
+      invoiceFormError.value = 'الحسم لا يمكن أن يتجاوز إجمالي الفاتورة';
+      return false;
+    }
+
+    if (draftInitialPayment.value > draftNetTotal) {
       invoiceFormError.value =
-          'المبلغ المدفوع لا يمكن أن يتجاوز إجمالي الفاتورة ($draftTotal)';
+          'المبلغ المدفوع لا يمكن أن يتجاوز صافي الفاتورة';
       return false;
     }
 
@@ -589,15 +627,24 @@ class InvoiceController extends GetxController {
         notes: draftNotes.value.trim().isEmpty ? null : draftNotes.value.trim(),
         items: List.from(draftItems),
         initialPayment: draftInitialPayment.value,
+        discountAmount: draftDiscountAmount.value,
         warehouseId: draftWarehouseId.value,
+        salesChannel: draftType.value == InvoiceType.sale
+            ? draftSalesChannel.value
+            : null,
+        purchasedEmptyByTypeId: purchasedEmptyByTypeId,
       );
 
       await repo.createInvoice(draft);
       AppEventBus.instance.notifyInventoryChanged();
       AppEventBus.instance.notifyInvoiceChanged();
+      AppEventBus.instance.notifyPackagingChanged();
 
       isSavingInvoice.value = false;
       return true;
+    } on PackagingShortageException {
+      isSavingInvoice.value = false;
+      rethrow;
     } catch (e) {
       invoiceFormError.value = e.toString().replaceFirst('Exception: ', '');
       isSavingInvoice.value = false;
@@ -607,6 +654,17 @@ class InvoiceController extends GetxController {
 
   void setInitialPayment(int amount) {
     draftInitialPayment.value = amount;
+  }
+
+  void setDiscountAmount(int amount) {
+    if (amount < 0) {
+      draftDiscountAmount.value = 0;
+      return;
+    }
+    draftDiscountAmount.value = amount;
+    if (draftInitialPayment.value > draftNetTotal) {
+      draftInitialPayment.value = draftNetTotal;
+    }
   }
 
   // ==============================

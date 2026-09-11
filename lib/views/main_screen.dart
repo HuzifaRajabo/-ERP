@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/report_controller.dart';
+import '../controllers/invoice_controller.dart';
+import '../controllers/feature_controller.dart';
 import '../core/utils/money_utils.dart';
 import '../models/report_model.dart';
+import '../models/invoice_model.dart';
+import '../models/business_config.dart';
 
 import 'product/product_list_screen.dart';
 import 'party/party_list_screen.dart';
@@ -13,6 +17,9 @@ import 'inventory/inventory_screen.dart';
 import 'debts/debts_screen.dart';
 import 'report/report_screen.dart';
 import 'warehouse/warehouse_list_screen.dart';
+import 'packaging/packaging_screens.dart';
+import 'notifications/notifications_screen.dart';
+import '../controllers/notification_controller.dart';
 
 // ============================================================
 // NAV ITEM DEFINITIONS
@@ -32,53 +39,83 @@ class _NavItemData {
   });
 }
 
-const List<_NavItemData> _navItems = [
-  _NavItemData(
-    label: 'الرئيسية',
-    icon: Icons.dashboard_outlined,
-    selectedIcon: Icons.dashboard_rounded,
-  ),
-  _NavItemData(
-    label: 'المنتجات',
-    icon: Icons.inventory_2_outlined,
-    selectedIcon: Icons.inventory_2_rounded,
-  ),
-  _NavItemData(
-    label: 'الأطراف',
-    icon: Icons.people_outline,
-    selectedIcon: Icons.people_rounded,
-  ),
-  _NavItemData(
-    label: 'الفواتير',
-    icon: Icons.receipt_long_outlined,
-    selectedIcon: Icons.receipt_long_rounded,
-  ),
-  _NavItemData(
-    label: 'المستودعات',
-    icon: Icons.warehouse_outlined,
-    selectedIcon: Icons.warehouse_rounded,
-  ),
-  _NavItemData(
-    label: 'المصاريف',
-    icon: Icons.money_off_outlined,
-    selectedIcon: Icons.money_off_rounded,
-  ),
-  _NavItemData(
-    label: 'الديون',
-    icon: Icons.account_balance_wallet_outlined,
-    selectedIcon: Icons.account_balance_wallet_rounded,
-  ),
-  _NavItemData(
-    label: 'المخزون العام',
-    icon: Icons.inventory_outlined,
-    selectedIcon: Icons.inventory_rounded,
-  ),
-  _NavItemData(
-    label: 'التقارير',
-    icon: Icons.bar_chart_outlined,
-    selectedIcon: Icons.bar_chart_rounded,
-  ),
-];
+const _NavItemData _homeNav = _NavItemData(
+  label: 'الرئيسية',
+  icon: Icons.dashboard_outlined,
+  selectedIcon: Icons.dashboard_rounded,
+);
+const _NavItemData _productsNav = _NavItemData(
+  label: 'المنتجات',
+  icon: Icons.inventory_2_outlined,
+  selectedIcon: Icons.inventory_2_rounded,
+);
+const _NavItemData _partiesNav = _NavItemData(
+  label: 'الأطراف',
+  icon: Icons.people_outline,
+  selectedIcon: Icons.people_rounded,
+);
+const _NavItemData _invoicesNav = _NavItemData(
+  label: 'الفواتير',
+  icon: Icons.receipt_long_outlined,
+  selectedIcon: Icons.receipt_long_rounded,
+);
+const _NavItemData _warehousesNav = _NavItemData(
+  label: 'المستودعات',
+  icon: Icons.warehouse_outlined,
+  selectedIcon: Icons.warehouse_rounded,
+);
+const _NavItemData _expensesNav = _NavItemData(
+  label: 'المصاريف',
+  icon: Icons.money_off_outlined,
+  selectedIcon: Icons.money_off_rounded,
+);
+const _NavItemData _debtsNav = _NavItemData(
+  label: 'الديون',
+  icon: Icons.account_balance_wallet_outlined,
+  selectedIcon: Icons.account_balance_wallet_rounded,
+);
+const _NavItemData _inventoryNav = _NavItemData(
+  label: 'المخزون العام',
+  icon: Icons.inventory_outlined,
+  selectedIcon: Icons.inventory_rounded,
+);
+const _NavItemData _packagingNav = _NavItemData(
+  label: 'الفوارغ',
+  icon: Icons.liquor_outlined,
+  selectedIcon: Icons.liquor_rounded,
+);
+const _NavItemData _reportsNav = _NavItemData(
+  label: 'التقارير',
+  icon: Icons.bar_chart_outlined,
+  selectedIcon: Icons.bar_chart_rounded,
+);
+
+class _NavSpec {
+  final _NavItemData item;
+  final Widget page;
+
+  const _NavSpec({required this.item, required this.page});
+}
+
+List<_NavSpec> _navSpecsFor(BusinessSettings settings) {
+  bool on(AppFeature feature) => settings.isEnabled(feature);
+  return [
+    const _NavSpec(item: _homeNav, page: HomeScreen()),
+    const _NavSpec(item: _productsNav, page: ProductListScreen()),
+    const _NavSpec(item: _partiesNav, page: PartyListScreen()),
+    const _NavSpec(item: _invoicesNav, page: InvoiceListScreen()),
+    if (on(AppFeature.warehouses))
+      const _NavSpec(item: _warehousesNav, page: WarehouseListScreen()),
+    if (on(AppFeature.expenses))
+      const _NavSpec(item: _expensesNav, page: ExpenseListScreen()),
+    if (on(AppFeature.debts))
+      const _NavSpec(item: _debtsNav, page: DebtsScreen()),
+    const _NavSpec(item: _inventoryNav, page: InventoryScreen()),
+    if (on(AppFeature.returnablePackaging))
+      const _NavSpec(item: _packagingNav, page: PackagingHubScreen()),
+    const _NavSpec(item: _reportsNav, page: ReportScreen()),
+  ];
+}
 
 // ============================================================
 // MAIN SCREEN
@@ -98,19 +135,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late final RxInt currentIndex;
-
-  // Order MUST match _navItems above (index-for-index).
-  final List<Widget> _pages = const [
-    HomeScreen(),
-    ProductListScreen(),
-    PartyListScreen(),
-    InvoiceListScreen(),
-    WarehouseListScreen(),
-    ExpenseListScreen(),
-    DebtsScreen(),
-    InventoryScreen(),
-    ReportScreen(),
-  ];
+  final Map<String, Widget> _pageCache = {};
 
   @override
   void initState() {
@@ -118,23 +143,49 @@ class _MainScreenState extends State<MainScreen> {
     currentIndex = 0.obs;
   }
 
+  List<_NavSpec> _specs() {
+    final settings = Get.isRegistered<FeatureController>()
+        ? Get.find<FeatureController>().settings.value
+        : ActivityProfilesFallback.settings;
+    return _navSpecsFor(settings).map((spec) {
+      return _NavSpec(
+        item: spec.item,
+        page: _pageCache.putIfAbsent(spec.item.label, () => spec.page),
+      );
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => Scaffold(
-        backgroundColor: const Color(0xFFF7F8FC),
-        drawer: const _MainDrawer(),
-        body: IndexedStack(
-          index: currentIndex.value,
-          children: _pages,
-        ),
-        bottomNavigationBar: _ScrollableBottomNav(
-          currentIndex: currentIndex.value,
-          onItemSelected: (index) => currentIndex.value = index,
-        ),
-      ),
+      () {
+        final specs = _specs();
+        final maxIndex = specs.isEmpty ? 0 : specs.length - 1;
+        final index = currentIndex.value.clamp(0, maxIndex);
+        return Scaffold(
+          backgroundColor: const Color(0xFFF7F8FC),
+          drawer: const _MainDrawer(),
+          body: IndexedStack(
+            index: index,
+            children: specs.map((spec) => spec.page).toList(),
+          ),
+          bottomNavigationBar: _ScrollableBottomNav(
+            currentIndex: index,
+            items: specs.map((spec) => spec.item).toList(),
+            onItemSelected: (value) => currentIndex.value = value,
+          ),
+        );
+      },
     );
   }
+}
+
+class ActivityProfilesFallback {
+  static final settings = BusinessSettings(
+    activity: BusinessActivity.foodDistributor,
+    features: {for (final feature in AppFeature.values) feature: true},
+    notifications: const NotificationConfig(),
+  );
 }
 
 // ============================================================
@@ -156,10 +207,12 @@ class _MainScreenState extends State<MainScreen> {
 class _ScrollableBottomNav extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onItemSelected;
+  final List<_NavItemData> items;
 
   const _ScrollableBottomNav({
     required this.currentIndex,
     required this.onItemSelected,
+    required this.items,
   });
 
   @override
@@ -168,26 +221,31 @@ class _ScrollableBottomNav extends StatefulWidget {
 
 class _ScrollableBottomNavState extends State<_ScrollableBottomNav> {
   final ScrollController _scrollController = ScrollController();
-  final List<GlobalKey> _itemKeys =
-      List.generate(_navItems.length, (_) => GlobalKey());
+  late List<GlobalKey> _itemKeys;
 
   @override
   void initState() {
     super.initState();
+    _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
   }
 
   @override
   void didUpdateWidget(covariant _ScrollableBottomNav oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex) {
+    if (oldWidget.items.length != widget.items.length) {
+      _itemKeys = List.generate(widget.items.length, (_) => GlobalKey());
+    }
+    if (oldWidget.currentIndex != widget.currentIndex ||
+        oldWidget.items.length != widget.items.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
     }
   }
 
   void _scrollToActive() {
-    if (!mounted) return;
-    final key = _itemKeys[widget.currentIndex];
+    if (!mounted || widget.items.isEmpty) return;
+    final safeIndex = widget.currentIndex.clamp(0, widget.items.length - 1);
+    final key = _itemKeys[safeIndex];
     final itemContext = key.currentContext;
     if (itemContext == null) return;
 
@@ -230,9 +288,9 @@ class _ScrollableBottomNavState extends State<_ScrollableBottomNav> {
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            itemCount: _navItems.length,
+            itemCount: widget.items.length,
             itemBuilder: (context, index) {
-              final item = _navItems[index];
+              final item = widget.items[index];
               final selected = index == widget.currentIndex;
 
               return Padding(
@@ -351,6 +409,9 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: _buildAppBar(context),
       drawer: const _MainDrawer(),
       body: Obx(() {
+        if (Get.isRegistered<FeatureController>()) {
+          Get.find<FeatureController>().settings.value;
+        }
         final overview = controller.overview.value;
 
         if (controller.isLoading.value && overview == null) {
@@ -385,13 +446,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
               _buildFinancialSummary(overview),
 
-              const SizedBox(height: 16),
-
-              _buildDebtSection(overview),
+              if (featureEnabled(AppFeature.debts)) ...[
+                const SizedBox(height: 16),
+                _buildDebtSection(overview),
+              ],
 
               const SizedBox(height: 16),
 
               _buildOperationsSection(overview),
+
+              if (featureEnabled(AppFeature.expiry)) ...[
+                const SizedBox(height: 16),
+                _buildExpiryAlertsCard(),
+              ],
 
               const SizedBox(height: 16),
 
@@ -446,6 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       actions: [
+        const NotificationBellButton(),
         Obx(
           () => IconButton(
             tooltip: 'تحديث البيانات',
@@ -698,13 +766,15 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.inventory_rounded,
             color: const Color(0xFFF59E0B),
           ),
-          const Divider(height: 22),
-          _FinancialRow(
-            title: 'المصاريف',
-            value: overview.expenseTotal,
-            icon: Icons.receipt_long_rounded,
-            color: const Color(0xFFEF4444),
-          ),
+          if (featureEnabled(AppFeature.expenses)) ...[
+            const Divider(height: 22),
+            _FinancialRow(
+              title: 'المصاريف',
+              value: overview.expenseTotal,
+              icon: Icons.receipt_long_rounded,
+              color: const Color(0xFFEF4444),
+            ),
+          ],
           const Divider(height: 22),
           _FinancialRow(
             title: 'صافي الربح',
@@ -773,20 +843,101 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.redo_rounded,
             color: const Color(0xFF0891B2),
           ),
-          const SizedBox(height: 10),
-          _OperationRow(
-            title: 'المصاريف',
-            count: overview.expenseCount,
-            value: overview.expenseTotal,
-            icon: Icons.money_off_rounded,
-            color: const Color(0xFFDC2626),
-          ),
+          if (featureEnabled(AppFeature.expenses)) ...[
+            const SizedBox(height: 10),
+            _OperationRow(
+              title: 'المصاريف',
+              count: overview.expenseCount,
+              value: overview.expenseTotal,
+              icon: Icons.money_off_rounded,
+              color: const Color(0xFFDC2626),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  Widget _buildExpiryAlertsCard() {
+    return Obx(() {
+      final count = Get.isRegistered<NotificationController>()
+          ? Get.find<NotificationController>().activeExpiryCount
+          : 0;
+      if (count <= 0) return const SizedBox.shrink();
+      return _SectionCard(
+        title: 'تنبيهات الصلاحية',
+        icon: Icons.event_busy_outlined,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFB45309),
+          ),
+          title: Text('$count تنبيه قرب/انتهاء صلاحية'),
+          subtitle: const Text('من الإشعارات النشطة الحالية'),
+          onTap: () => Get.toNamed('/notifications'),
+        ),
+      );
+    });
+  }
+
   Widget _buildQuickActions(BuildContext context) {
+    final actions = <Widget>[
+      _QuickAction(
+        title: 'فاتورة بيع',
+        icon: Icons.point_of_sale_rounded,
+        color: const Color(0xFF2563EB),
+        onTap: () async {
+          await Get.find<InvoiceController>().startNewInvoice();
+          Get.toNamed('/invoice-form');
+        },
+      ),
+      _QuickAction(
+        title: 'فاتورة شراء',
+        icon: Icons.shopping_cart_rounded,
+        color: const Color(0xFFF59E0B),
+        onTap: () async {
+          await Get.find<InvoiceController>().startNewInvoice(
+            type: InvoiceType.purchase,
+          );
+          Get.toNamed('/invoice-form');
+        },
+      ),
+      _QuickAction(
+        title: 'إضافة منتج',
+        icon: Icons.add_box_rounded,
+        color: const Color(0xFF16A34A),
+        onTap: () => Get.toNamed('/product-form'),
+      ),
+      _QuickAction(
+        title: 'إضافة طرف',
+        icon: Icons.person_add_rounded,
+        color: const Color(0xFF7C3AED),
+        onTap: () => Get.toNamed('/party-form'),
+      ),
+      if (featureEnabled(AppFeature.waste))
+        _QuickAction(
+          title: 'إتلاف بضاعة',
+          icon: Icons.delete_forever_outlined,
+          color: const Color(0xFFB91C1C),
+          onTap: () => Get.toNamed('/waste-form'),
+        ),
+      if (featureEnabled(AppFeature.expiry))
+        _QuickAction(
+          title: 'مرتجع منتهي',
+          icon: Icons.event_busy_outlined,
+          color: const Color(0xFF9A3412),
+          onTap: () => Get.toNamed('/expired-return-form'),
+        ),
+      if (featureEnabled(AppFeature.returnablePackaging))
+        _QuickAction(
+          title: 'تسوية عبوات',
+          icon: Icons.liquor_outlined,
+          color: const Color(0xFF0F766E),
+          onTap: () => Get.toNamed('/packaging-settle'),
+        ),
+    ];
+
     return _SectionCard(
       title: 'إجراءات سريعة',
       icon: Icons.bolt_rounded,
@@ -797,32 +948,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
         childAspectRatio: 2.8,
-        children: [
-          _QuickAction(
-            title: 'فاتورة بيع',
-            icon: Icons.point_of_sale_rounded,
-            color: const Color(0xFF2563EB),
-            onTap: () => Get.toNamed('/invoice-form'),
-          ),
-          _QuickAction(
-            title: 'فاتورة شراء',
-            icon: Icons.shopping_cart_rounded,
-            color: const Color(0xFFF59E0B),
-            onTap: () => Get.toNamed('/invoice-form'),
-          ),
-          _QuickAction(
-            title: 'إضافة منتج',
-            icon: Icons.add_box_rounded,
-            color: const Color(0xFF16A34A),
-            onTap: () => Get.toNamed('/product-form'),
-          ),
-          _QuickAction(
-            title: 'إضافة طرف',
-            icon: Icons.person_add_rounded,
-            color: const Color(0xFF7C3AED),
-            onTap: () => Get.toNamed('/party-form'),
-          ),
-        ],
+        children: actions,
       ),
     );
   }
@@ -913,7 +1039,11 @@ class _MainDrawer extends StatelessWidget {
             ),
 
             Expanded(
-              child: ListView(
+              child: Obx(() {
+                if (Get.isRegistered<FeatureController>()) {
+                  Get.find<FeatureController>().settings.value;
+                }
+                return ListView(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 12,
@@ -927,6 +1057,20 @@ class _MainDrawer extends StatelessWidget {
                     title: 'لوحة التحكم',
                     onTap: () => Get.back(),
                   ),
+                  Obx(() {
+                    final count = Get.isRegistered<NotificationController>()
+                        ? Get.find<NotificationController>().unreadCount.value
+                        : 0;
+                    return _DrawerItem(
+                      icon: Icons.notifications_outlined,
+                      title: 'الإشعارات',
+                      badgeCount: count,
+                      onTap: () {
+                        Get.back();
+                        Get.toNamed('/notifications');
+                      },
+                    );
+                  }),
                   _DrawerItem(
                     icon: Icons.inventory_2_rounded,
                     title: 'المنتجات',
@@ -961,30 +1105,32 @@ class _MainDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  _DrawerItem(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'الديون والمدفوعات',
-                    onTap: () {
-                      Get.back();
-                      Get.to(
-                        () => const DebtsScreen(),
-                      );
-                    },
-                  ),
+                  if (featureEnabled(AppFeature.debts))
+                    _DrawerItem(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'الديون والمدفوعات',
+                      onTap: () {
+                        Get.back();
+                        Get.to(
+                          () => const DebtsScreen(),
+                        );
+                      },
+                    ),
 
                   const _DrawerSectionTitle(
                     title: 'المخزون',
                   ),
-                  _DrawerItem(
-                    icon: Icons.warehouse_rounded,
-                    title: 'المستودعات',
-                    onTap: () {
-                      Get.back();
-                      Get.to(
-                        () => const WarehouseListScreen(),
-                      );
-                    },
-                  ),
+                  if (featureEnabled(AppFeature.warehouses))
+                    _DrawerItem(
+                      icon: Icons.warehouse_rounded,
+                      title: 'المستودعات',
+                      onTap: () {
+                        Get.back();
+                        Get.to(
+                          () => const WarehouseListScreen(),
+                        );
+                      },
+                    ),
                   _DrawerItem(
                     icon: Icons.inventory_2_rounded,
                     title: 'المخزون العام',
@@ -995,20 +1141,40 @@ class _MainDrawer extends StatelessWidget {
                       );
                     },
                   ),
+                  if (featureEnabled(AppFeature.returnablePackaging))
+                    _DrawerItem(
+                      icon: Icons.liquor_outlined,
+                      title: 'العبوات القابلة للإرجاع',
+                      onTap: () {
+                        Get.back();
+                        Get.toNamed('/packaging');
+                      },
+                    ),
 
                   const _DrawerSectionTitle(
                     title: 'المالية والتقارير',
                   ),
-                  _DrawerItem(
-                    icon: Icons.money_off_rounded,
-                    title: 'المصاريف',
-                    onTap: () {
-                      Get.back();
-                      Get.to(
-                        () => const ExpenseListScreen(),
-                      );
-                    },
-                  ),
+                  if (featureEnabled(AppFeature.waste) ||
+                      featureEnabled(AppFeature.expiry))
+                    _DrawerItem(
+                      icon: Icons.delete_forever_outlined,
+                      title: 'إتلاف ومرتجع منتهي',
+                      onTap: () {
+                        Get.back();
+                        Get.to(() => const InventoryScreen(initialTab: 2));
+                      },
+                    ),
+                  if (featureEnabled(AppFeature.expenses))
+                    _DrawerItem(
+                      icon: Icons.money_off_rounded,
+                      title: 'المصاريف',
+                      onTap: () {
+                        Get.back();
+                        Get.to(
+                          () => const ExpenseListScreen(),
+                        );
+                      },
+                    ),
                   _DrawerItem(
                     icon: Icons.bar_chart_rounded,
                     title: 'التقارير',
@@ -1020,41 +1186,49 @@ class _MainDrawer extends StatelessWidget {
                     },
                   ),
                 ],
-              ),
+              );
+              }),
             ),
 
             const Divider(height: 1),
 
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.settings_outlined,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'الإعدادات',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  Get.back();
+                  Get.toNamed('/settings');
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.settings_outlined,
+                        color: Color(0xFF6B7280),
                       ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.chevron_left_rounded,
-                    color: Color(0xFF9CA3AF),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'الإعدادات',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_left_rounded,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -1503,11 +1677,13 @@ class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _DrawerItem({
     required this.icon,
     required this.title,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -1531,11 +1707,16 @@ class _DrawerItem extends StatelessWidget {
           color: Color(0xFF374151),
         ),
       ),
-      trailing: const Icon(
-        Icons.chevron_left_rounded,
-        size: 18,
-        color: Color(0xFF9CA3AF),
-      ),
+      trailing: badgeCount > 0
+          ? Badge(
+              backgroundColor: const Color(0xFFB91C1C),
+              label: Text(badgeCount > 99 ? '99+' : '$badgeCount'),
+            )
+          : const Icon(
+              Icons.chevron_left_rounded,
+              size: 18,
+              color: Color(0xFF9CA3AF),
+            ),
     );
   }
 }

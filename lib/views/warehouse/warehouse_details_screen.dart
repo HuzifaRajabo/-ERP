@@ -1,17 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/warehouse_detail_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
+import '../../core/services/app_event_bus.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../models/warehouse_model.dart';
 import '../../repositories/inventory_repository.dart';
+import '../../repositories/returnable_packaging_repository.dart';
+import '../../core/utils/packaging_quantity_format.dart';
+import '../../models/returnable_packaging_model.dart';
+import '../packaging/packaging_screens.dart';
 import 'transfer_screen.dart';
 import 'warehouse_form_screen.dart';
 
 class WarehouseDetailsScreen extends StatefulWidget {
   final WarehouseModel warehouse;
+  final int? focusProductId;
 
-  const WarehouseDetailsScreen({super.key, required this.warehouse});
+  const WarehouseDetailsScreen({
+    super.key,
+    required this.warehouse,
+    this.focusProductId,
+  });
 
   @override
   State<WarehouseDetailsScreen> createState() => _WarehouseDetailsScreenState();
@@ -19,6 +31,7 @@ class WarehouseDetailsScreen extends StatefulWidget {
 
 class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
   late final WarehouseDetailController controller;
+  bool _didOpenFocus = false;
 
   @override
   void initState() {
@@ -30,6 +43,33 @@ class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
         inventoryRepo: Get.find(),
       ),
     );
+    if (widget.focusProductId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openFocusedProduct();
+      });
+    }
+  }
+
+  Future<void> _openFocusedProduct() async {
+    if (_didOpenFocus || !mounted) return;
+    await controller.loadStock();
+    if (!mounted) return;
+    final productId = widget.focusProductId;
+    if (productId == null) return;
+    ProductStockSummary? summary;
+    for (final item in controller.stockSummaries) {
+      if (item.productId == productId) {
+        summary = item;
+        break;
+      }
+    }
+    _didOpenFocus = true;
+    if (summary == null) return;
+    openWarehouseProductBatches(
+      context,
+      controller: controller,
+      summary: summary,
+    );
   }
 
   @override
@@ -40,13 +80,25 @@ class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showTransfer = featureEnabled(AppFeature.multipleWarehouses);
+    final showWaste = featureEnabled(AppFeature.waste);
     return DefaultTabController(
-      length: 4,
+      length: showTransfer ? 4 : 3,
+      initialIndex: widget.focusProductId != null ? 1 : 0,
       child: Scaffold(
         appBar: AppBar(
           title: Obx(() => Text(controller.warehouse.value?.name ?? widget.warehouse.name)),
           centerTitle: true,
           actions: [
+            if (showWaste)
+              IconButton(
+                tooltip: 'إتلاف بضاعة',
+                icon: const Icon(Icons.delete_forever_outlined),
+                onPressed: () => Get.toNamed(
+                  '/waste-form',
+                  arguments: controller.warehouseId,
+                ),
+              ),
             IconButton(
               tooltip: 'تعديل',
               icon: const Icon(Icons.edit_outlined),
@@ -61,13 +113,13 @@ class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
               onPressed: controller.refreshAll,
             ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             isScrollable: true,
             tabs: [
-              Tab(text: 'نظرة عامة'),
-              Tab(text: 'المخزون'),
-              Tab(text: 'الحركات'),
-              Tab(text: 'تحويل'),
+              const Tab(text: 'نظرة عامة'),
+              const Tab(text: 'المخزون'),
+              const Tab(text: 'الحركات'),
+              if (showTransfer) const Tab(text: 'تحويل'),
             ],
           ),
         ),
@@ -76,7 +128,8 @@ class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
             _OverviewTab(controller: controller),
             _InventoryTab(controller: controller),
             _MovementsTab(controller: controller),
-            TransferTab(initialFromWarehouseId: widget.warehouse.id),
+            if (showTransfer)
+              TransferTab(initialFromWarehouseId: widget.warehouse.id),
           ],
         ),
       ),
@@ -147,6 +200,26 @@ class _OverviewTab extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            if (featureEnabled(AppFeature.waste)) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: () => Get.toNamed(
+                    '/waste-form',
+                    arguments: controller.warehouseId,
+                  ),
+                  icon: const Icon(Icons.delete_forever_outlined),
+                  label: const Text('إتلاف بضاعة'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFB91C1C),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            _WarehousePackagingStock(warehouseId: controller.warehouseId),
           ],
         ),
       );
@@ -276,23 +349,31 @@ class _InventoryTab extends StatelessWidget {
             final s = controller.stockSummaries[index];
             return _ProductStockTile(
               summary: s,
-              onTap: () => _showBatches(context, s),
+              onTap: () => openWarehouseProductBatches(
+                context,
+                controller: controller,
+                summary: s,
+              ),
             );
           },
         ),
       );
     });
   }
+}
 
-  void _showBatches(BuildContext context, ProductStockSummary sum) {
-    controller.loadProductBatches(sum.productId);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _BatchesSheet(controller: controller, summary: sum),
-    );
-  }
+void openWarehouseProductBatches(
+  BuildContext context, {
+  required WarehouseDetailController controller,
+  required ProductStockSummary summary,
+}) {
+  controller.loadProductBatches(summary.productId);
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _BatchesSheet(controller: controller, summary: summary),
+  );
 }
 
 class _BatchesSheet extends StatelessWidget {
@@ -602,13 +683,7 @@ class _Filters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final types = InventoryTransactionType.values
-        .where((t) => t == InventoryTransactionType.purchase ||
-            t == InventoryTransactionType.sale ||
-            t == InventoryTransactionType.saleReturn ||
-            t == InventoryTransactionType.purchaseReturn ||
-            t.isTransfer)
-        .toList();
+    final types = InventoryTransactionType.values.toList();
 
     return Obx(() => SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -758,6 +833,8 @@ class _MovementTile extends StatelessWidget {
         InventoryTransactionType.purchaseReturn => const Color(0xFF0891B2),
         InventoryTransactionType.transferOut => const Color(0xFFDC2626),
         InventoryTransactionType.transferIn => const Color(0xFF16A34A),
+        InventoryTransactionType.waste => const Color(0xFFB91C1C),
+        InventoryTransactionType.expiredReturn => const Color(0xFF9A3412),
       };
 
   IconData _iconFor(InventoryTransactionType t) => switch (t) {
@@ -767,6 +844,8 @@ class _MovementTile extends StatelessWidget {
         InventoryTransactionType.purchaseReturn => Icons.redo_rounded,
         InventoryTransactionType.transferOut => Icons.arrow_forward_rounded,
         InventoryTransactionType.transferIn => Icons.arrow_back_rounded,
+        InventoryTransactionType.waste => Icons.delete_forever_outlined,
+        InventoryTransactionType.expiredReturn => Icons.event_busy_outlined,
       };
 }
 
@@ -789,3 +868,102 @@ Widget _empty(String msg, IconData icon) {
 
 String _fmt(double qty) =>
     qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);
+
+class _WarehousePackagingStock extends StatefulWidget {
+  const _WarehousePackagingStock({required this.warehouseId});
+  final int warehouseId;
+
+  @override
+  State<_WarehousePackagingStock> createState() =>
+      _WarehousePackagingStockState();
+}
+
+class _WarehousePackagingStockState extends State<_WarehousePackagingStock> {
+  List<PackagingWarehouseStock> _rows = [];
+  Worker? _packagingWorker;
+  Worker? _inventoryWorker;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _packagingWorker = AppEventBus.instance.listenToPackaging(_load);
+    _inventoryWorker = AppEventBus.instance.listenToInventory(_load);
+  }
+
+  @override
+  void dispose() {
+    _packagingWorker?.dispose();
+    _inventoryWorker?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
+    final rows = await Get.find<ReturnablePackagingRepository>()
+        .getWarehouseStock(warehouseId: widget.warehouseId);
+    if (!mounted) return;
+    setState(() => _rows = rows);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_rows.isEmpty) return const SizedBox.shrink();
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'مخزون العبوات',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 8),
+            for (final row in _rows)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(row.typeName)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'فارغ: ${PackagingQuantityFormat.formatQuantity(row.empty)}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          'ممتلئ: ${PackagingQuantityFormat.formatQuantity(row.fullInStock)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      tooltip: 'تسوية مخزون',
+                      icon: const Icon(Icons.assignment_turned_in_outlined),
+                      onPressed: () => Get.to(
+                        () => PackagingSettlementScreen(
+                          typeId: row.typeId,
+                          warehouseId: widget.warehouseId,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

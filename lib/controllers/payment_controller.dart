@@ -79,8 +79,11 @@ class PaymentController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // عند أي تغيير في الفواتير أعد تحميل الديون
+    // عند أي تغيير في الفواتير أو العبوات أعد تحميل الديون
     AppEventBus.instance.listenToInvoices(() {
+      loadDebts();
+    });
+    AppEventBus.instance.listenToPackaging(() {
       loadDebts();
     });
     loadDebts();
@@ -206,14 +209,15 @@ class PaymentController extends GetxController {
     isLoadingDistribution.value = true;
 
     try {
-      // جلب الفواتير غير المسددة مع التوزيع التلقائي المقترح
+      // جلب الفواتير غير المسددة ومطالبات تعويض العبوات مع التوزيع التلقائي
       final invoices = await repo.getUnpaidInvoicesForParty(
         partyId: partyId,
         availableAmount: amount,
+        includePackagingCompensation: type == PaymentType.inbound,
       );
 
       if (invoices.isEmpty) {
-        formError.value = 'لا توجد فواتير مستحقة لهذا الطرف';
+        formError.value = 'لا توجد مستحقات لهذا الطرف';
         isLoadingDistribution.value = false;
         return;
       }
@@ -257,17 +261,10 @@ class PaymentController extends GetxController {
           ? invoice.remaining
           : remaining;
 
-      distributionList[i] = InvoicePaymentInfo(
-        invoiceId: invoice.invoiceId,
-        invoiceNumber: invoice.invoiceNumber,
-        totalAmount: invoice.totalAmount,
-        paidAmount: invoice.paidAmount,
-        remaining: invoice.remaining,
-        suggestedPayment: suggested,
-      );
+      distributionList[i] = invoice.copyWith(suggestedPayment: suggested);
 
       remaining -= suggested;
-      if (remaining <= 0) break;
+      if (remaining < 0) remaining = 0;
     }
 
     distributionList.refresh();
@@ -282,10 +279,10 @@ class PaymentController extends GetxController {
 
     final invoice = distributionList[index];
 
-    // التحقق: لا يتجاوز المتبقي على الفاتورة
+    // التحقق: لا يتجاوز المتبقي على البند
     if (amount > invoice.remaining) {
       formError.value =
-      'المبلغ يتجاوز المتبقي على الفاتورة ${invoice.invoiceNumber} '
+      'المبلغ يتجاوز المتبقي على ${invoice.invoiceNumber} '
           '(${invoice.remaining})';
       return;
     }
@@ -300,14 +297,7 @@ class PaymentController extends GetxController {
     }
 
     formError.value = null;
-    distributionList[index] = InvoicePaymentInfo(
-      invoiceId: invoice.invoiceId,
-      invoiceNumber: invoice.invoiceNumber,
-      totalAmount: invoice.totalAmount,
-      paidAmount: invoice.paidAmount,
-      remaining: invoice.remaining,
-      suggestedPayment: amount,
-    );
+    distributionList[index] = invoice.copyWith(suggestedPayment: amount);
     distributionList.refresh();
   }
 
@@ -323,22 +313,23 @@ class PaymentController extends GetxController {
     formError.value = null;
 
     if (distributionList.isEmpty) {
-      formError.value = 'لا توجد فواتير للتوزيع';
+      formError.value = 'لا توجد مستحقات للتوزيع';
       return false;
     }
 
-    // تصفية الفواتير التي لها مبلغ > 0 فقط
+    // تصفية البنود التي لها مبلغ > 0 فقط
     final activeItems = distributionList
         .where((i) => i.suggestedPayment > 0)
         .map((i) => PaymentDistributionItem(
       invoiceId: i.invoiceId,
+      packagingChargeId: i.packagingChargeId,
       invoiceNumber: i.invoiceNumber,
       amount: i.suggestedPayment,
     ))
         .toList();
 
     if (activeItems.isEmpty) {
-      formError.value = 'يجب توزيع مبلغ على فاتورة واحدة على الأقل';
+      formError.value = 'يجب توزيع مبلغ على بند واحد على الأقل';
       return false;
     }
 
@@ -359,6 +350,9 @@ class PaymentController extends GetxController {
       ));
 
       AppEventBus.instance.notifyInvoiceChanged();
+      if (activeItems.any((item) => item.packagingChargeId != null)) {
+        AppEventBus.instance.notifyPackagingChanged();
+      }
 
       isSaving.value = false;
       return true;

@@ -16,12 +16,14 @@ class AppEventBus {
   final _invoiceChanged = false.obs;
   final _inventoryChanged = false.obs;
   final _expenseChanged = false.obs;
+  final _packagingChanged = false.obs;
 
   void notifyProductChanged() => _productChanged.toggle();
   void notifyPartyChanged() => _partyChanged.toggle();
   void notifyInvoiceChanged() => _invoiceChanged.toggle();
   void notifyInventoryChanged() => _inventoryChanged.toggle();
   void notifyExpenseChanged() => _expenseChanged.toggle();
+  void notifyPackagingChanged() => _packagingChanged.toggle();
 
   // ← تُرجع Worker حتى يمكن التخلص منها في dispose()
   Worker listenToProducts(VoidCallback callback) =>
@@ -38,4 +40,7 @@ class AppEventBus {
 
   Worker listenToExpenses(VoidCallback callback) =>
       ever(_expenseChanged, (_) => callback());
+
+  Worker listenToPackaging(VoidCallback callback) =>
+      ever(_packagingChanged, (_) => callback());
 }

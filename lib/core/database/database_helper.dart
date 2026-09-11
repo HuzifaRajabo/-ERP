@@ -9,7 +9,7 @@ class DatabaseHelper {
 
   /// رقم مخطط SQLite. زيادته تشغّل [_onUpgrade] على القواعد القديمة
   /// دون حذف بيانات المستخدم عند تثبيت APK فوق نسخة سابقة.
-  static const int databaseVersion = 10;
+  static const int databaseVersion = 15;
 
   static Database? _database;
 
@@ -34,6 +34,11 @@ class DatabaseHelper {
   @visibleForTesting
   static Future<void> ensureCurrentSchemaForTesting(Database db) {
     return instance._ensureCurrentSchema(db);
+  }
+
+  @visibleForTesting
+  static Future<void> createDatabaseForTesting(Database db, int version) {
+    return instance._onCreate(db, version);
   }
 
   Future<Database> get database async {
@@ -112,10 +117,26 @@ class DatabaseHelper {
     await _ensureMissingColumns(db);
     await _rebuildProductUnitsIfLegacy(db);
     await _rebuildInventoryTransactionsIfLegacy(db);
+    // إعادة البناء قد تعيد إنشاء الجدول بدون أعمدة أحدث؛ نضيفها مجدداً.
+    await _ensureMissingColumns(db);
     await _ensurePresetCategories(db);
     await _ensureDefaultWarehouse(db);
     await _ensureProductBaseUnits(db);
     await _ensureIndexes(db);
+    await _cleanupExpiredReturnLedgerEntries(db);
+    await _ensureBusinessSettingsDefaults(db);
+    await _ensureCompanyProfileRow(db);
+  }
+
+  /// تعويض المرتجع المنتهي يُسجَّل على المستند نفسه ويؤثر في الربح فقط،
+  /// وليس ذمة ولا حركة في دفتر الفواتير/الدفعات.
+  Future<void> _cleanupExpiredReturnLedgerEntries(Database db) async {
+    if (!await _tableExists(db, 'financial_transactions')) return;
+    await db.delete(
+      'financial_transactions',
+      where: "type = 'ADJUSTMENT' AND notes LIKE ?",
+      whereArgs: ['تعويض مرتجع منتهي الصلاحية%'],
+    );
   }
 
   Future<void> _ensureMissingTables(Database db) async {
@@ -261,6 +282,272 @@ class DatabaseHelper {
         FOREIGN KEY (party_id) REFERENCES parties(id)
       )
     ''');
+    await _ensureWasteAndExpiredReturnTables(db);
+    await _ensureReturnablePackagingTables(db);
+    await _ensureNotificationTables(db);
+    await _ensureCompanyProfileTable(db);
+  }
+
+  Future<void> _ensureCompanyProfileTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS company_profile (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT '',
+        trade_name TEXT,
+        address TEXT,
+        service_area TEXT,
+        phone TEXT,
+        description TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT
+      )
+    ''');
+  }
+
+  /// سجل واحد فقط. إن لم يوجد يُدرج صف فارغ ليكون الحفظ دائماً UPDATE.
+  Future<void> _ensureCompanyProfileRow(Database db) async {
+    if (!await _tableExists(db, 'company_profile')) {
+      await _ensureCompanyProfileTable(db);
+    }
+    final existing = await db.query('company_profile', limit: 1);
+    if (existing.isNotEmpty) return;
+    await db.insert('company_profile', {'name': ''});
+  }
+
+  Future<void> _ensureNotificationTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        priority TEXT NOT NULL DEFAULT 'MEDIUM'
+          CHECK(priority IN ('LOW','MEDIUM','HIGH','CRITICAL')),
+        status TEXT NOT NULL DEFAULT 'ACTIVE'
+          CHECK(status IN ('ACTIVE','RESOLVED')),
+        is_read INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        read_at TEXT,
+        resolved_at TEXT,
+        entity_type TEXT,
+        entity_id INTEGER,
+        product_id INTEGER,
+        batch_id INTEGER,
+        warehouse_id INTEGER,
+        metadata TEXT
+      )
+    ''');
+    await db.execute('''
+      INSERT OR IGNORE INTO app_settings (key, value)
+      VALUES ('expiry_warning_days', '30')
+    ''');
+    await db.execute('''
+      INSERT OR IGNORE INTO app_settings (key, value)
+      VALUES ('expiry_alerts_enabled', '1')
+    ''');
+  }
+
+  Future<void> _ensureBusinessSettingsDefaults(Database db) async {
+    if (!await _tableExists(db, 'app_settings')) return;
+    const seeds = <(String, String)>[
+      ('business_activity', 'food_distributor'),
+      ('feature.product_units', '1'),
+      ('feature.warehouses', '1'),
+      ('feature.multiple_warehouses', '1'),
+      ('feature.vehicles', '1'),
+      ('feature.batches', '1'),
+      ('feature.expiry', '1'),
+      ('feature.returnable_packaging', '1'),
+      ('feature.wholesale', '1'),
+      ('feature.retail', '0'),
+      ('feature.debts', '1'),
+      ('feature.expenses', '1'),
+      ('feature.waste', '1'),
+      ('notify.low_stock', '1'),
+      ('notify.out_of_stock', '1'),
+      ('notify.debt_due', '1'),
+      ('notify.debt_overdue', '1'),
+      ('notify.debt_due_days', '7'),
+      ('notify.debt_overdue_days', '30'),
+      ('notify.packaging_unsettled', '1'),
+      ('notify.packaging_overdue', '1'),
+      ('notify.packaging_overdue_days', '30'),
+    ];
+    for (final seed in seeds) {
+      await db.execute(
+        'INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)',
+        [seed.$1, seed.$2],
+      );
+    }
+  }
+
+  Future<void> _ensureWasteAndExpiredReturnTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS waste_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        waste_number TEXT UNIQUE NOT NULL,
+        warehouse_id INTEGER NOT NULL,
+        total_cost INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS waste_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        waste_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        batch_id INTEGER NOT NULL,
+        unit_id INTEGER,
+        product_name_snapshot TEXT NOT NULL,
+        unit_name_snapshot TEXT,
+        batch_number_snapshot TEXT,
+        expiry_date_snapshot TEXT,
+        quantity REAL NOT NULL,
+        conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
+        base_quantity REAL NOT NULL,
+        unit_cost INTEGER NOT NULL,
+        line_cost INTEGER NOT NULL,
+        FOREIGN KEY (waste_id) REFERENCES waste_records(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id),
+        FOREIGN KEY (batch_id) REFERENCES batches(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS expired_returns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        return_number TEXT UNIQUE NOT NULL,
+        party_id INTEGER NOT NULL,
+        party_name_snapshot TEXT NOT NULL,
+        warehouse_id INTEGER NOT NULL,
+        inventory_cost INTEGER NOT NULL DEFAULT 0,
+        compensation_amount INTEGER NOT NULL DEFAULT 0,
+        paid_amount INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (party_id) REFERENCES parties(id),
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS expired_return_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expired_return_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        batch_id INTEGER NOT NULL,
+        unit_id INTEGER,
+        product_name_snapshot TEXT NOT NULL,
+        unit_name_snapshot TEXT,
+        batch_number_snapshot TEXT,
+        expiry_date_snapshot TEXT,
+        quantity REAL NOT NULL,
+        conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
+        base_quantity REAL NOT NULL,
+        unit_cost INTEGER NOT NULL,
+        line_cost INTEGER NOT NULL,
+        FOREIGN KEY (expired_return_id) REFERENCES expired_returns(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id),
+        FOREIGN KEY (batch_id) REFERENCES batches(id)
+      )
+    ''');
+  }
+
+  Future<void> _ensureReturnablePackagingTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        value INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_units (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type_id INTEGER NOT NULL,
+        unit_name TEXT NOT NULL,
+        conversion_factor REAL NOT NULL DEFAULT 1,
+        is_base_unit INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (type_id) REFERENCES returnable_packaging_types(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_product_mappings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL UNIQUE,
+        type_id INTEGER NOT NULL,
+        units_per_product_base REAL NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (type_id) REFERENCES returnable_packaging_types(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_settlements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        settlement_number TEXT UNIQUE NOT NULL,
+        party_id INTEGER NOT NULL,
+        type_id INTEGER NOT NULL,
+        warehouse_id INTEGER NOT NULL,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (party_id) REFERENCES parties(id),
+        FOREIGN KEY (type_id) REFERENCES returnable_packaging_types(id),
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_charges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        type_id INTEGER NOT NULL,
+        transaction_id INTEGER,
+        settlement_id INTEGER,
+        amount INTEGER NOT NULL,
+        paid_amount INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (party_id) REFERENCES parties(id),
+        FOREIGN KEY (type_id) REFERENCES returnable_packaging_types(id),
+        FOREIGN KEY (settlement_id) REFERENCES returnable_packaging_settlements(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS returnable_packaging_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type_id INTEGER NOT NULL,
+        party_id INTEGER,
+        warehouse_id INTEGER,
+        movement_type TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        invoice_id INTEGER,
+        return_id INTEGER,
+        settlement_id INTEGER,
+        charge_id INTEGER,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (type_id) REFERENCES returnable_packaging_types(id),
+        FOREIGN KEY (party_id) REFERENCES parties(id),
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+        FOREIGN KEY (return_id) REFERENCES returns(id),
+        FOREIGN KEY (settlement_id) REFERENCES returnable_packaging_settlements(id),
+        FOREIGN KEY (charge_id) REFERENCES returnable_packaging_charges(id)
+      )
+    ''');
   }
 
   Future<void> _ensureMissingColumns(Database db) async {
@@ -285,6 +572,21 @@ class DatabaseHelper {
         table: 'products',
         column: 'is_active',
         definition: 'INTEGER NOT NULL DEFAULT 1',
+      ),
+      (
+        table: 'products',
+        column: 'barcode',
+        definition: 'TEXT',
+      ),
+      (
+        table: 'products',
+        column: 'min_stock',
+        definition: 'REAL',
+      ),
+      (
+        table: 'invoices',
+        column: 'sales_channel',
+        definition: 'TEXT',
       ),
       (
         table: 'invoices',
@@ -367,6 +669,11 @@ class DatabaseHelper {
         definition: 'INTEGER',
       ),
       (
+        table: 'payments',
+        column: 'packaging_charge_id',
+        definition: 'INTEGER',
+      ),
+      (
         table: 'return_items',
         column: 'batch_id',
         definition: 'INTEGER',
@@ -400,6 +707,21 @@ class DatabaseHelper {
         table: 'batches',
         column: 'production_date',
         definition: 'TEXT',
+      ),
+      (
+        table: 'invoices',
+        column: 'discount_amount',
+        definition: 'INTEGER NOT NULL DEFAULT 0',
+      ),
+      (
+        table: 'inventory_transactions',
+        column: 'waste_id',
+        definition: 'INTEGER',
+      ),
+      (
+        table: 'inventory_transactions',
+        column: 'expired_return_id',
+        definition: 'INTEGER',
       ),
     ]) {
       await _addColumnIfMissing(
@@ -521,6 +843,8 @@ class DatabaseHelper {
         batch_id INTEGER,
         unit_id INTEGER,
         transfer_id INTEGER,
+        waste_id INTEGER,
+        expired_return_id INTEGER,
         notes TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         FOREIGN KEY (product_id) REFERENCES products(id),
@@ -537,12 +861,14 @@ class DatabaseHelper {
     await db.execute('''
       INSERT INTO inventory_transactions (
         id, product_id, type, quantity, invoice_id, return_id,
-        warehouse_id, batch_id, unit_id, transfer_id, notes, created_at
+        warehouse_id, batch_id, unit_id, transfer_id, waste_id,
+        expired_return_id, notes, created_at
       )
       SELECT
         id, product_id, type, quantity, invoice_id, ${colOrNull('return_id')},
         ${colOrNull('warehouse_id')}, ${colOrNull('batch_id')},
         ${colOrNull('unit_id')}, ${colOrNull('transfer_id')},
+        ${colOrNull('waste_id')}, ${colOrNull('expired_return_id')},
         ${colOrNull('notes')}, created_at
       FROM inventory_transactions_old
     ''');
@@ -673,6 +999,31 @@ class DatabaseHelper {
       'CREATE INDEX IF NOT EXISTS idx_inv_batch ON inventory_transactions(batch_id)',
       'CREATE INDEX IF NOT EXISTS idx_inv_transfer ON inventory_transactions(transfer_id)',
       'CREATE INDEX IF NOT EXISTS idx_invoices_warehouse ON invoices(warehouse_id)',
+      'CREATE INDEX IF NOT EXISTS idx_waste_warehouse ON waste_records(warehouse_id)',
+      'CREATE INDEX IF NOT EXISTS idx_waste_date ON waste_records(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_waste_items_waste ON waste_items(waste_id)',
+      'CREATE INDEX IF NOT EXISTS idx_expired_returns_party ON expired_returns(party_id)',
+      'CREATE INDEX IF NOT EXISTS idx_expired_returns_date ON expired_returns(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_expired_return_items ON expired_return_items(expired_return_id)',
+      'CREATE INDEX IF NOT EXISTS idx_inv_waste ON inventory_transactions(waste_id)',
+      'CREATE INDEX IF NOT EXISTS idx_inv_expired_return ON inventory_transactions(expired_return_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_units_type ON returnable_packaging_units(type_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_map_product ON returnable_packaging_product_mappings(product_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_map_type ON returnable_packaging_product_mappings(type_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_type ON returnable_packaging_transactions(type_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_party ON returnable_packaging_transactions(party_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_wh ON returnable_packaging_transactions(warehouse_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_move ON returnable_packaging_transactions(movement_type)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_invoice ON returnable_packaging_transactions(invoice_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_txn_date ON returnable_packaging_transactions(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_settle_party ON returnable_packaging_settlements(party_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pkg_charges_party ON returnable_packaging_charges(party_id)',
+      'CREATE INDEX IF NOT EXISTS idx_inv_batch_warehouse ON inventory_transactions(batch_id, warehouse_id)',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read)',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_batch ON notifications(batch_id)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_active_key ON notifications(type, batch_id, warehouse_id) WHERE status = \'ACTIVE\' AND batch_id IS NOT NULL AND warehouse_id IS NOT NULL',
     ];
     for (final sql in indexes) {
       try {
@@ -802,7 +1153,8 @@ class DatabaseHelper {
     party_name_snapshot TEXT NOT NULL,
     party_address_snapshot TEXT NOT NULL,
     total_amount INTEGER NOT NULL DEFAULT 0,
-    original_total_amount INTEGER NOT NULL DEFAULT 0, -- ← لا يتغير أبداً
+    original_total_amount INTEGER NOT NULL DEFAULT 0, -- إجمالي البنود قبل الحسم
+    discount_amount INTEGER NOT NULL DEFAULT 0,
     paid_amount INTEGER NOT NULL DEFAULT 0,
     payment_status TEXT CHECK(payment_status IN ('UNPAID','PARTIAL','PAID'))
       NOT NULL DEFAULT 'UNPAID',
@@ -835,7 +1187,7 @@ class DatabaseHelper {
 
     // ← CHECK محذوف لأن SQLite لا يدعم تعديله لاحقاً
     // القيم المقبولة: SALE, PURCHASE, SALE_RETURN, PURCHASE_RETURN,
-    //                 TRANSFER_OUT, TRANSFER_IN
+    //                 TRANSFER_OUT, TRANSFER_IN, WASTE, EXPIRED_RETURN
     // يتم التحكم فيها من الكود
     await db.execute('''
     CREATE TABLE inventory_transactions (
@@ -849,6 +1201,8 @@ class DatabaseHelper {
       batch_id INTEGER,
       unit_id INTEGER,
       transfer_id INTEGER,
+      waste_id INTEGER,
+      expired_return_id INTEGER,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (product_id) REFERENCES products(id),
@@ -923,6 +1277,81 @@ class DatabaseHelper {
         'ELECTRICITY','INTERNET','MAINTENANCE','OTHER'
       )) NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE waste_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      waste_number TEXT UNIQUE NOT NULL,
+      warehouse_id INTEGER NOT NULL,
+      total_cost INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE waste_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      waste_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      batch_id INTEGER NOT NULL,
+      unit_id INTEGER,
+      product_name_snapshot TEXT NOT NULL,
+      unit_name_snapshot TEXT,
+      batch_number_snapshot TEXT,
+      expiry_date_snapshot TEXT,
+      quantity REAL NOT NULL,
+      conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
+      base_quantity REAL NOT NULL,
+      unit_cost INTEGER NOT NULL,
+      line_cost INTEGER NOT NULL,
+      FOREIGN KEY (waste_id) REFERENCES waste_records(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE expired_returns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      return_number TEXT UNIQUE NOT NULL,
+      party_id INTEGER NOT NULL,
+      party_name_snapshot TEXT NOT NULL,
+      warehouse_id INTEGER NOT NULL,
+      inventory_cost INTEGER NOT NULL DEFAULT 0,
+      compensation_amount INTEGER NOT NULL DEFAULT 0,
+      paid_amount INTEGER NOT NULL DEFAULT 0,
+      reason TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (party_id) REFERENCES parties(id),
+      FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+    )
+  ''');
+
+    await db.execute('''
+    CREATE TABLE expired_return_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expired_return_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      batch_id INTEGER NOT NULL,
+      unit_id INTEGER,
+      product_name_snapshot TEXT NOT NULL,
+      unit_name_snapshot TEXT,
+      batch_number_snapshot TEXT,
+      expiry_date_snapshot TEXT,
+      quantity REAL NOT NULL,
+      conversion_factor_snapshot REAL NOT NULL DEFAULT 1,
+      base_quantity REAL NOT NULL,
+      unit_cost INTEGER NOT NULL,
+      line_cost INTEGER NOT NULL,
+      FOREIGN KEY (expired_return_id) REFERENCES expired_returns(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (batch_id) REFERENCES batches(id)
     )
   ''');
 
@@ -1027,6 +1456,9 @@ class DatabaseHelper {
       'is_default': 1,
       'is_active': 1,
     });
+
+    await _ensureCompanyProfileTable(db);
+    await _ensureCompanyProfileRow(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -1297,6 +1729,26 @@ class DatabaseHelper {
       } catch (_) {
         // العمود موجود مسبقاً — لا شيء يُفعل
       }
+    }
+
+    if (oldVersion < 11) {
+      // v11: حسم الفاتورة + إتلاف المخزون + مرتجع منتهي الصلاحية
+      // الجداول والأعمدة تُضاف عبر _ensureCurrentSchema في بداية onUpgrade.
+    }
+
+    if (oldVersion < 13) {
+      // v13: إشعارات محلية + إعدادات بسيطة (صلاحية الدفعات)
+      // الجداول والفهارس تُضاف عبر _ensureCurrentSchema.
+    }
+
+    if (oldVersion < 14) {
+      // v14: نشاط المنشأة + إعداد الميزات + أعمدة اختيارية
+      // المفاتيح والأعمدة تُضاف عبر _ensureCurrentSchema.
+    }
+
+    if (oldVersion < 15) {
+      // v15: معلومات المنشأة (سجل واحد في company_profile)
+      // الجدول والصف الافتراضي يُضافان عبر _ensureCurrentSchema.
     }
   }
 

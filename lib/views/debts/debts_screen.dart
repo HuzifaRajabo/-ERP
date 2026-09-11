@@ -5,6 +5,7 @@ import '../../controllers/payment_controller.dart';
 import '../../models/payment_model.dart';
 import '../../repositories/payment_repository.dart';
 import '../../views/shared/shared_components.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 
 class DebtsScreen extends GetView<PaymentController> {
@@ -229,12 +230,21 @@ class _DebtCard extends GetView<PaymentController> {
                           color: Colors.grey[500],
                         ),
                       ),
-                    Text(
-                      '${debt.invoiceCount} فاتورة غير مسددة',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.grey[400],
+                    if (debt.invoiceCount > 0)
+                      Text(
+                        '${debt.invoiceCount} فاتورة غير مسددة',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.grey[400],
+                        ),
                       ),
-                    ),
+                    if (debt.packagingCompensationRemaining > 0) ...[
+                      const SizedBox(height: 4),
+                      AppStatusBadge(
+                        label:
+                            'تعويض عبوات ${MoneyUtils.formatMoney(debt.packagingCompensationRemaining)}',
+                        color: AppColors.warning,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -693,7 +703,7 @@ class _GeneralPaymentSheetState
                             ),
                           ),
                           child: const Text(
-                            'لا توجد فواتير مستحقة لتوزيع الدفعة عليها.',
+                            'لا توجد مستحقات لتوزيع الدفعة عليها.',
                             textAlign:
                             TextAlign.center,
                           ),

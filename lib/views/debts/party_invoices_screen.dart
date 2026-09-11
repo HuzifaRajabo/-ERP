@@ -3,11 +3,15 @@ import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../core/services/app_event_bus.dart';
+import '../../core/theme/app_colors.dart';
 import '../../models/invoice_model.dart';
 import '../../models/payment_model.dart';
+import '../../models/returnable_packaging_model.dart';
+import '../../repositories/returnable_packaging_repository.dart';
 import '../shared/shared_components.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../debts/payment_bottom_sheet.dart';
+import '../shared/app_ui.dart';
 
 class PartyInvoicesScreen extends StatefulWidget {
   const PartyInvoicesScreen({super.key});
@@ -23,7 +27,9 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
   late final InvoiceController invoiceController;
 
   final RxList<InvoiceModel> partyInvoices = <InvoiceModel>[].obs;
+  final RxList<PackagingCharge> packagingCharges = <PackagingCharge>[].obs;
   final RxBool isLoading = true.obs;
+  final _workers = <Worker>[];
 
   @override
   void initState() {
@@ -38,8 +44,16 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
 
     _loadPartyInvoices();
 
-    // تحديث عند أي تغيير في الفواتير
-    AppEventBus.instance.listenToInvoices(_loadPartyInvoices);
+    _workers.add(AppEventBus.instance.listenToInvoices(_loadPartyInvoices));
+    _workers.add(AppEventBus.instance.listenToPackaging(_loadPartyInvoices));
+  }
+
+  @override
+  void dispose() {
+    for (final worker in _workers) {
+      worker.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _loadPartyInvoices() async {
@@ -49,12 +63,19 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
         partyId: partyId,
         pageSize: 1000,
       );
-      // ← استثناء المدفوعة كاملاً
       partyInvoices.assignAll(
         page.invoices
             .where((i) => i.paymentStatus != PaymentStatus.paid)
             .toList(),
       );
+      if (paymentType == PaymentType.inbound &&
+          Get.isRegistered<ReturnablePackagingRepository>()) {
+        final charges = await Get.find<ReturnablePackagingRepository>()
+            .getCharges(partyId: partyId, unpaidOnly: true);
+        packagingCharges.assignAll(charges);
+      } else {
+        packagingCharges.clear();
+      }
     } catch (e) {
       Get.snackbar('خطأ', e.toString());
     } finally {
@@ -80,7 +101,7 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (partyInvoices.isEmpty) {
+        if (partyInvoices.isEmpty && packagingCharges.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -92,7 +113,7 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'لا توجد فواتير لهذا الطرف',
+                  'لا توجد مستحقات لهذا الطرف',
                   style: TextStyle(color: Colors.grey[600], fontSize: 16),
                 ),
               ],
@@ -100,27 +121,27 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
           );
         }
 
-        // ==============================
-        // ملخص الديون في الأعلى
-        // ==============================
         final unpaidInvoices = partyInvoices
             .where((i) => i.paymentStatus != PaymentStatus.paid)
             .toList();
-        final totalRemaining = unpaidInvoices.fold(
+        final invoiceRemaining = unpaidInvoices.fold<int>(
           0,
           (sum, i) => sum + i.remaining,
         );
-        final totalAmount = partyInvoices.fold(
+        final packagingRemaining = packagingCharges.fold<int>(
           0,
-          (sum, i) => sum + i.totalAmount,
+          (sum, c) => sum + c.remaining,
         );
-        final totalPaid = partyInvoices.fold(0, (sum, i) => sum + i.paidAmount);
+        final totalRemaining = invoiceRemaining + packagingRemaining;
+        final totalAmount =
+            partyInvoices.fold<int>(0, (sum, i) => sum + i.totalAmount) +
+            packagingCharges.fold<int>(0, (sum, c) => sum + c.amount);
+        final totalPaid =
+            partyInvoices.fold<int>(0, (sum, i) => sum + i.paidAmount) +
+            packagingCharges.fold<int>(0, (sum, c) => sum + c.paidAmount);
 
         return Column(
           children: [
-            // ==============================
-            // بطاقة الملخص
-            // ==============================
             Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(16),
@@ -140,7 +161,7 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _SummaryCol(
-                        label: 'إجمالي الفواتير',
+                        label: 'الإجمالي',
                         value: MoneyUtils.formatMoney(totalAmount),
                         color: Colors.white,
                       ),
@@ -180,14 +201,23 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
                 ],
               ),
             ),
-
-            // ==============================
-            // قائمة الفواتير
-            // ==============================
             Expanded(
-              child: _InvoicesList(
-                invoices: partyInvoices,
-                paymentType: paymentType,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                itemCount: partyInvoices.length + packagingCharges.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  if (index < partyInvoices.length) {
+                    return _PartyInvoiceCard(
+                      invoice: partyInvoices[index],
+                      paymentType: paymentType,
+                    );
+                  }
+                  return _PackagingChargeCard(
+                    charge: packagingCharges[index - partyInvoices.length],
+                    onPaid: _loadPartyInvoices,
+                  );
+                },
               ),
             ),
           ],
@@ -240,45 +270,280 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
 // }
 
 // ==============================
-// قائمة الفواتير
+// بطاقة تعويض العبوات
 // ==============================
 
-class _InvoicesList extends StatelessWidget {
-  final RxList<InvoiceModel> invoices;
-  final PaymentType paymentType;
+class _PackagingChargeCard extends StatelessWidget {
+  final PackagingCharge charge;
+  final VoidCallback onPaid;
 
-  // نحتاج reference للـ selected من _StatusFilter
-  // نستخدم حل بسيط بـ Rx مشترك
-  final Rx<PaymentStatus?> _selected = Rxn<PaymentStatus?>();
-
-  _InvoicesList({required this.invoices, required this.paymentType});
+  const _PackagingChargeCard({required this.charge, required this.onPaid});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final filtered = _selected.value == null
-          ? invoices
-          : invoices.where((i) => i.paymentStatus == _selected.value).toList();
+    final isPartial = charge.paidAmount > 0 && charge.remaining > 0;
+    final statusColor = isPartial ? Colors.orange : Colors.red;
+    final statusLabel = isPartial ? 'مدفوع جزئياً' : 'غير مدفوع';
 
-      if (filtered.isEmpty) {
-        return Center(
-          child: Text(
-            'لا توجد فواتير بهذه الحالة',
-            style: TextStyle(color: Colors.grey[500]),
+    return AppCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      charge.displayNumber,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    if (charge.typeName != null || charge.createdAt != null)
+                      Text(
+                        [
+                          if (charge.typeName != null) charge.typeName!,
+                          if (charge.createdAt != null) charge.createdAt!,
+                        ].join(' • '),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[400],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const AppStatusBadge(
+                    label: 'تعويض عبوات',
+                    color: AppColors.warning,
+                    icon: null,
+                  ),
+                  const SizedBox(height: 4),
+                  AppStatusBadge(
+                    label: statusLabel,
+                    color: statusColor,
+                    icon: null,
+                  ),
+                ],
+              ),
+            ],
           ),
-        );
-      }
+          SizedBox(height: AppSpacing.sm),
+          const Divider(height: 1),
+          SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _AmountItem(
+                label: 'الإجمالي',
+                value: MoneyUtils.formatMoney(charge.amount),
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              _AmountItem(
+                label: 'المدفوع',
+                value: MoneyUtils.formatMoney(charge.paidAmount),
+                color: Colors.green,
+              ),
+              _AmountItem(
+                label: 'المتبقي',
+                value: MoneyUtils.formatMoney(charge.remaining),
+                color: charge.remaining > 0 ? Colors.red : Colors.grey,
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.small),
+            child: LinearProgressIndicator(
+              value: charge.amount > 0
+                  ? (charge.paidAmount / charge.amount).clamp(0.0, 1.0)
+                  : 0,
+              minHeight: 6,
+              color: statusColor,
+              backgroundColor: Colors.grey.shade200,
+            ),
+          ),
+          SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _PackagingChargePaymentSheet.show(
+                charge: charge,
+                onPaid: onPaid,
+              ),
+              icon: const Icon(Icons.payments_outlined, size: 16),
+              label: const Text('تحصيل'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-      return ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        itemCount: filtered.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, index) => _PartyInvoiceCard(
-          invoice: filtered[index],
-          paymentType: paymentType,
-        ),
+class _PackagingChargePaymentSheet extends StatefulWidget {
+  final PackagingCharge charge;
+  final VoidCallback onPaid;
+
+  const _PackagingChargePaymentSheet({
+    required this.charge,
+    required this.onPaid,
+  });
+
+  static Future<void> show({
+    required PackagingCharge charge,
+    required VoidCallback onPaid,
+  }) {
+    return Get.bottomSheet(
+      _PackagingChargePaymentSheet(charge: charge, onPaid: onPaid),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    );
+  }
+
+  @override
+  State<_PackagingChargePaymentSheet> createState() =>
+      _PackagingChargePaymentSheetState();
+}
+
+class _PackagingChargePaymentSheetState
+    extends State<_PackagingChargePaymentSheet> {
+  late final TextEditingController _amountCtrl;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountCtrl = TextEditingController(
+      text: widget.charge.remaining > 0
+          ? MoneyUtils.formatInput(widget.charge.remaining)
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final amount = MoneyUtils.parseAmount(_amountCtrl.text);
+    if (amount == null || amount <= 0) {
+      setState(() => _error = 'يرجى إدخال مبلغ صحيح');
+      return;
+    }
+    if (amount > widget.charge.remaining) {
+      setState(
+        () => _error =
+            'المبلغ يتجاوز المتبقي (${MoneyUtils.formatMoney(widget.charge.remaining)})',
       );
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
     });
+    try {
+      await Get.find<ReturnablePackagingRepository>().payCharge(
+        chargeId: widget.charge.id!,
+        amount: amount,
+      );
+      AppEventBus.instance.notifyPackagingChanged();
+      AppEventBus.instance.notifyInvoiceChanged();
+      Get.back();
+      AppUi.showSuccess('تم تسجيل دفعة تعويض العبوات');
+      widget.onPaid();
+    } catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          AppSpacing.xl,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                ),
+              ),
+            ),
+            SizedBox(height: AppSpacing.md),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'تحصيل — ${widget.charge.displayNumber}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(
+                labelText: 'المبلغ المدفوع',
+                prefixIcon: const Icon(Icons.attach_money),
+                suffixText:
+                    'الحد الأقصى: ${MoneyUtils.formatMoney(widget.charge.remaining)}',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                ),
+              ),
+            ),
+            if (_error != null) ...[
+              SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: const TextStyle(color: AppColors.error)),
+            ],
+            SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: const Icon(Icons.check),
+                label: Text(_saving ? 'جاري الحفظ...' : 'حفظ الدفعة'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

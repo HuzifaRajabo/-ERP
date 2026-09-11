@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/warehouse_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/warehouse_model.dart';
 import 'warehouse_details_screen.dart';
 import 'warehouse_form_screen.dart';
@@ -25,11 +27,16 @@ class WarehouseListScreen extends GetView<WarehouseController> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Get.to(() => const WarehouseFormScreen()),
-        icon: const Icon(Icons.add),
-        label: const Text('مستودع جديد'),
-      ),
+      floatingActionButton: Obx(() {
+        final canAdd = featureEnabled(AppFeature.multipleWarehouses) ||
+            controller.warehouses.isEmpty;
+        if (!canAdd) return const SizedBox.shrink();
+        return FloatingActionButton.extended(
+          onPressed: () => Get.to(() => const WarehouseFormScreen()),
+          icon: const Icon(Icons.add),
+          label: const Text('مستودع جديد'),
+        );
+      }),
       body: Obx(() {
         switch (controller.state.value) {
           case WarehouseLoadState.loading:
@@ -44,11 +51,15 @@ class WarehouseListScreen extends GetView<WarehouseController> {
               return AppEmptyState(
                 icon: Icons.warehouse_outlined,
                 title: 'لا توجد مستودعات',
-                action: FilledButton.icon(
-                  onPressed: () => Get.to(() => const WarehouseFormScreen()),
-                  icon: const Icon(Icons.add),
-                  label: const Text('إضافة مستودع'),
-                ),
+                action: featureEnabled(AppFeature.multipleWarehouses) ||
+                        controller.warehouses.isEmpty
+                    ? FilledButton.icon(
+                        onPressed: () =>
+                            Get.to(() => const WarehouseFormScreen()),
+                        icon: const Icon(Icons.add),
+                        label: const Text('إضافة مستودع'),
+                      )
+                    : null,
               );
             }
             return RefreshIndicator(

@@ -3,7 +3,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
+import '../core/database/inventory_stock_sql.dart';
 import '../models/return_model.dart';
+import '../models/returnable_packaging_model.dart';
+import 'returnable_packaging_repository.dart';
 
 class ReturnRepository {
   ReturnRepository({Future<Database> Function()? dbProvider})
@@ -137,8 +140,18 @@ class ReturnRepository {
 
       // ----------------------------------------------------------------
       // الخطوة 2: حساب قيمة المرتجع الإجمالية
+      // أسعار البنود كما هي، مع توزيع تناسبي للحسم على مستوى الفاتورة.
       // ----------------------------------------------------------------
-      final returnTotal = activeItems.fold(0, (sum, i) => sum + i.lineTotal);
+      final subtotal = invoice['original_total_amount'] as int? ??
+          (invoice['total_amount'] as int? ?? 0);
+      final discount = invoice['discount_amount'] as int? ?? 0;
+      final discountFactor =
+          subtotal <= 0 ? 1.0 : (subtotal - discount) / subtotal;
+
+      var returnTotal = activeItems.fold<int>(
+        0,
+        (sum, i) => sum + (i.lineTotal * discountFactor).round(),
+      );
 
       // ----------------------------------------------------------------
       // الخطوة 3: توليد رقم المرتجع
@@ -174,6 +187,9 @@ class ReturnRepository {
       final currentInvoiceTotal =
           invoiceTotalResult.first['total_amount'] as int;
       final currentPaidAmount = invoiceTotalResult.first['paid_amount'] as int;
+      if (returnTotal > currentInvoiceTotal) {
+        returnTotal = currentInvoiceTotal;
+      }
       final updatedInvoiceTotal = currentInvoiceTotal - returnTotal;
       final overpaidAmount = currentPaidAmount - updatedInvoiceTotal;
       final adjustedPaidAmount = overpaidAmount > 0
@@ -250,7 +266,7 @@ class ReturnRepository {
           'conversion_factor_snapshot': item.selectedUnitConversionFactor,
           'base_quantity': baseReturnedQuantity,
           'unit_price': baseUnitPrice,
-          'line_total': item.lineTotal,
+          'line_total': (item.lineTotal * discountFactor).round(),
         });
 
         // تحديث returned_quantity في سطر الفاتورة الأصلية
@@ -296,6 +312,36 @@ class ReturnRepository {
           'batch_id': origBatchId,
         });
       }
+
+      if (type == ReturnType.saleReturn) {
+        await ReturnablePackagingRepository().reverseForSaleReturnInTransaction(
+          txn,
+          returnId: returnId,
+          invoiceId: originalInvoiceId,
+          partyId: partyId,
+          items: [
+            for (final item in activeItems)
+              PackagingSaleItem(
+                productId: item.productId,
+                baseQuantity: item.selectedBaseQuantity,
+              ),
+          ],
+        );
+      } else {
+        await ReturnablePackagingRepository().unfillForPurchaseReturnInTransaction(
+          txn,
+          returnId: returnId,
+          invoiceId: originalInvoiceId,
+          warehouseId: invoiceWarehouseId,
+          items: [
+            for (final item in activeItems)
+              PackagingSaleItem(
+                productId: item.productId,
+                baseQuantity: item.selectedBaseQuantity,
+              ),
+          ],
+        );
+      }
       return returnId;
     });
   }
@@ -337,15 +383,7 @@ class ReturnRepository {
         -- تُقصّ عليها مرتجعات المشتريات لأن البضاعة قد بيعت بعد الشراء
         COALESCE((
           SELECT COALESCE(SUM(
-            CASE
-              WHEN it2.type = 'PURCHASE'        THEN it2.quantity
-              WHEN it2.type = 'SALE_RETURN'     THEN it2.quantity
-              WHEN it2.type = 'TRANSFER_IN'     THEN it2.quantity
-              WHEN it2.type = 'SALE'             THEN -it2.quantity
-              WHEN it2.type = 'PURCHASE_RETURN'  THEN -it2.quantity
-              WHEN it2.type = 'TRANSFER_OUT'     THEN -it2.quantity
-              ELSE 0
-            END
+            ${InventoryStockSql.signedQuantityCase(typeColumn: 'it2.type', quantityColumn: 'it2.quantity')}
           ), 0)
           FROM inventory_transactions it2
           WHERE it2.product_id = ii.product_id
@@ -487,15 +525,7 @@ class ReturnRepository {
     final result = await txn.rawQuery(
       '''
       SELECT COALESCE(SUM(
-        CASE
-          WHEN type = 'PURCHASE'       THEN quantity
-          WHEN type = 'SALE_RETURN'    THEN quantity
-          WHEN type = 'TRANSFER_IN'    THEN quantity
-          WHEN type = 'SALE'            THEN -quantity
-          WHEN type = 'PURCHASE_RETURN' THEN -quantity
-          WHEN type = 'TRANSFER_OUT'    THEN -quantity
-          ELSE 0
-        END
+        ${InventoryStockSql.signedQuantityCase()}
       ), 0) AS available
       FROM inventory_transactions
       WHERE product_id = ? AND warehouse_id = ?

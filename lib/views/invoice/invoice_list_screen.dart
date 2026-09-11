@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/invoice_model.dart';
 import '../../core/theme/app_colors.dart';
@@ -567,16 +569,18 @@ class _InvoiceCard extends GetView<InvoiceController> {
                         color: const Color(0xFF16A34A),
                       ),
                     ),
-                    _VerticalDivider(),
-                    Expanded(
-                      child: _AmountItem(
-                        title: 'المتبقي',
-                        value: invoice.remaining,
-                        color: invoice.remaining > 0
-                            ? Theme.of(context).colorScheme.error
-                            : AppColors.success,
+                    if (featureEnabled(AppFeature.debts)) ...[
+                      _VerticalDivider(),
+                      Expanded(
+                        child: _AmountItem(
+                          title: 'المتبقي',
+                          value: invoice.remaining,
+                          color: invoice.remaining > 0
+                              ? Theme.of(context).colorScheme.error
+                              : AppColors.success,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -585,7 +589,8 @@ class _InvoiceCard extends GetView<InvoiceController> {
 
               Row(
                 children: [
-                  _PaymentStatusBadge(status: invoice.paymentStatus),
+                  if (featureEnabled(AppFeature.debts))
+                    _PaymentStatusBadge(status: invoice.paymentStatus),
                   const Spacer(),
                   if (invoice.createdAt != null)
                     Row(

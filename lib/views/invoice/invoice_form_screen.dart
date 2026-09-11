@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/invoice_model.dart';
 import '../../models/product_model.dart';
 import '../../models/party_model.dart';
@@ -12,6 +14,10 @@ import '../../repositories/batch_repository.dart' show BatchStock;
 import '../../core/utils/money_utils.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/utils/packaging_quantity_format.dart';
+import '../../core/utils/unit_conversion.dart';
+import '../../controllers/packaging_controller.dart';
+import '../../repositories/returnable_packaging_repository.dart';
 import '../shared/shared_components.dart';
 
 // ==============================
@@ -22,6 +28,161 @@ String _fmtQty(double value) {
   if (value % 1 == 0) return value.toInt().toString();
   final s = value.toStringAsFixed(2);
   return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+}
+
+String? _packagingTypeName(int productId) {
+  if (!featureEnabled(AppFeature.returnablePackaging)) return null;
+  if (!Get.isRegistered<PackagingController>()) return null;
+  return Get.find<PackagingController>().mappingByProductId[productId]?.typeName;
+}
+
+Future<bool> _saveInvoiceHandlingPackaging(InvoiceController controller) async {
+  try {
+    return await controller.saveInvoice();
+  } on PackagingShortageException catch (shortage) {
+    final extras = await _askPurchasedEmpties(shortage);
+    if (extras == null) return false;
+    try {
+      return await controller.saveInvoice(purchasedEmptyByTypeId: extras);
+    } on PackagingShortageException catch (again) {
+      controller.invoiceFormError.value = again.message;
+      return false;
+    }
+  }
+}
+
+Future<Map<int, double>?> _askPurchasedEmpties(
+  PackagingShortageException shortage,
+) async {
+  final packaging = Get.isRegistered<PackagingController>()
+      ? Get.find<PackagingController>()
+      : null;
+  final extras = <int, double>{
+    for (final item in shortage.shortages) item.typeId: item.shortage,
+  };
+  final crateControllers = <int, TextEditingController>{};
+  final bottleControllers = <int, TextEditingController>{};
+  for (final item in shortage.shortages) {
+    final units = packaging?.unitsByType[item.typeId] ?? [];
+    final crate = PackagingQuantityFormat.aggregateUnit(units);
+    var remaining = item.shortage;
+    var crates = 0;
+    if (crate != null && crate.conversionFactor > 0) {
+      crates = remaining ~/ crate.conversionFactor;
+      remaining -= crates * crate.conversionFactor;
+    }
+    crateControllers[item.typeId] = TextEditingController(
+      text: crates > 0 ? crates.toString() : '',
+    );
+    bottleControllers[item.typeId] = TextEditingController(
+      text: remaining > 0
+          ? PackagingQuantityFormat.formatQuantity(remaining)
+          : '',
+    );
+  }
+
+  final confirmed = await Get.dialog<bool>(
+    AlertDialog(
+      title: const Text('الفوارغ لا تكفي'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'كمية الشراء تتجاوز الفوارغ المتاحة في المستودع. '
+              'هل اشتريت عبوات فارغة جديدة لتُضاف إلى المخزون؟',
+            ),
+            const SizedBox(height: 12),
+            for (final item in shortage.shortages) ...[
+              Text(
+                item.typeName,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              Text(
+                'مطلوب ${PackagingQuantityFormat.formatQuantity(item.needed)} • '
+                'متاح ${PackagingQuantityFormat.formatQuantity(item.available)} • '
+                'النقص ${PackagingQuantityFormat.formatQuantity(item.shortage)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: crateControllers[item.typeId],
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(labelText: 'صناديق مشتراة'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: bottleControllers[item.typeId],
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(labelText: 'زجاجات مشتراة'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(result: false),
+          child: const Text('لم أشتر عبوات جديدة'),
+        ),
+        FilledButton(
+          onPressed: () {
+            var belowShortage = false;
+            for (final item in shortage.shortages) {
+              final units = packaging?.unitsByType[item.typeId] ?? [];
+              final crate = PackagingQuantityFormat.aggregateUnit(units);
+              final crates =
+                  double.tryParse(crateControllers[item.typeId]!.text.trim()) ??
+                      0;
+              final bottles =
+                  double.tryParse(bottleControllers[item.typeId]!.text.trim()) ??
+                      0;
+              final fromCrates = crate == null
+                  ? 0.0
+                  : UnitConversion.toBaseQuantity(crates, crate.conversionFactor);
+              extras[item.typeId] = fromCrates + bottles;
+              if (extras[item.typeId]! + 0.0001 < item.shortage) {
+                belowShortage = true;
+              }
+            }
+            if (belowShortage) {
+              Get.snackbar(
+                'تنبيه',
+                'كمية العبوات المشتراة أقل من النقص',
+                snackPosition: SnackPosition.BOTTOM,
+              );
+              return;
+            }
+            Get.back(result: true);
+          },
+          child: const Text('اشتريت عبوات جديدة'),
+        ),
+      ],
+    ),
+  );
+
+  for (final controller in crateControllers.values) {
+    controller.dispose();
+  }
+  for (final controller in bottleControllers.values) {
+    controller.dispose();
+  }
+  if (confirmed != true) return null;
+  return extras;
 }
 
 String _fmtDate(String? iso) {
@@ -80,8 +241,10 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
             () => TextButton.icon(
               onPressed: controller.isSavingInvoice.value
                   ? null
-                  : () async {
-                      final success = await controller.saveInvoice();
+                      : () async {
+                      final success = await _saveInvoiceHandlingPackaging(
+                        controller,
+                      );
                       if (success) {
                         Get.back();
                         Get.snackbar(
@@ -120,14 +283,17 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _InvoiceTypeSelector(),
-              SizedBox(height: 16),
-              _PartySelector(),
-              SizedBox(height: 16),
-              _WarehouseSelector(),
-              SizedBox(height: 16),
-              _DateInfoCard(),
+            children: [
+              const _InvoiceTypeSelector(),
+              const SizedBox(height: 16),
+              const _SalesChannelSelector(),
+              const _PartySelector(),
+              const SizedBox(height: 16),
+              if (featureEnabled(AppFeature.warehouses)) ...[
+                const _WarehouseSelector(),
+                const SizedBox(height: 16),
+              ],
+              const _DateInfoCard(),
               SizedBox(height: 16),
               _ItemsSection(),
               SizedBox(height: 16),
@@ -194,6 +360,68 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
         ],
       ),
     );
+  }
+}
+
+class _SalesChannelSelector extends GetView<InvoiceController> {
+  const _SalesChannelSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final wholesale = featureEnabled(AppFeature.wholesale);
+    final retail = featureEnabled(AppFeature.retail);
+    if (!(wholesale && retail)) return const SizedBox.shrink();
+
+    return Obx(() {
+      if (controller.draftType.value != InvoiceType.sale) {
+        return const SizedBox.shrink();
+      }
+      final current = controller.draftSalesChannel.value;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'قناة البيع',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _TypeButton(
+                    label: 'جملة',
+                    icon: Icons.storefront_outlined,
+                    color: const Color(0xFF2563EB),
+                    selected: current == SalesMode.wholesale.key,
+                    onTap: () => controller.setDraftSalesChannel(
+                      SalesMode.wholesale.key,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _TypeButton(
+                    label: 'مفرق',
+                    icon: Icons.point_of_sale_outlined,
+                    color: const Color(0xFF7C3AED),
+                    selected: current == SalesMode.retail.key,
+                    onTap: () => controller.setDraftSalesChannel(
+                      SalesMode.retail.key,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -1000,9 +1228,11 @@ class _ItemCard extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
-    final isSale = controller.draftType.value == InvoiceType.sale;
+    return Obx(() {
+      final isSale = controller.draftType.value == InvoiceType.sale;
+      final typeName = _packagingTypeName(item.productId);
 
-    return Container(
+      return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1029,15 +1259,35 @@ class _ItemCard extends GetView<InvoiceController> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  item.productNameSnapshot,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.productNameSnapshot,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (typeName != null) ...[
+                      const SizedBox(height: 4),
+                      PackagingEmptyBadge(typeName: typeName),
+                      if (!isSale)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'سيتم تعبئة فوارغ من مستودع الفاتورة',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.info,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
               ),
               IconButton(
@@ -1096,8 +1346,9 @@ class _ItemCard extends GetView<InvoiceController> {
             ),
           ],
           const SizedBox(height: 8),
-          _ItemBatchSummary(item: item, isSale: isSale),
-          const SizedBox(height: 8),
+          if (featureEnabled(AppFeature.batches))
+            _ItemBatchSummary(item: item, isSale: isSale),
+          if (featureEnabled(AppFeature.batches)) const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -1125,6 +1376,7 @@ class _ItemCard extends GetView<InvoiceController> {
         ],
       ),
     );
+    });
   }
 
   void _openEditor() {
@@ -1221,7 +1473,7 @@ class _ItemBatchSummary extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               '${item.newBatchNumber}'
-              '${item.newExpiryDate != null ? ' · انتهاء ${_fmtDate(item.newExpiryDate)}' : ''}',
+              '${featureEnabled(AppFeature.expiry) && item.newExpiryDate != null ? ' · انتهاء ${_fmtDate(item.newExpiryDate)}' : ''}',
               style: const TextStyle(fontSize: 11, color: Color(0xFF92400E)),
             ),
           ],
@@ -1273,7 +1525,7 @@ class _ItemBatchSummary extends StatelessWidget {
               child: Text(
                 '${allocation.batchNumber} — '
                 '${_fmtQty(allocation.quantity)}'
-                '${allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
+                '${featureEnabled(AppFeature.expiry) && allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
                 style: const TextStyle(fontSize: 11, color: Color(0xFF065F46)),
               ),
             ),
@@ -1399,7 +1651,20 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                             ),
                           ),
                           title: Text(product.name),
-                          subtitle: _ProductStockLine(productId: product.id),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _ProductStockLine(productId: product.id),
+                              if (product.id != null &&
+                                  _packagingTypeName(product.id!) != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: PackagingEmptyBadge(
+                                    typeName: _packagingTypeName(product.id!),
+                                  ),
+                                ),
+                            ],
+                          ),
                           trailing: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -2011,7 +2276,16 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       final productId = widget.product.id;
       if (productId == null) throw Exception('معرّف المنتج غير صالح');
 
-      final list = await controller.getUnitsForProduct(productId);
+      var list = await controller.getUnitsForProduct(productId);
+      if (!featureEnabled(AppFeature.productUnits)) {
+        final baseUnits = list.where((unit) => unit.isBaseUnit).toList();
+        list = baseUnits.isNotEmpty
+            ? baseUnits
+            : list.where((unit) => unit.conversionFactor == 1).toList();
+        if (list.isEmpty) {
+          list = await controller.getUnitsForProduct(productId);
+        }
+      }
 
       ProductUnitModel? unit;
       if (isEditMode) {
@@ -2175,9 +2449,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                       _errorBox(
                         'لا توجد وحدات معرّفة لهذا المنتج — عدّل المنتج وأضف وحدات أولاً',
                       )
-                    else if (isSale)
+                    else if (featureEnabled(AppFeature.batches) && isSale)
                       _buildSaleAllocation()
-                    else
+                    else if (featureEnabled(AppFeature.batches) && !isSale)
                       _buildPurchaseBatchFields(),
                     const SizedBox(height: 18),
                     _buildConfirmButton(),
@@ -2251,7 +2525,9 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         ),
         const SizedBox(height: 8),
         GestureDetector(
-          onTap: units.isEmpty ? null : _showUnitPicker,
+          onTap: !featureEnabled(AppFeature.productUnits) || units.isEmpty
+              ? null
+              : _showUnitPicker,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -2778,14 +3054,16 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                   onTap: () => _pickDate(isProduction: true),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _dateField(
-                  label: 'تاريخ الانتهاء',
-                  value: expiryDate,
-                  onTap: () => _pickDate(isProduction: false),
+              if (featureEnabled(AppFeature.expiry)) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _dateField(
+                    label: 'تاريخ الانتهاء',
+                    value: expiryDate,
+                    onTap: () => _pickDate(isProduction: false),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -3184,9 +3462,11 @@ class _TotalSection extends GetView<InvoiceController> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'إجمالي الفاتورة',
-                        style: TextStyle(
+                      Text(
+                        controller.draftDiscountAmount.value > 0
+                            ? 'صافي الفاتورة'
+                            : 'إجمالي الفاتورة',
+                        style: const TextStyle(
                           fontSize: 11,
                           color: Color(0xFF6B7280),
                           fontWeight: FontWeight.w700,
@@ -3194,7 +3474,7 @@ class _TotalSection extends GetView<InvoiceController> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        MoneyUtils.formatMoney(controller.draftTotal),
+                        MoneyUtils.formatMoney(controller.draftNetTotal),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
@@ -3245,7 +3525,9 @@ class _PaymentSection extends GetView<InvoiceController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final total = controller.draftTotal;
+      final subtotal = controller.draftTotal;
+      final discount = controller.draftDiscountAmount.value;
+      final total = controller.draftNetTotal;
       final paid = controller.draftInitialPayment.value;
       final remaining = (total - paid).clamp(0, total);
 
@@ -3283,9 +3565,55 @@ class _PaymentSection extends GetView<InvoiceController> {
                 ),
                 const SizedBox(width: 8),
                 Text('الدفع', style: Theme.of(context).textTheme.titleSmall),
-                const Spacer(),
-                AppStatusBadge(label: status.label, color: statusColor),
+                if (featureEnabled(AppFeature.debts)) ...[
+                  const Spacer(),
+                  AppStatusBadge(label: status.label, color: statusColor),
+                ],
               ],
+            ),
+            const SizedBox(height: 12),
+            _PaymentStat(
+              label: 'الإجمالي قبل الحسم',
+              value: MoneyUtils.formatMoney(subtotal),
+              color: const Color(0xFF111827),
+            ),
+            if (discount > 0) ...[
+              const SizedBox(height: 8),
+              _PaymentStat(
+                label: 'الحسم',
+                value: '- ${MoneyUtils.formatMoney(discount)}',
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ],
+            const SizedBox(height: 8),
+            _PaymentStat(
+              label: 'الصافي',
+              value: MoneyUtils.formatMoney(total),
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              initialValue:
+                  discount > 0 ? MoneyUtils.formatInput(discount) : '',
+              onChanged: (v) {
+                final amount = MoneyUtils.parseAmount(v) ?? 0;
+                controller.setDiscountAmount(amount);
+              },
+              decoration: InputDecoration(
+                hintText: 'الحسم (قيمة مالية)',
+                filled: true,
+                fillColor: const Color(0xFFF7F8FC),
+                prefixIcon: const Icon(Icons.discount_outlined, size: 20),
+                suffixText: 'من ${MoneyUtils.formatMoney(subtotal)}',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                errorText: discount > subtotal ? 'الحسم أكبر من الإجمالي' : null,
+              ),
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -3310,7 +3638,7 @@ class _PaymentSection extends GetView<InvoiceController> {
               ),
             ),
             const SizedBox(height: 12),
-            if (total > 0) ...[
+            if (featureEnabled(AppFeature.debts) && total > 0) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: LinearProgressIndicator(
@@ -3331,15 +3659,16 @@ class _PaymentSection extends GetView<InvoiceController> {
                     color: AppColors.success,
                   ),
                 ),
-                Expanded(
-                  child: _PaymentStat(
-                    label: 'المتبقي',
-                    value: MoneyUtils.formatMoney(remaining),
-                    color: remaining > 0
-                        ? Theme.of(context).colorScheme.error
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                if (featureEnabled(AppFeature.debts))
+                  Expanded(
+                    child: _PaymentStat(
+                      label: 'المتبقي',
+                      value: MoneyUtils.formatMoney(remaining),
+                      color: remaining > 0
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
               ],
             ),
           ],

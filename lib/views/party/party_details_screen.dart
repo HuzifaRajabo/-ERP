@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/party_model.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../packaging/packaging_screens.dart';
 import '../shared/shared_components.dart';
 
 class PartyDetailsScreen extends GetView<PartyController> {
@@ -93,6 +96,12 @@ class PartyDetailsScreen extends GetView<PartyController> {
               color: Theme.of(context).colorScheme.secondary,
             ),
           ],
+          if (featureEnabled(AppFeature.returnablePackaging) &&
+              party.id != null &&
+              (party.type == PartyType.customer ||
+                  party.type == PartyType.both))
+            PartyPackagingSection(partyId: party.id!),
+
           const SizedBox(height: 32),
 
           // ==============================

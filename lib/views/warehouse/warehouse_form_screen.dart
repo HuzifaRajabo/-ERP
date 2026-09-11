@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/warehouse_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../models/business_config.dart';
 import '../../models/warehouse_model.dart';
 import '../shared/app_ui.dart';
 import '../../core/theme/app_colors.dart';
@@ -148,10 +150,16 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
   }
 
   Widget _typeSelector() {
+    final types = WarehouseType.values.where((type) {
+      if (type == WarehouseType.van && !featureEnabled(AppFeature.vehicles)) {
+        return _type == WarehouseType.van;
+      }
+      return true;
+    });
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: WarehouseType.values.map((t) {
+      children: types.map((t) {
         final selected = _type == t;
         return ChoiceChip(
           label: Text(t.label),

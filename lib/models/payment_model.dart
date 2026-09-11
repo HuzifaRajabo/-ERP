@@ -49,9 +49,10 @@ class PaymentModel {
 // كائنات مساعدة
 // ==============================
 
-/// فاتورة مع معلومات الدفع — لعرض التوزيع للمستخدم
+/// بند مستحق مع معلومات الدفع — فاتورة أو تعويض عبوات
 class InvoicePaymentInfo {
-  final int invoiceId;
+  final int? invoiceId;
+  final int? packagingChargeId;
   final String invoiceNumber;
   final int totalAmount;
   final int paidAmount;
@@ -59,13 +60,28 @@ class InvoicePaymentInfo {
   int suggestedPayment; // المقترح دفعه (قابل للتعديل يدوياً)
 
   InvoicePaymentInfo({
-    required this.invoiceId,
+    this.invoiceId,
+    this.packagingChargeId,
     required this.invoiceNumber,
     required this.totalAmount,
     required this.paidAmount,
     required this.remaining,
     required this.suggestedPayment,
   });
+
+  bool get isPackagingCompensation => packagingChargeId != null;
+
+  InvoicePaymentInfo copyWith({int? suggestedPayment}) {
+    return InvoicePaymentInfo(
+      invoiceId: invoiceId,
+      packagingChargeId: packagingChargeId,
+      invoiceNumber: invoiceNumber,
+      totalAmount: totalAmount,
+      paidAmount: paidAmount,
+      remaining: remaining,
+      suggestedPayment: suggestedPayment ?? this.suggestedPayment,
+    );
+  }
 }
 
 /// نتيجة التوزيع النهائية قبل الحفظ
@@ -88,13 +104,15 @@ class PaymentDistribution {
 }
 
 class PaymentDistributionItem {
-  final int invoiceId;
+  final int? invoiceId;
+  final int? packagingChargeId;
   final String invoiceNumber;
   int amount; // قابل للتعديل
 
   PaymentDistributionItem({
-    required this.invoiceId,
+    this.invoiceId,
+    this.packagingChargeId,
     required this.invoiceNumber,
     required this.amount,
-  });
+  }) : assert(invoiceId != null || packagingChargeId != null);
 }
