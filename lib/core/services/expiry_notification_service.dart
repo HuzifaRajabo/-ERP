@@ -1,4 +1,5 @@
 import '../utils/app_dates.dart';
+import '../../models/batch_model.dart';
 import '../../models/notification_model.dart';
 import '../../repositories/app_settings_repository.dart';
 import '../../repositories/batch_repository.dart';

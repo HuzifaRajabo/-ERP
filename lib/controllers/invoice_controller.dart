@@ -13,10 +13,17 @@ import '../models/product_unit_model.dart';
 import '../models/category_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/invoice_draft.dart';
+import '../models/invoice_item_model.dart';
+import '../models/payment_model.dart';
+import '../models/return_model.dart';
+import '../models/batch_model.dart';
 import '../models/business_config.dart';
+import '../models/returnable_packaging_model.dart';
 import '../core/services/app_event_bus.dart';
+import '../core/services/invoice_pdf_service.dart';
 import '../controllers/feature_controller.dart';
-import '../repositories/returnable_packaging_repository.dart';
+import 'payment_controller.dart';
+import 'return_controller.dart';
 
 enum InvoiceLoadState { idle, loading, loadingMore, error }
 
@@ -193,6 +200,49 @@ class InvoiceController extends GetxController {
 
   Future<InvoiceWithItems?> getInvoiceWithItems(int id) {
     return repo.getInvoiceWithItems(id);
+  }
+
+  Future<InvoiceModel?> getInvoiceById(int id) {
+    return repo.getInvoiceById(id);
+  }
+
+  Future<List<InvoiceModel>> getUnpaidInvoicesByParty({
+    required int partyId,
+    required InvoiceType type,
+  }) async {
+    final page = await repo.getInvoicesByParty(
+      partyId: partyId,
+      type: type,
+      unpaidOnly: true,
+      pageSize: 1000,
+    );
+    return page.invoices;
+  }
+
+  Future<void> exportInvoicePdf({
+    required InvoiceModel invoice,
+    required List<InvoiceItemModel> items,
+    String? warehouseName,
+    Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
+  }) async {
+    final payments = invoice.id == null
+        ? const <PaymentModel>[]
+        : await Get.find<PaymentController>().getPaymentsByInvoice(invoice.id!);
+    final returns = invoice.id == null
+        ? const <ReturnModel>[]
+        : await Get.find<ReturnController>().getReturnsByInvoice(invoice.id!);
+    await InvoicePdfService.exportInvoice(
+      invoice: invoice,
+      items: items,
+      payments: payments,
+      returns: returns,
+      warehouseName: warehouseName,
+      batchesByProductId: batchesByProductId,
+      showWarehouses: featureEnabled(AppFeature.warehouses),
+      showBatches: featureEnabled(AppFeature.batches),
+      showExpiry: featureEnabled(AppFeature.expiry),
+      showDebts: featureEnabled(AppFeature.debts),
+    );
   }
 
   // ==============================

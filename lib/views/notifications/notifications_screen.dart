@@ -2,14 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/notification_controller.dart';
-import '../../controllers/product_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/app_dates.dart';
 import '../../models/notification_model.dart';
-import '../../repositories/notification_repository.dart';
-import '../../repositories/warehouse_repository.dart';
-import '../../repositories/invoice_repository.dart';
 import '../shared/shared_components.dart';
 import '../warehouse/warehouse_details_screen.dart';
 
@@ -180,33 +176,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (item.id != null) {
       await controller.markAsRead(item.id!);
     }
-    if (item.entityType == 'invoice' && item.entityId != null) {
-      final invoice =
-          await Get.find<InvoiceRepository>().getInvoiceById(item.entityId!);
-      if (invoice != null) {
-        Get.toNamed('/invoice-details', arguments: invoice);
-        return;
-      }
+    final target = await controller.resolveNavigation(item);
+    if (target.invoice != null) {
+      Get.toNamed('/invoice-details', arguments: target.invoice);
+      return;
     }
-    if (item.warehouseId != null) {
-      final warehouse = await Get.find<WarehouseRepository>()
-          .getWarehouseById(item.warehouseId!);
-      if (warehouse != null) {
-        await Get.to(
-          () => WarehouseDetailsScreen(
-            warehouse: warehouse,
-            focusProductId: item.productId,
-          ),
-        );
-        return;
-      }
+    if (target.warehouse != null) {
+      await Get.to(
+        () => WarehouseDetailsScreen(
+          warehouse: target.warehouse!,
+          focusProductId: target.focusProductId,
+        ),
+      );
+      return;
     }
-    if (item.productId != null && Get.isRegistered<ProductController>()) {
-      final product = await Get.find<ProductController>()
-          .getProductById(item.productId!);
-      if (product != null) {
-        Get.toNamed('/product-details', arguments: product);
-      }
+    if (target.product != null) {
+      Get.toNamed('/product-details', arguments: target.product);
     }
   }
 }

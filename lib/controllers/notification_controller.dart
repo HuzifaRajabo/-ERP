@@ -4,8 +4,14 @@ import '../core/services/app_event_bus.dart';
 import '../core/services/expiry_notification_service.dart';
 import '../core/services/notification_scan_coordinator.dart';
 import '../models/notification_model.dart';
+import '../models/invoice_model.dart';
+import '../models/warehouse_model.dart';
+import '../models/product_model.dart';
 import '../repositories/app_settings_repository.dart';
 import '../repositories/notification_repository.dart';
+import 'invoice_controller.dart';
+import 'warehouse_controller.dart';
+import 'product_controller.dart';
 
 class NotificationController extends GetxController {
   NotificationController({
@@ -124,4 +130,57 @@ class NotificationController extends GetxController {
     notifications.assignAll(items);
     unreadCount.value = await repo.getUnreadCount();
   }
+
+  Future<NotificationNavigationTarget> resolveNavigation(
+    NotificationModel item,
+  ) async {
+    InvoiceModel? invoice;
+    WarehouseModel? warehouse;
+    ProductModel? product;
+    if (item.entityType == 'invoice' &&
+        item.entityId != null &&
+        Get.isRegistered<InvoiceController>()) {
+      invoice = await Get.find<InvoiceController>().getInvoiceById(
+        item.entityId!,
+      );
+      if (invoice != null) {
+        return NotificationNavigationTarget(invoice: invoice);
+      }
+    }
+    if (item.warehouseId != null &&
+        Get.isRegistered<WarehouseController>()) {
+      warehouse = await Get.find<WarehouseController>().getWarehouseById(
+        item.warehouseId!,
+      );
+      if (warehouse != null) {
+        return NotificationNavigationTarget(
+          warehouse: warehouse,
+          focusProductId: item.productId,
+        );
+      }
+    }
+    if (item.productId != null && Get.isRegistered<ProductController>()) {
+      product = await Get.find<ProductController>().getProductById(
+        item.productId!,
+      );
+      if (product != null) {
+        return NotificationNavigationTarget(product: product);
+      }
+    }
+    return const NotificationNavigationTarget();
+  }
+}
+
+class NotificationNavigationTarget {
+  const NotificationNavigationTarget({
+    this.invoice,
+    this.warehouse,
+    this.product,
+    this.focusProductId,
+  });
+
+  final InvoiceModel? invoice;
+  final WarehouseModel? warehouse;
+  final ProductModel? product;
+  final int? focusProductId;
 }

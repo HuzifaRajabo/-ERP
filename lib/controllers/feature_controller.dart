@@ -5,6 +5,7 @@ import '../core/config/feature_rules.dart';
 import '../core/services/app_event_bus.dart';
 import '../models/business_config.dart';
 import '../repositories/business_settings_repository.dart';
+import '../repositories/invoice_repository.dart';
 
 bool featureEnabled(AppFeature feature) {
   if (!Get.isRegistered<FeatureController>()) return true;
@@ -12,9 +13,10 @@ bool featureEnabled(AppFeature feature) {
 }
 
 class FeatureController extends GetxController {
-  FeatureController(this.repo);
+  FeatureController(this.repo, {required this.invoiceRepo});
 
   final BusinessSettingsRepository repo;
+  final InvoiceRepository invoiceRepo;
 
   final Rx<BusinessSettings> settings = ActivityProfiles.settingsFor(
     BusinessActivity.foodDistributor,
@@ -78,5 +80,9 @@ class FeatureController extends GetxController {
     await repo.save(next);
     settings.value = next;
     AppEventBus.instance.notifyInventoryChanged();
+  }
+
+  Future<int> countUnpaidInvoices() {
+    return invoiceRepo.countUnpaidInvoices();
   }
 }

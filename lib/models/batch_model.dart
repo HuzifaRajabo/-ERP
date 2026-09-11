@@ -74,3 +74,51 @@ class BatchModel {
     );
   }
 }
+
+/// دفعة مع الكمية المتاحة منها (محسوبة من inventory_transactions،
+/// بنفس نمط حساب المخزون المستخدم في بقية المشروع).
+class BatchStock {
+  final BatchModel batch;
+  final double available; // بالوحدة الأساسية
+
+  BatchStock({required this.batch, required this.available});
+}
+
+class BatchAllocation {
+  final int batchId;
+  final String batchNumber;
+  final double quantity;
+  final String? expiryDate;
+
+  const BatchAllocation({
+    required this.batchId,
+    required this.batchNumber,
+    required this.quantity,
+    this.expiryDate,
+  });
+}
+
+/// دفعة لها مخزون فعلي في مستودع معيّن وتاريخ صلاحية ضمن نافذة التنبيه.
+class AlertableExpiryStock {
+  final int batchId;
+  final int productId;
+  final String? batchNumber;
+  final String? expiryDate;
+  final String productName;
+  final int warehouseId;
+  final String warehouseName;
+  final double available;
+  final String? unitName;
+
+  const AlertableExpiryStock({
+    required this.batchId,
+    required this.productId,
+    this.batchNumber,
+    this.expiryDate,
+    required this.productName,
+    required this.warehouseId,
+    required this.warehouseName,
+    required this.available,
+    this.unitName,
+  });
+}

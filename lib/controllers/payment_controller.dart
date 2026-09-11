@@ -4,16 +4,21 @@ import '../repositories/invoice_repository.dart';
 import '../repositories/party_repository.dart';
 import '../models/payment_model.dart';
 import '../models/invoice_model.dart';
+import '../models/debt_report_model.dart';
+import '../models/business_config.dart';
 import '../core/services/app_event_bus.dart';
+import '../core/services/debt_pdf_service.dart';
 import '../core/utils/db_error_handler.dart';
+import 'feature_controller.dart';
 
 enum PaymentLoadState { idle, loading, error }
 
 class PaymentController extends GetxController {
   final PaymentRepository repo;
   final InvoiceRepository invoiceRepo;
+  final PartyRepository partyRepo;
 
-  PaymentController(this.repo, this.invoiceRepo);
+  PaymentController(this.repo, this.invoiceRepo, this.partyRepo);
 
   // ==============================
   // State: دفعات الفاتورة الحالية
@@ -95,7 +100,6 @@ class PaymentController extends GetxController {
 
   Future<void> navigateToPartyDetails(int partyId) async {
     try {
-      final partyRepo = Get.find<PartyRepository>();
       final party = await partyRepo.getPartyById(partyId);
       if (party != null) {
         Get.toNamed('/party-details', arguments: party);
@@ -105,6 +109,14 @@ class PaymentController extends GetxController {
     } catch (e) {
       Get.snackbar('خطأ', e.toString());
     }
+  }
+
+  Future<List<PaymentModel>> getPaymentsByInvoice(int invoiceId) {
+    return repo.getPaymentsByInvoice(invoiceId);
+  }
+
+  Future<List<PaymentModel>> getPaymentsByReturn(int returnId) {
+    return repo.getPaymentsByReturn(returnId);
   }
 
   Future<void> loadInvoicePayments(int invoiceId) async {
@@ -400,6 +412,42 @@ class PaymentController extends GetxController {
     } finally {
       isLoadingDebts.value = false;
     }
+  }
+
+  Future<void> exportActiveDebtsPdf({required bool customers}) async {
+    final statements = await repo.getDebtStatements(
+      invoiceType: debtInvoiceType(owedToUs: customers),
+      includePackaging:
+          customers && featureEnabled(AppFeature.returnablePackaging),
+    );
+    await DebtPdfService.exportTabReport(
+      DebtTabReport.fromStatements(
+        owedToUs: customers,
+        parties: statements,
+      ),
+    );
+  }
+
+  Future<void> exportPartyStatementPdf({
+    required int partyId,
+    required String partyName,
+    required bool owedToUs,
+  }) async {
+    final statements = await repo.getDebtStatements(
+      invoiceType: debtInvoiceType(owedToUs: owedToUs),
+      partyId: partyId,
+      includePackaging:
+          owedToUs && featureEnabled(AppFeature.returnablePackaging),
+    );
+    final statement = statements.isEmpty
+        ? PartyDebtStatement(
+            partyId: partyId,
+            partyName: partyName,
+            owedToUs: owedToUs,
+            lines: const [],
+          )
+        : statements.first;
+    await DebtPdfService.exportPartyStatement(statement);
   }
 
   // ==============================

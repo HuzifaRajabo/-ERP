@@ -11,7 +11,6 @@ import '../../core/utils/unit_conversion.dart';
 import '../../models/party_model.dart';
 import '../../models/returnable_packaging_model.dart';
 import '../../models/warehouse_model.dart';
-import '../../repositories/returnable_packaging_repository.dart';
 import '../shared/app_ui.dart';
 import '../shared/shared_components.dart';
 
@@ -593,7 +592,7 @@ class PackagingTypeFormScreen extends StatefulWidget {
 }
 
 class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
-  final _repo = Get.find<ReturnablePackagingRepository>();
+  final _controller = Get.find<PackagingController>();
   final _name = TextEditingController();
   final _description = TextEditingController();
   final _value = TextEditingController();
@@ -632,8 +631,8 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
   Future<void> _reload() async {
     final id = widget.type?.id;
     if (id == null) return;
-    final units = await _repo.getUnits(id, activeOnly: false);
-    final mappings = await _repo.getMappingsForType(id);
+    final units = await _controller.getUnits(id, activeOnly: false);
+    final mappings = await _controller.getMappingsForType(id);
     if (!mounted) return;
     setState(() {
       _units = units;
@@ -650,7 +649,7 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
     try {
       final value = MoneyUtils.parseAmount(_value.text) ?? 0;
       if (_isEditing) {
-        await _repo.updateType(
+        await _controller.updateType(
           id: widget.type!.id!,
           name: _name.text,
           description: _description.text,
@@ -658,14 +657,13 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
           isActive: _isActive,
         );
       } else {
-        await _repo.createType(
+        await _controller.createType(
           name: _name.text,
           description: _description.text,
           value: value,
           isActive: _isActive,
         );
       }
-      AppEventBus.instance.notifyPackagingChanged();
       if (!mounted) return;
       if (_isEditing) {
         AppUi.showSuccess('تم حفظ نوع العبوة');
@@ -686,14 +684,13 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
     if (id == null) return;
     final factor = double.tryParse(_unitFactor.text.trim()) ?? 0;
     try {
-      await _repo.addUnit(
+      await _controller.addUnit(
         typeId: id,
         unitName: _unitName.text,
         conversionFactor: factor,
       );
       _unitName.text = 'صندوق';
       _unitFactor.text = '24';
-      AppEventBus.instance.notifyPackagingChanged();
       await _reload();
     } catch (e) {
       AppUi.showError(e.toString());
@@ -703,8 +700,7 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
   Future<void> _deleteUnit(PackagingUnit unit) async {
     if (unit.id == null) return;
     try {
-      await _repo.deleteUnit(unit.id!);
-      AppEventBus.instance.notifyPackagingChanged();
+      await _controller.deleteUnit(unit.id!);
       await _reload();
     } catch (e) {
       AppUi.showError(e.toString());
@@ -855,9 +851,7 @@ class PackagingSettlementScreen extends StatefulWidget {
 }
 
 class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
-  final _repo = Get.find<ReturnablePackagingRepository>();
-  final _partyRepo = Get.find<PackagingController>().partyRepo;
-  final _warehouseRepo = Get.find<PackagingController>().warehouseRepo;
+  final _controller = Get.find<PackagingController>();
 
   final _notes = TextEditingController();
   final _paidNow = TextEditingController();
@@ -912,15 +906,9 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final page = await _partyRepo.getParties(pageSize: 500);
-      _parties = page.parties
-          .where(
-            (party) =>
-                party.type == PartyType.customer || party.type == PartyType.both,
-          )
-          .toList();
-      _types = await _repo.getTypes(activeOnly: true);
-      _warehouses = await _warehouseRepo.getAllWarehouses();
+      _parties = await _controller.loadCustomerParties();
+      _types = await _controller.getTypes(activeOnly: true);
+      _warehouses = await _controller.getAllWarehouses();
       if (_warehouseId == null) {
         for (final warehouse in _warehouses) {
           if (warehouse.isDefault && warehouse.id != null) {
@@ -949,8 +937,8 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
       _units = [];
       return;
     }
-    _units = await _repo.getUnits(_typeId!);
-    _unsettled = await _repo.unsettled(partyId: _partyId!, typeId: _typeId!);
+    _units = await _controller.getUnits(_typeId!);
+    _unsettled = await _controller.unsettled(partyId: _partyId!, typeId: _typeId!);
   }
 
   double _lineBase(TextEditingController crates, TextEditingController bottles) {
@@ -1004,7 +992,7 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
     }
     setState(() => _saving = true);
     try {
-      await _repo.settle(
+      await _controller.settle(
         partyId: _partyId!,
         typeId: _typeId!,
         warehouseId: _warehouseId!,
@@ -1014,8 +1002,6 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
         compensationPaidNow: paidNow,
         notes: _notes.text,
       );
-      AppEventBus.instance.notifyPackagingChanged();
-      AppEventBus.instance.notifyInvoiceChanged();
       if (!mounted) return;
       Get.back(result: true);
       AppUi.showSuccess('تم تسجيل التسوية');
@@ -1303,7 +1289,7 @@ class PartyPackagingSection extends StatefulWidget {
 }
 
 class _PartyPackagingSectionState extends State<PartyPackagingSection> {
-  final _repo = Get.find<ReturnablePackagingRepository>();
+  final _controller = Get.find<PackagingController>();
   List<PartyPackagingBalance> _balances = [];
   List<PackagingCharge> _charges = [];
   final _units = <int, List<PackagingUnit>>{};
@@ -1329,14 +1315,14 @@ class _PartyPackagingSectionState extends State<PartyPackagingSection> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final balances = await _repo.getPartyBalances(widget.partyId);
-      final charges = await _repo.getCharges(
+      final balances = await _controller.getPartyBalances(widget.partyId);
+      final charges = await _controller.getCharges(
         partyId: widget.partyId,
         unpaidOnly: true,
       );
       final units = <int, List<PackagingUnit>>{};
       for (final balance in balances) {
-        units[balance.typeId] = await _repo.getUnits(balance.typeId);
+        units[balance.typeId] = await _controller.getUnits(balance.typeId);
       }
       if (!mounted) return;
       setState(() {
@@ -1355,9 +1341,7 @@ class _PartyPackagingSectionState extends State<PartyPackagingSection> {
   Future<void> _payCharge(PackagingCharge charge) async {
     final remaining = charge.remaining;
     try {
-      await _repo.payCharge(chargeId: charge.id!, amount: remaining);
-      AppEventBus.instance.notifyPackagingChanged();
-      AppEventBus.instance.notifyInvoiceChanged();
+      await _controller.payCharge(chargeId: charge.id!, amount: remaining);
       AppUi.showSuccess('تم تسجيل دفعة مطالبة العبوات');
       await _load();
     } catch (e) {
@@ -1657,7 +1641,6 @@ class PackagingOpeningScreen extends StatefulWidget {
 }
 
 class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
-  final _repo = Get.find<ReturnablePackagingRepository>();
   final _packaging = Get.find<PackagingController>();
 
   final _emptyCrates = TextEditingController();
@@ -1699,7 +1682,7 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
       _units = [];
       return;
     }
-    _units = await _repo.getUnits(_typeId!);
+    _units = await _packaging.getUnits(_typeId!);
     if (mounted) setState(() {});
   }
 
@@ -1720,13 +1703,12 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
     }
     setState(() => _savingEmpty = true);
     try {
-      await _repo.recordOpeningEmpty(
+      await _packaging.recordOpeningEmpty(
         typeId: _typeId!,
         warehouseId: _warehouseId!,
         quantity: _lineBase(_emptyCrates, _emptyBottles),
         notes: _emptyNotes.text,
       );
-      AppEventBus.instance.notifyPackagingChanged();
       AppUi.showSuccess('تم تسجيل رصيد الفوارغ الافتتاحي');
       _emptyCrates.clear();
       _emptyBottles.clear();
@@ -1744,14 +1726,12 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
     }
     setState(() => _savingIssued = true);
     try {
-      await _repo.recordOpeningIssued(
+      await _packaging.recordOpeningIssued(
         typeId: _typeId!,
         partyId: _partyId!,
         quantity: _lineBase(_issuedCrates, _issuedBottles),
         notes: _issuedNotes.text,
       );
-      AppEventBus.instance.notifyPackagingChanged();
-      AppEventBus.instance.notifyInvoiceChanged();
       AppUi.showSuccess('تم تسجيل الرصيد لدى العميل');
       _issuedCrates.clear();
       _issuedBottles.clear();

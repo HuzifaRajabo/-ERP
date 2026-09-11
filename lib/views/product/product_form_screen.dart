@@ -5,14 +5,13 @@ import 'package:get/get.dart';
 
 import '../../controllers/product_controller.dart';
 import '../../controllers/feature_controller.dart';
+import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
-import '../../core/services/app_event_bus.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/category_model.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
 import '../../models/returnable_packaging_model.dart';
-import '../../repositories/returnable_packaging_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../views/shared/shared_components.dart';
@@ -125,12 +124,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _loadPackaging() async {
-    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
-    final repo = Get.find<ReturnablePackagingRepository>();
-    final types = await repo.getTypes();
+    if (!Get.isRegistered<PackagingController>()) return;
+    final packaging = Get.find<PackagingController>();
+    final types = await packaging.getTypes();
     PackagingProductMapping? mapping;
     if (product?.id != null) {
-      mapping = await repo.getProductMapping(product!.id!);
+      mapping = await packaging.getProductMapping(product!.id!);
     }
     if (!mounted) return;
     setState(() {
@@ -885,21 +884,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _savePackagingMapping(int productId) async {
-    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
-    final repo = Get.find<ReturnablePackagingRepository>();
+    if (!Get.isRegistered<PackagingController>()) return;
+    final packaging = Get.find<PackagingController>();
     final typeId = _selectedPackagingTypeId;
-    if (typeId == null) {
-      await repo.clearProductMapping(productId);
-      AppEventBus.instance.notifyPackagingChanged();
-      return;
-    }
-    final unitsPerBase = double.tryParse(_packagingUnitsController.text.trim()) ?? 1;
-    await repo.setProductMapping(
+    final unitsPerBase =
+        double.tryParse(_packagingUnitsController.text.trim()) ?? 1;
+    await packaging.saveOrClearProductMapping(
       productId: productId,
       typeId: typeId,
       unitsPerProductBase: unitsPerBase,
     );
-    AppEventBus.instance.notifyPackagingChanged();
   }
 
   Widget _buildSaveError() {

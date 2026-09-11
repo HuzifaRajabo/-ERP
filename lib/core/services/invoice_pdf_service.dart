@@ -9,8 +9,6 @@ import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
 import '../../models/invoice_draft.dart';
 import '../utils/money_utils.dart';
-import '../../controllers/feature_controller.dart';
-import '../../models/business_config.dart';
 import 'company_profile_service.dart';
 import 'pdf_company_header.dart';
 
@@ -26,6 +24,10 @@ class InvoicePdfService {
     required List<ReturnModel> returns,
     String? warehouseName,
     Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
+    bool showWarehouses = true,
+    bool showBatches = true,
+    bool showExpiry = true,
+    bool showDebts = true,
   }) async {
     final pdfBytes = await _buildPdf(
       invoice: invoice,
@@ -34,6 +36,10 @@ class InvoicePdfService {
       returns: returns,
       warehouseName: warehouseName,
       batchesByProductId: batchesByProductId,
+      showWarehouses: showWarehouses,
+      showBatches: showBatches,
+      showExpiry: showExpiry,
+      showDebts: showDebts,
     );
 
     await Printing.sharePdf(
@@ -53,6 +59,10 @@ class InvoicePdfService {
     required List<ReturnModel> returns,
     String? warehouseName,
     required Map<int, List<BatchAllocationSnapshot>> batchesByProductId,
+    required bool showWarehouses,
+    required bool showBatches,
+    required bool showExpiry,
+    required bool showDebts,
   }) async {
     // ── تحميل الخط العربي ──
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
@@ -86,13 +96,27 @@ class InvoicePdfService {
           pw.SizedBox(height: 12),
 
           // ── معلومات الطرف ──
-          _buildPartyInfo(invoice, isSale, warehouseName, ttf, ttfBold),
+          _buildPartyInfo(
+            invoice,
+            isSale,
+            warehouseName,
+            ttf,
+            ttfBold,
+            showWarehouses: showWarehouses,
+          ),
           pw.SizedBox(height: 12),
 
           // ── جدول الأسطر ──
           _sectionTitle('المنتجات', ttfBold),
           pw.SizedBox(height: 5),
-          _buildItemsTable(items, batchesByProductId, ttf, ttfBold),
+          _buildItemsTable(
+            items,
+            batchesByProductId,
+            ttf,
+            ttfBold,
+            showBatches: showBatches,
+            showExpiry: showExpiry,
+          ),
           pw.SizedBox(height: 12),
 
           // ── الملاحظات ──
@@ -122,6 +146,7 @@ class InvoicePdfService {
             isSale: isSale,
             ttf: ttf,
             bold: ttfBold,
+            showDebts: showDebts,
           ),
         ],
       ),
@@ -209,8 +234,9 @@ class InvoicePdfService {
     bool isSale,
     String? warehouseName,
     pw.Font ttf,
-    pw.Font bold,
-  ) {
+    pw.Font bold, {
+    required bool showWarehouses,
+  }) {
     final title = isSale ? 'العميل' : 'المورد';
 
     return pw.Container(
@@ -235,7 +261,7 @@ class InvoicePdfService {
           _pdfRow(title, invoice.partyNameSnapshot, ttf, bold),
           if (invoice.partyAddressSnapshot.isNotEmpty)
             _pdfRow('العنوان', invoice.partyAddressSnapshot, ttf, bold),
-          if (featureEnabled(AppFeature.warehouses) &&
+          if (showWarehouses &&
               warehouseName != null &&
               warehouseName.trim().isNotEmpty &&
               warehouseName.trim() != 'Main')
@@ -256,8 +282,10 @@ class InvoicePdfService {
     List<InvoiceItemModel> items,
     Map<int, List<BatchAllocationSnapshot>> batchesByProductId,
     pw.Font ttf,
-    pw.Font bold,
-  ) {
+    pw.Font bold, {
+    required bool showBatches,
+    required bool showExpiry,
+  }) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
       columnWidths: {
@@ -285,7 +313,7 @@ class InvoicePdfService {
               ? item.quantity.toInt().toString()
               : item.quantity.toStringAsFixed(2);
           final unit = item.unitNameSnapshot;
-          final allocations = featureEnabled(AppFeature.batches)
+          final allocations = showBatches
               ? (batchesByProductId[item.productId] ?? const [])
               : const <BatchAllocationSnapshot>[];
           final rows = <pw.TableRow>[
@@ -304,7 +332,7 @@ class InvoicePdfService {
             ),
           ];
           for (final allocation in allocations) {
-            final expiry = featureEnabled(AppFeature.expiry)
+            final expiry = showExpiry
                 ? allocation.expiryDate
                 : null;
             final allocationUnit =
@@ -488,6 +516,7 @@ class InvoicePdfService {
     required bool isSale,
     required pw.Font ttf,
     required pw.Font bold,
+    required bool showDebts,
   }) {
     final balanceLabel = balance > 0
         ? 'المتبقي'
@@ -547,7 +576,7 @@ class InvoicePdfService {
             bold,
             valueColor: PdfColors.green600,
           ),
-          if (featureEnabled(AppFeature.debts)) ...[
+          if (showDebts) ...[
             pw.Divider(color: PdfColors.grey400, thickness: 1.5),
             _totalRow(
               balanceLabel,

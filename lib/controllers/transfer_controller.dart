@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
+import '../models/inventory_transaction_model.dart';
+import '../models/warehouse_model.dart';
 import '../repositories/inventory_repository.dart';
 import '../repositories/stock_transfer_repository.dart';
-import '../repositories/warehouse_repository.dart';import '../models/warehouse_model.dart';
+import '../repositories/warehouse_repository.dart';
 import '../core/services/app_event_bus.dart';
 
 enum TransferState { idle, loading, submitting, success, error }
@@ -33,6 +35,14 @@ class TransferController extends GetxController {
     required this.inventoryRepo,
     required this.transferRepo,
   });
+
+  factory TransferController.create() {
+    return TransferController(
+      warehouseRepo: Get.find<WarehouseRepository>(),
+      inventoryRepo: Get.find<InventoryRepository>(),
+      transferRepo: Get.find<StockTransferRepository>(),
+    );
+  }
 
   // ==============================
   // State

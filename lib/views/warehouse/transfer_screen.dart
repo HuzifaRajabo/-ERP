@@ -27,13 +27,7 @@ class TransferTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(
-      TransferController(
-        warehouseRepo: Get.find(),
-        inventoryRepo: Get.find(),
-        transferRepo: Get.find(),
-      ),
-    );
+    final controller = Get.put(TransferController.create());
 
     if (initialFromWarehouseId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -80,4 +80,8 @@ class WarehouseController extends GetxController {
       errorMessage.value = e.toString();
     }
   }
+
+  Future<WarehouseModel?> getWarehouseById(int id) {
+    return repo.getWarehouseById(id);
+  }
 }

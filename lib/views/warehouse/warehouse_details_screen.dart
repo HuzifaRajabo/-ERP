@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/warehouse_detail_controller.dart';
 import '../../controllers/feature_controller.dart';
+import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../models/warehouse_model.dart';
-import '../../repositories/inventory_repository.dart';
-import '../../repositories/returnable_packaging_repository.dart';
-import '../../core/utils/packaging_quantity_format.dart';
 import '../../models/returnable_packaging_model.dart';
+import '../../core/utils/packaging_quantity_format.dart';
 import '../packaging/packaging_screens.dart';
 import 'transfer_screen.dart';
 import 'warehouse_form_screen.dart';
@@ -37,11 +36,7 @@ class _WarehouseDetailsScreenState extends State<WarehouseDetailsScreen> {
   void initState() {
     super.initState();
     controller = Get.put(
-      WarehouseDetailController(
-        warehouseId: widget.warehouse.id!,
-        warehouseRepo: Get.find(),
-        inventoryRepo: Get.find(),
-      ),
+      WarehouseDetailController.create(warehouseId: widget.warehouse.id!),
     );
     if (widget.focusProductId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -899,8 +894,8 @@ class _WarehousePackagingStockState extends State<_WarehousePackagingStock> {
   }
 
   Future<void> _load() async {
-    if (!Get.isRegistered<ReturnablePackagingRepository>()) return;
-    final rows = await Get.find<ReturnablePackagingRepository>()
+    if (!Get.isRegistered<PackagingController>()) return;
+    final rows = await Get.find<PackagingController>()
         .getWarehouseStock(warehouseId: widget.warehouseId);
     if (!mounted) return;
     setState(() => _rows = rows);

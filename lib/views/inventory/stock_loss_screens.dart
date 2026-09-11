@@ -6,16 +6,8 @@ import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/money_utils.dart';
-import '../../core/services/stock_document_pdf_service.dart';
 import '../../models/expired_return_model.dart';
 import '../../models/waste_model.dart';
-import '../../repositories/expired_return_repository.dart';
-import '../../repositories/inventory_repository.dart';
-import '../../repositories/party_repository.dart';
-import '../../repositories/product_repository.dart';
-import '../../repositories/product_unit_repository.dart';
-import '../../repositories/warehouse_repository.dart';
-import '../../repositories/waste_repository.dart';
 import '../shared/app_ui.dart';
 import '../shared/shared_components.dart';
 
@@ -55,16 +47,7 @@ class _StockLossFormScreenState extends State<StockLossFormScreen> {
     super.initState();
     _tag = widget.isExpiredReturn ? 'expired' : 'waste';
     controller = Get.put(
-      StockLossController(
-        wasteRepo: Get.find<WasteRepository>(),
-        expiredRepo: Get.find<ExpiredReturnRepository>(),
-        warehouseRepo: Get.find<WarehouseRepository>(),
-        inventoryRepo: Get.find<InventoryRepository>(),
-        productRepo: Get.find<ProductRepository>(),
-        unitRepo: Get.find<ProductUnitRepository>(),
-        partyRepo: Get.find<PartyRepository>(),
-        isExpiredReturn: widget.isExpiredReturn,
-      ),
+      StockLossController.create(isExpiredReturn: widget.isExpiredReturn),
       tag: _tag,
     );
   }
@@ -487,7 +470,7 @@ class _WasteListState extends State<WasteList> {
   @override
   void initState() {
     super.initState();
-    _future = Get.find<WasteRepository>().getAll();
+    _future = StockLossController.getAllWaste();
     _inventoryListener = AppEventBus.instance.listenToInventory(_reload);
   }
 
@@ -500,7 +483,7 @@ class _WasteListState extends State<WasteList> {
   void _reload() {
     if (!mounted) return;
     setState(() {
-      _future = Get.find<WasteRepository>().getAll();
+      _future = StockLossController.getAllWaste();
     });
   }
 
@@ -579,7 +562,7 @@ class _ExpiredReturnListState extends State<ExpiredReturnList> {
   @override
   void initState() {
     super.initState();
-    _future = Get.find<ExpiredReturnRepository>().getAll();
+    _future = StockLossController.getAllExpired();
     _inventoryListener = AppEventBus.instance.listenToInventory(_reload);
   }
 
@@ -592,7 +575,7 @@ class _ExpiredReturnListState extends State<ExpiredReturnList> {
   void _reload() {
     if (!mounted) return;
     setState(() {
-      _future = Get.find<ExpiredReturnRepository>().getAll();
+      _future = StockLossController.getAllExpired();
     });
   }
 
@@ -668,7 +651,7 @@ class WasteDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<WasteWithItems?>(
-      future: Get.find<WasteRepository>().getById(id),
+      future: StockLossController.getWasteById(id),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(body: AppLoadingState());
@@ -693,7 +676,7 @@ class WasteDetailsScreen extends StatelessWidget {
               IconButton(
                 tooltip: 'تصدير PDF',
                 icon: const Icon(Icons.picture_as_pdf_outlined),
-                onPressed: () => StockDocumentPdfService.exportWaste(data),
+                onPressed: () => StockLossController.exportWastePdf(data),
               ),
             ],
           ),
@@ -778,7 +761,7 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<ExpiredReturnWithItems?>(
-      future: Get.find<ExpiredReturnRepository>().getById(id),
+      future: StockLossController.getExpiredById(id),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(body: AppLoadingState());
@@ -807,7 +790,7 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
                 tooltip: 'تصدير PDF',
                 icon: const Icon(Icons.picture_as_pdf_outlined),
                 onPressed: () =>
-                    StockDocumentPdfService.exportExpiredReturn(data),
+                    StockLossController.exportExpiredPdf(data),
               ),
             ],
           ),

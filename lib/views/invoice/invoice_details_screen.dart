@@ -8,15 +8,12 @@ import '../../models/invoice_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/invoice_draft.dart';
 import '../../controllers/payment_controller.dart';
+import '../../controllers/return_controller.dart';
+import '../../controllers/company_profile_controller.dart';
 import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
-import '../../repositories/return_repository.dart';
-import '../../repositories/payment_repository.dart';
-import '../../repositories/invoice_repository.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/services/invoice_pdf_service.dart';
-import '../../core/services/company_profile_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../shared/shared_components.dart';
@@ -30,8 +27,6 @@ class InvoiceDetailsScreen extends StatefulWidget {
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   final controller = Get.find<InvoiceController>();
-  final _returnRepo = ReturnRepository();
-  final _paymentRepo = PaymentRepository();
   late final int invoiceId;
   late InvoiceModel invoice;
   late Future<InvoiceWithItems?> _invoiceFuture;
@@ -44,7 +39,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     _invoiceFuture = _loadInvoice();
 
     _invoiceWorker = AppEventBus.instance.listenToInvoices(() async {
-      final updated = await controller.repo.getInvoiceById(invoice.id!);
+      final updated = await controller.getInvoiceById(invoice.id!);
       if (updated != null && mounted) {
         setState(() => invoice = updated);
         // إعادة تحميل الفاتورة كاملة
@@ -294,14 +289,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     Map<int, List<BatchAllocationSnapshot>> batchesByProductId = const {},
   }) async {
     try {
-      final payments = await _paymentRepo.getPaymentsByInvoice(invoice.id!);
-      final returns = await _returnRepo.getReturnsByInvoice(invoice.id!);
-
-      await InvoicePdfService.exportInvoice(
+      await controller.exportInvoicePdf(
         invoice: invoice,
         items: items,
-        payments: payments,
-        returns: returns,
         warehouseName: warehouseName,
         batchesByProductId: batchesByProductId,
       );
@@ -673,7 +663,6 @@ class _PaymentHistorySection extends StatefulWidget {
 }
 
 class _PaymentHistorySectionState extends State<_PaymentHistorySection> {
-  final _repo = PaymentRepository();
   final _payments = <PaymentModel>[].obs;
   Worker? _worker;
 
@@ -688,7 +677,9 @@ class _PaymentHistorySectionState extends State<_PaymentHistorySection> {
 
   Future<void> _load() async {
     try {
-      final result = await _repo.getPaymentsByInvoice(widget.invoiceId);
+      final result = await Get.find<PaymentController>().getPaymentsByInvoice(
+        widget.invoiceId,
+      );
       if (mounted) _payments.assignAll(result);
     } catch (e) {
       debugPrint('Error loading payments: $e');
@@ -853,7 +844,6 @@ class _ReturnsSection extends StatefulWidget {
 }
 
 class _ReturnsSectionState extends State<_ReturnsSection> {
-  final _repo = ReturnRepository();
   final _returns = <ReturnModel>[].obs;
   Worker? _worker;
 
@@ -868,7 +858,9 @@ class _ReturnsSectionState extends State<_ReturnsSection> {
 
   Future<void> _load() async {
     try {
-      final result = await _repo.getReturnsByInvoice(widget.invoiceId);
+      final result = await Get.find<ReturnController>().getReturnsByInvoice(
+        widget.invoiceId,
+      );
       if (mounted) _returns.assignAll(result);
     } catch (e) {
       debugPrint('Error loading returns: $e');
@@ -1052,7 +1044,6 @@ class _InvoiceTotalSection extends StatefulWidget {
 }
 
 class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
-  final _repo = ReturnRepository();
   final _returnsTotal = 0.obs;
   Worker? _inventoryWorker;
   Worker? _invoiceWorker;
@@ -1073,10 +1064,9 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
 
   Future<void> _load() async {
     try {
-      final returns = await _repo.getReturnsByInvoice(widget.invoice.id!);
-      if (mounted) {
-        _returnsTotal.value = returns.fold(0, (sum, r) => sum + r.totalAmount);
-      }
+      final total = await Get.find<ReturnController>()
+          .getReturnsTotalForInvoice(widget.invoice.id!);
+      if (mounted) _returnsTotal.value = total;
     } catch (e) {
       debugPrint('Error loading returns total: $e');
     }
@@ -1297,12 +1287,11 @@ class _CompanyIdentityBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<CompanyProfileService>()) {
+    if (!Get.isRegistered<CompanyProfileController>()) {
       return const SizedBox.shrink();
     }
     return Obx(() {
-      final lines =
-          Get.find<CompanyProfileService>().profile.value.headerLines;
+      final lines = Get.find<CompanyProfileController>().headerLines;
       if (lines.isEmpty) return const SizedBox.shrink();
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),

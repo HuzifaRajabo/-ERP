@@ -5,7 +5,7 @@ import '../../controllers/return_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
-import '../../repositories/payment_repository.dart';
+import '../../controllers/payment_controller.dart';
 
 class ReturnDetailsScreen extends StatelessWidget {
   const ReturnDetailsScreen({super.key});
@@ -342,7 +342,9 @@ class ReturnDetailsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               FutureBuilder<List<PaymentModel>>(
-                future: PaymentRepository().getPaymentsByReturn(ret.id!),
+                future: Get.find<PaymentController>().getPaymentsByReturn(
+                  ret.id!,
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Padding(

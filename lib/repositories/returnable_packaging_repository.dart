@@ -2,54 +2,8 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/database/inventory_stock_sql.dart';
-import '../core/utils/packaging_quantity_format.dart';
 import '../core/utils/unit_conversion.dart';
 import '../models/returnable_packaging_model.dart';
-
-class PackagingException implements Exception {
-  PackagingException(this.message);
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-class PackagingShortageException implements Exception {
-  PackagingShortageException(this.shortages);
-  final List<PackagingFillShortage> shortages;
-
-  String get message {
-    if (shortages.isEmpty) {
-      return 'كمية الشراء تتجاوز الفوارغ المتاحة في المستودع';
-    }
-    final first = shortages.first;
-    return 'كمية الشراء تتجاوز الفوارغ المتاحة لنوع "${first.typeName}": '
-        'مطلوب ${PackagingQuantityFormat.formatQuantity(first.needed)}، '
-        'متاح ${PackagingQuantityFormat.formatQuantity(first.available)}، '
-        'النقص ${PackagingQuantityFormat.formatQuantity(first.shortage)}';
-  }
-
-  @override
-  String toString() => message;
-}
-
-class PackagingAlertRow {
-  const PackagingAlertRow({
-    required this.partyId,
-    required this.partyName,
-    required this.typeId,
-    required this.typeName,
-    required this.unsettled,
-    this.oldestIssuedAt,
-  });
-
-  final int partyId;
-  final String partyName;
-  final int typeId;
-  final String typeName;
-  final double unsettled;
-  final String? oldestIssuedAt;
-}
 
 class ReturnablePackagingRepository {
   ReturnablePackagingRepository({Future<Database> Function()? dbProvider})

@@ -23,6 +23,14 @@ class WarehouseDetailController extends GetxController {
     required this.inventoryRepo,
   });
 
+  factory WarehouseDetailController.create({required int warehouseId}) {
+    return WarehouseDetailController(
+      warehouseId: warehouseId,
+      warehouseRepo: Get.find<WarehouseRepository>(),
+      inventoryRepo: Get.find<InventoryRepository>(),
+    );
+  }
+
   // ==============================
   // State
   // ==============================

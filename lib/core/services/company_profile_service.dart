@@ -13,13 +13,8 @@ class CompanyProfileService extends GetxService {
 
   bool _loaded = false;
 
-  static CompanyProfileService resolve({
-    CompanyProfileRepository? repo,
-  }) {
-    if (Get.isRegistered<CompanyProfileService>()) {
-      return Get.find<CompanyProfileService>();
-    }
-    return CompanyProfileService(repo ?? CompanyProfileRepository());
+  static CompanyProfileService resolve() {
+    return Get.find<CompanyProfileService>();
   }
 
   @override

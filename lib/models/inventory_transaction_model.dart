@@ -147,3 +147,90 @@ enum InventoryTransactionType {
       this == InventoryTransactionType.transferOut ||
       this == InventoryTransactionType.transferIn;
 }
+
+/// نموذج مُعزَّز يضم بيانات الحركة + اسم المنتج + رقم الفاتورة
+/// يُستخدم في الواجهة لعرض معلومات كاملة بدون joins إضافية
+class InventoryTransactionView {
+  final InventoryTransactionModel transaction;
+  final String productName;
+
+  /// رقم الفاتورة (فارغ لحركات التحويل بين المستودعات).
+  final String? invoiceNumber;
+
+  /// اسم المستودع الذي تنتمي إليه هذه الحركة
+  /// (مصدر التحويل لأجل TRANSFER_OUT، والوجهة لأجل TRANSFER_IN).
+  final String? warehouseName;
+
+  /// اسم المستودع المقابل في عمليات التحويل
+  /// (الوجهة لأجل TRANSFER_OUT، والمصدر لأجل TRANSFER_IN).
+  final String? counterpartyWarehouseName;
+
+  final String? batchNumber;
+  final String? expiryDate;
+  final String? unitName;
+
+  InventoryTransactionView({
+    required this.transaction,
+    required this.productName,
+    this.invoiceNumber,
+    this.warehouseName,
+    this.counterpartyWarehouseName,
+    this.batchNumber,
+    this.expiryDate,
+    this.unitName,
+  });
+}
+
+class InventoryTransactionPage {
+  final List<InventoryTransactionView> transactions;
+  final bool hasNextPage;
+  final int? nextCursor;
+
+  const InventoryTransactionPage({
+    required this.transactions,
+    required this.hasNextPage,
+    this.nextCursor,
+  });
+}
+
+/// ملخص مخزون منتج معين
+class ProductStockSummary {
+  final int productId;
+  final String productName;
+  final String productDescription;
+  final double totalPurchased;
+  final double totalSold;
+  final double available;
+  final String? unitName;
+  final int value; // قيمة المتاح بالسنت (بسعر التكلفة)
+  final double? minStock;
+
+  ProductStockSummary({
+    required this.productId,
+    required this.productName,
+    required this.productDescription,
+    required this.totalPurchased,
+    required this.totalSold,
+    required this.available,
+    this.unitName,
+    this.value = 0,
+    this.minStock,
+  });
+}
+
+/// تفاصيل مخزون دفعة منتج معين ضمن مستودع معين.
+class WarehouseProductBatchStock {
+  final int batchId;
+  final String? batchNumber;
+  final String? expiryDate;
+  final double available;
+  final int costPrice; // تكلفة الوحدة الأساسية (من الدفعة أو المنتج)
+
+  WarehouseProductBatchStock({
+    required this.batchId,
+    required this.batchNumber,
+    required this.expiryDate,
+    required this.available,
+    required this.costPrice,
+  });
+}

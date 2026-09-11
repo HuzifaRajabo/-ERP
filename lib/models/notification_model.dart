@@ -68,6 +68,8 @@ enum NotificationPriority {
   }
 }
 
+enum NotificationListFilter { all, unread, active }
+
 enum NotificationStatus {
   active('ACTIVE'),
   resolved('RESOLVED');

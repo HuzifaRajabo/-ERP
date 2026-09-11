@@ -648,6 +648,8 @@ class InvoiceRepository {
 
   Future<InvoicePage> getInvoicesByParty({
     required int partyId,
+    InvoiceType? type,
+    bool unpaidOnly = false,
     int? lastId,
     int pageSize = _defaultPageSize,
   }) async {
@@ -655,7 +657,17 @@ class InvoiceRepository {
     final where = <String>['party_id = ?'];
     final args = <dynamic>[partyId];
 
-    if (lastId != null) { where.add('id < ?'); args.add(lastId); }
+    if (type != null) {
+      where.add('type = ?');
+      args.add(type.name.toUpperCase());
+    }
+    if (unpaidOnly) {
+      where.add('(total_amount - paid_amount) > 0');
+    }
+    if (lastId != null) {
+      where.add('id < ?');
+      args.add(lastId);
+    }
 
     final result = await db.query(
       'invoices',
@@ -694,33 +706,6 @@ class InvoicePage {
     required this.hasNextPage,
     this.nextCursor,
   });
-}
-
-// ==============================
-// Result of Invoice Delete
-// ==============================
-
-/// نتيجة محاولة حذف فاتورة.
-///
-/// - [allowed]  : حُذفت الفاتورة بنجاح (مع تنظيف الدفعات والحركات المالية).
-/// - [blocked]  : مُنع الحذف، والسبب في [reason] (نص واضح بالعربية).
-class InvoiceDeleteResult {
-  final bool success;
-  final String? reason;
-
-  const InvoiceDeleteResult._(this.success, this.reason);
-
-  static const InvoiceDeleteResult allowed =
-      InvoiceDeleteResult._(true, null);
-
-  const InvoiceDeleteResult.blocked({this.reason})
-      : success = false;
-
-  bool get isBlocked => !success;
-
-  @override
-  String toString() =>
-      success ? 'allowed' : 'blocked($reason)';
 }
 
 // ==============================

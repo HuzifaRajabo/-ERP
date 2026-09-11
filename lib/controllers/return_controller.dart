@@ -198,6 +198,15 @@ class ReturnController extends GetxController {
 
   final RxList<ReturnModel> invoiceReturns = <ReturnModel>[].obs;
 
+  Future<List<ReturnModel>> getReturnsByInvoice(int invoiceId) {
+    return repo.getReturnsByInvoice(invoiceId);
+  }
+
+  Future<int> getReturnsTotalForInvoice(int invoiceId) async {
+    final items = await repo.getReturnsByInvoice(invoiceId);
+    return items.fold<int>(0, (sum, item) => sum + item.totalAmount);
+  }
+
   Future<void> loadInvoiceReturns(int invoiceId) async {
     try {
       final result = await repo.getReturnsByInvoice(invoiceId);

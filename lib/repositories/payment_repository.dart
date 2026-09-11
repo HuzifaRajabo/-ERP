@@ -1,5 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
+import '../models/invoice_model.dart';
+import '../models/debt_report_model.dart';
 import '../models/payment_model.dart';
 import 'returnable_packaging_repository.dart';
 
@@ -506,30 +508,163 @@ class PaymentRepository {
         )
         .toList();
   }
+
+  /// مصادر الديون غير المسددة حسب نوع الفاتورة (بيع أو شراء).
+  /// تعويض العبوات يُضاف فقط لديون الزبائن عندما [includePackaging] = true.
+  Future<List<PartyDebtStatement>> getDebtStatements({
+    required InvoiceType invoiceType,
+    int? partyId,
+    bool includePackaging = false,
+  }) async {
+    final db = await _db;
+    final owedToUs = invoiceType == InvoiceType.sale;
+    final typeDb = invoiceType.name.toUpperCase();
+
+    final invoiceWhere = <String>[
+      'i.type = ?',
+      '(i.total_amount - i.paid_amount) > 0',
+    ];
+    final invoiceArgs = <Object?>[typeDb];
+    if (partyId != null) {
+      invoiceWhere.add('i.party_id = ?');
+      invoiceArgs.add(partyId);
+    }
+
+    final invoiceRows = await db.rawQuery(
+      '''
+      SELECT
+        i.invoice_number,
+        i.party_id,
+        i.total_amount,
+        i.paid_amount,
+        i.created_at,
+        p.name AS party_name,
+        p.phone AS party_phone
+      FROM invoices i
+      INNER JOIN parties p ON p.id = i.party_id
+      WHERE ${invoiceWhere.join(' AND ')}
+      ORDER BY i.id DESC
+      ''',
+      invoiceArgs,
+    );
+
+    final chargeRows = <Map<String, Object?>>[];
+    if (includePackaging && owedToUs) {
+      final chargeWhere = <String>['(c.amount - c.paid_amount) > 0'];
+      final chargeArgs = <Object?>[];
+      if (partyId != null) {
+        chargeWhere.add('c.party_id = ?');
+        chargeArgs.add(partyId);
+      }
+      chargeRows.addAll(
+        await db.rawQuery(
+          '''
+          SELECT
+            c.party_id,
+            c.amount,
+            c.paid_amount,
+            c.created_at,
+            p.name AS party_name,
+            p.phone AS party_phone,
+            t.name AS type_name,
+            s.settlement_number
+          FROM returnable_packaging_charges c
+          INNER JOIN parties p ON p.id = c.party_id
+          INNER JOIN returnable_packaging_types t ON t.id = c.type_id
+          LEFT JOIN returnable_packaging_settlements s
+            ON s.id = c.settlement_id
+          WHERE ${chargeWhere.join(' AND ')}
+          ORDER BY c.id DESC
+          ''',
+          chargeArgs,
+        ),
+      );
+    }
+
+    final grouped = <int, _PartyStatementDraft>{};
+
+    void ensureParty(Map<String, Object?> row) {
+      final id = row['party_id'] as int;
+      grouped.putIfAbsent(
+        id,
+        () => _PartyStatementDraft(
+          partyId: id,
+          partyName: row['party_name'] as String? ?? '',
+          partyPhone: row['party_phone'] as String?,
+          owedToUs: owedToUs,
+        ),
+      );
+    }
+
+    for (final row in invoiceRows) {
+      ensureParty(row);
+      grouped[row['party_id'] as int]!.lines.add(
+        DebtSourceLine(
+          kind: DebtSourceKind.invoice,
+          documentNumber: row['invoice_number'] as String,
+          sourceTypeLabel: owedToUs ? 'فاتورة بيع' : 'فاتورة شراء',
+          date: row['created_at'] as String?,
+          totalAmount: (row['total_amount'] as num).toInt(),
+          paidAmount: (row['paid_amount'] as num).toInt(),
+        ),
+      );
+    }
+
+    for (final row in chargeRows) {
+      ensureParty(row);
+      final settlement = (row['settlement_number'] as String?)?.trim();
+      final typeName = (row['type_name'] as String?)?.trim();
+      final number = (settlement != null && settlement.isNotEmpty)
+          ? 'تعويض عبوات • $settlement'
+          : 'تعويض عبوات';
+      final typeLabel = (typeName != null && typeName.isNotEmpty)
+          ? 'تعويض عبوات • $typeName'
+          : 'تعويض عبوات';
+      grouped[row['party_id'] as int]!.lines.add(
+        DebtSourceLine(
+          kind: DebtSourceKind.packagingCharge,
+          documentNumber: number,
+          sourceTypeLabel: typeLabel,
+          date: row['created_at'] as String?,
+          totalAmount: (row['amount'] as num).toInt(),
+          paidAmount: (row['paid_amount'] as num).toInt(),
+        ),
+      );
+    }
+
+    final statements = grouped.values
+        .map(
+          (draft) => PartyDebtStatement(
+            partyId: draft.partyId,
+            partyName: draft.partyName,
+            partyPhone: draft.partyPhone,
+            owedToUs: draft.owedToUs,
+            lines: draft.lines,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.totalRemaining.compareTo(a.totalRemaining));
+    return statements;
+  }
 }
 
 // ==============================
 // Models مساعدة
 // ==============================
 
-class PartyDebtSummary {
+class _PartyStatementDraft {
+  _PartyStatementDraft({
+    required this.partyId,
+    required this.partyName,
+    required this.owedToUs,
+    this.partyPhone,
+  });
+
   final int partyId;
   final String partyName;
   final String? partyPhone;
-  final int invoiceCount;
-  final int invoiceRemaining;
-  final int packagingCompensationRemaining;
-
-  PartyDebtSummary({
-    required this.partyId,
-    required this.partyName,
-    this.partyPhone,
-    required this.invoiceCount,
-    required this.invoiceRemaining,
-    this.packagingCompensationRemaining = 0,
-  });
-
-  int get totalRemaining => invoiceRemaining + packagingCompensationRemaining;
+  final bool owedToUs;
+  final List<DebtSourceLine> lines = [];
 }
 
 // ==============================

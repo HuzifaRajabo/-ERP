@@ -5,8 +5,6 @@ import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
 import '../models/notification_model.dart';
 
-enum NotificationListFilter { all, unread, active }
-
 class NotificationRepository {
   NotificationRepository({Future<Database> Function()? dbProvider})
       : _dbProvider =

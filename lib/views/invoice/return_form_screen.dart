@@ -5,7 +5,7 @@ import '../../controllers/return_controller.dart';
 import '../../models/invoice_model.dart';
 import '../../models/return_model.dart';
 import '../../models/product_unit_model.dart';
-import '../../repositories/product_unit_repository.dart';
+import '../../controllers/product_controller.dart';
 
 class ReturnFormScreen extends StatefulWidget {
   const ReturnFormScreen({super.key});
@@ -304,7 +304,6 @@ class _ReturnItemRow extends StatefulWidget {
 
 class _ReturnItemRowState extends State<_ReturnItemRow> {
   late TextEditingController _qtyCtrl;
-  final _unitRepo = ProductUnitRepository();
   final _units = <ProductUnitModel>[].obs;
 
   @override
@@ -321,9 +320,10 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
   Future<void> _loadUnits() async {
     try {
       // وحدة الإرجاع: وحدات قابلة للبيع لمرتجع مبيعات، وقابلة للشراء لمرتجع مشتريات
+      final productController = Get.find<ProductController>();
       final units = widget.returnType == ReturnType.saleReturn
-          ? await _unitRepo.getSellableUnits(widget.item.productId)
-          : await _unitRepo.getBuyableUnits(widget.item.productId);
+          ? await productController.getSellableUnits(widget.item.productId)
+          : await productController.getBuyableUnits(widget.item.productId);
       if (mounted) _units.assignAll(units);
     } catch (_) {
       // لا نكسر النموذج عند فشل جلب الوحدات

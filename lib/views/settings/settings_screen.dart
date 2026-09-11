@@ -5,7 +5,6 @@ import '../../controllers/feature_controller.dart';
 import '../../core/config/activity_profiles.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../models/business_config.dart';
-import '../../repositories/invoice_repository.dart';
 import '../shared/app_ui.dart';
 import '../shared/shared_components.dart';
 
@@ -192,7 +191,7 @@ class _FeatureSwitch extends StatelessWidget {
 
   Future<void> _toggle(BuildContext context, bool enabled) async {
     if (!enabled && feature == AppFeature.debts) {
-      final unpaid = await Get.find<InvoiceRepository>().countUnpaidInvoices();
+      final unpaid = await controller.countUnpaidInvoices();
       if (unpaid > 0) {
         if (!context.mounted) return;
         final confirmed = await AppConfirmDialog.show(

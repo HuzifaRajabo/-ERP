@@ -21,6 +21,10 @@ class CompanyProfileController extends GetxController {
   final RxBool isSaving = false.obs;
   final RxnString errorMessage = RxnString();
 
+  Rx<CompanyProfileModel> get profile => _service.profile;
+
+  List<String> get headerLines => _service.profile.value.headerLines;
+
   @override
   void onInit() {
     super.onInit();

@@ -10,14 +10,14 @@ import '../../models/product_unit_model.dart';
 import '../../models/category_model.dart';
 import '../../models/warehouse_model.dart';
 import '../../models/invoice_draft.dart';
-import '../../repositories/batch_repository.dart' show BatchStock;
+import '../../models/batch_model.dart';
+import '../../models/returnable_packaging_model.dart';
 import '../../core/utils/money_utils.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../core/utils/packaging_quantity_format.dart';
 import '../../core/utils/unit_conversion.dart';
 import '../../controllers/packaging_controller.dart';
-import '../../repositories/returnable_packaging_repository.dart';
 import '../shared/shared_components.dart';
 
 // ==============================

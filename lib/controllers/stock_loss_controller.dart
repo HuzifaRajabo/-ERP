@@ -7,6 +7,7 @@ import '../models/product_model.dart';
 import '../models/product_unit_model.dart';
 import '../models/warehouse_model.dart';
 import '../models/waste_model.dart';
+import '../models/inventory_transaction_model.dart';
 import '../repositories/expired_return_repository.dart';
 import '../repositories/inventory_repository.dart';
 import '../repositories/party_repository.dart';
@@ -14,6 +15,8 @@ import '../repositories/product_repository.dart';
 import '../repositories/product_unit_repository.dart';
 import '../repositories/warehouse_repository.dart';
 import '../repositories/waste_repository.dart';
+import '../core/services/stock_document_pdf_service.dart';
+import '../models/expired_return_model.dart';
 
 class StockLossController extends GetxController {
   StockLossController({
@@ -26,6 +29,43 @@ class StockLossController extends GetxController {
     required this.partyRepo,
     required this.isExpiredReturn,
   });
+
+  factory StockLossController.create({required bool isExpiredReturn}) {
+    return StockLossController(
+      wasteRepo: Get.find<WasteRepository>(),
+      expiredRepo: Get.find<ExpiredReturnRepository>(),
+      warehouseRepo: Get.find<WarehouseRepository>(),
+      inventoryRepo: Get.find<InventoryRepository>(),
+      productRepo: Get.find<ProductRepository>(),
+      unitRepo: Get.find<ProductUnitRepository>(),
+      partyRepo: Get.find<PartyRepository>(),
+      isExpiredReturn: isExpiredReturn,
+    );
+  }
+
+  static Future<List<WasteRecord>> getAllWaste() {
+    return Get.find<WasteRepository>().getAll();
+  }
+
+  static Future<WasteWithItems?> getWasteById(int id) {
+    return Get.find<WasteRepository>().getById(id);
+  }
+
+  static Future<List<ExpiredReturnRecord>> getAllExpired() {
+    return Get.find<ExpiredReturnRepository>().getAll();
+  }
+
+  static Future<ExpiredReturnWithItems?> getExpiredById(int id) {
+    return Get.find<ExpiredReturnRepository>().getById(id);
+  }
+
+  static Future<void> exportWastePdf(WasteWithItems data) {
+    return StockDocumentPdfService.exportWaste(data);
+  }
+
+  static Future<void> exportExpiredPdf(ExpiredReturnWithItems data) {
+    return StockDocumentPdfService.exportExpiredReturn(data);
+  }
 
   final WasteRepository wasteRepo;
   final ExpiredReturnRepository expiredRepo;

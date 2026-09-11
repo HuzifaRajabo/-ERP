@@ -105,6 +105,7 @@ class AppBinding extends Bindings {
       PaymentController(
         Get.find<PaymentRepository>(),
         Get.find<InvoiceRepository>(),
+        Get.find<PartyRepository>(),
       ),
       permanent: true,
     );
@@ -166,7 +167,10 @@ class AppBinding extends Bindings {
       permanent: true,
     );
     Get.put<FeatureController>(
-      FeatureController(Get.find<BusinessSettingsRepository>()),
+      FeatureController(
+        Get.find<BusinessSettingsRepository>(),
+        invoiceRepo: Get.find<InvoiceRepository>(),
+      ),
       permanent: true,
     );
     Get.put<CompanyProfileRepository>(

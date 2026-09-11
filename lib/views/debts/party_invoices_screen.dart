@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/invoice_controller.dart';
+import '../../controllers/payment_controller.dart';
+import '../../controllers/feature_controller.dart';
+import '../../controllers/packaging_controller.dart';
+import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/invoice_model.dart';
 import '../../models/payment_model.dart';
 import '../../models/returnable_packaging_model.dart';
-import '../../repositories/returnable_packaging_repository.dart';
 import '../shared/shared_components.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../debts/payment_bottom_sheet.dart';
@@ -59,19 +62,20 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
   Future<void> _loadPartyInvoices() async {
     try {
       isLoading.value = true;
-      final page = await invoiceController.repo.getInvoicesByParty(
+      final invoices = await invoiceController.getUnpaidInvoicesByParty(
         partyId: partyId,
-        pageSize: 1000,
+        type: paymentType == PaymentType.inbound
+            ? InvoiceType.sale
+            : InvoiceType.purchase,
       );
-      partyInvoices.assignAll(
-        page.invoices
-            .where((i) => i.paymentStatus != PaymentStatus.paid)
-            .toList(),
-      );
+      partyInvoices.assignAll(invoices);
       if (paymentType == PaymentType.inbound &&
-          Get.isRegistered<ReturnablePackagingRepository>()) {
-        final charges = await Get.find<ReturnablePackagingRepository>()
-            .getCharges(partyId: partyId, unpaidOnly: true);
+          featureEnabled(AppFeature.returnablePackaging) &&
+          Get.isRegistered<PackagingController>()) {
+        final charges = await Get.find<PackagingController>().getCharges(
+          partyId: partyId,
+          unpaidOnly: true,
+        );
         packagingCharges.assignAll(charges);
       } else {
         packagingCharges.clear();
@@ -90,6 +94,21 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
         title: Text(partyName),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'تصدير PDF',
+            onPressed: () async {
+              try {
+                await Get.find<PaymentController>().exportPartyStatementPdf(
+                  partyId: partyId,
+                  partyName: partyName,
+                  owedToUs: paymentType == PaymentType.inbound,
+                );
+              } catch (_) {
+                AppUi.showError('تعذر إنشاء كشف الحساب');
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadPartyInvoices,
@@ -454,12 +473,10 @@ class _PackagingChargePaymentSheetState
       _error = null;
     });
     try {
-      await Get.find<ReturnablePackagingRepository>().payCharge(
+      await Get.find<PackagingController>().payCharge(
         chargeId: widget.charge.id!,
         amount: amount,
       );
-      AppEventBus.instance.notifyPackagingChanged();
-      AppEventBus.instance.notifyInvoiceChanged();
       Get.back();
       AppUi.showSuccess('تم تسجيل دفعة تعويض العبوات');
       widget.onPaid();

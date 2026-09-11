@@ -3,10 +3,11 @@ import 'package:get/get.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/payment_controller.dart';
 import '../../models/payment_model.dart';
-import '../../repositories/payment_repository.dart';
+import '../../models/debt_report_model.dart';
 import '../../views/shared/shared_components.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../shared/app_ui.dart';
 
 class DebtsScreen extends GetView<PaymentController> {
   const DebtsScreen({super.key});
@@ -20,6 +21,25 @@ class DebtsScreen extends GetView<PaymentController> {
           title: const Text('الديون'),
           centerTitle: true,
           actions: [
+            Builder(
+              builder: (context) {
+                return IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  tooltip: 'تصدير PDF',
+                  onPressed: () async {
+                    final customers =
+                        DefaultTabController.of(context).index == 0;
+                    try {
+                      await controller.exportActiveDebtsPdf(
+                        customers: customers,
+                      );
+                    } catch (_) {
+                      AppUi.showError('تعذر إنشاء تقرير الديون');
+                    }
+                  },
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: controller.loadDebts,

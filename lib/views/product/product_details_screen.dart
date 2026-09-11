@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../controllers/product_controller.dart';
 import '../../controllers/feature_controller.dart';
+import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
@@ -11,7 +12,6 @@ import '../../core/utils/money_utils.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
 import '../../models/returnable_packaging_model.dart';
-import '../../repositories/returnable_packaging_repository.dart';
 import '../../views/shared/shared_components.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -83,8 +83,8 @@ class _ProductDetailsScreenState
         activeOnly: true,
       );
       PackagingProductMapping? mapping;
-      if (Get.isRegistered<ReturnablePackagingRepository>()) {
-        mapping = await Get.find<ReturnablePackagingRepository>()
+      if (Get.isRegistered<PackagingController>()) {
+        mapping = await Get.find<PackagingController>()
             .getProductMapping(product.id!);
       }
 

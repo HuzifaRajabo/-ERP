@@ -99,3 +99,26 @@ enum PaymentStatus {
     PaymentStatus.paid => '4CAF50', // أخضر
   };
 }
+
+/// نتيجة محاولة حذف فاتورة.
+///
+/// - [allowed]  : حُذفت الفاتورة بنجاح (مع تنظيف الدفعات والحركات المالية).
+/// - [blocked]  : مُنع الحذف، والسبب في [reason] (نص واضح بالعربية).
+class InvoiceDeleteResult {
+  final bool success;
+  final String? reason;
+
+  const InvoiceDeleteResult._(this.success, this.reason);
+
+  static const InvoiceDeleteResult allowed =
+      InvoiceDeleteResult._(true, null);
+
+  const InvoiceDeleteResult.blocked({this.reason})
+      : success = false;
+
+  bool get isBlocked => !success;
+
+  @override
+  String toString() =>
+      success ? 'allowed' : 'blocked($reason)';
+}

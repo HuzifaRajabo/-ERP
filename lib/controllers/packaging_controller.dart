@@ -206,4 +206,197 @@ class PackagingController extends GetxController {
       filename: 'تقرير_العبوات.pdf',
     );
   }
+
+  Future<List<PackagingType>> getTypes({bool activeOnly = false}) {
+    return repo.getTypes(activeOnly: activeOnly);
+  }
+
+  Future<List<PackagingUnit>> getUnits(int typeId, {bool activeOnly = true}) {
+    return repo.getUnits(typeId, activeOnly: activeOnly);
+  }
+
+  Future<List<PackagingProductMapping>> getMappingsForType(int typeId) {
+    return repo.getMappingsForType(typeId);
+  }
+
+  Future<PackagingProductMapping?> getProductMapping(int productId) {
+    return repo.getProductMapping(productId);
+  }
+
+  Future<int> createType({
+    required String name,
+    String? description,
+    int value = 0,
+    bool isActive = true,
+  }) async {
+    final id = await repo.createType(
+      name: name,
+      description: description,
+      value: value,
+      isActive: isActive,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    return id;
+  }
+
+  Future<void> updateType({
+    required int id,
+    required String name,
+    String? description,
+    required int value,
+    required bool isActive,
+  }) async {
+    await repo.updateType(
+      id: id,
+      name: name,
+      description: description,
+      value: value,
+      isActive: isActive,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+  }
+
+  Future<int> addUnit({
+    required int typeId,
+    required String unitName,
+    required double conversionFactor,
+  }) async {
+    final id = await repo.addUnit(
+      typeId: typeId,
+      unitName: unitName,
+      conversionFactor: conversionFactor,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    return id;
+  }
+
+  Future<void> deleteUnit(int id) async {
+    await repo.deleteUnit(id);
+    AppEventBus.instance.notifyPackagingChanged();
+  }
+
+  Future<List<PartyModel>> loadCustomerParties({int pageSize = 500}) async {
+    final page = await partyRepo.getParties(pageSize: pageSize);
+    return page.parties
+        .where(
+          (party) =>
+              party.type == PartyType.customer || party.type == PartyType.both,
+        )
+        .toList();
+  }
+
+  Future<List<WarehouseModel>> getAllWarehouses() {
+    return warehouseRepo.getAllWarehouses();
+  }
+
+  Future<double> unsettled({required int partyId, required int typeId}) {
+    return repo.unsettled(partyId: partyId, typeId: typeId);
+  }
+
+  Future<int> settle({
+    required int partyId,
+    required int typeId,
+    required int warehouseId,
+    required double returnedBase,
+    required double brokenBase,
+    required double lostBase,
+    int compensationPaidNow = 0,
+    String? notes,
+  }) async {
+    final id = await repo.settle(
+      partyId: partyId,
+      typeId: typeId,
+      warehouseId: warehouseId,
+      returnedBase: returnedBase,
+      brokenBase: brokenBase,
+      lostBase: lostBase,
+      compensationPaidNow: compensationPaidNow,
+      notes: notes,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    AppEventBus.instance.notifyInvoiceChanged();
+    return id;
+  }
+
+  Future<List<PartyPackagingBalance>> getPartyBalances(int partyId) {
+    return repo.getPartyBalances(partyId);
+  }
+
+  Future<List<PackagingCharge>> getCharges({
+    int? partyId,
+    bool unpaidOnly = false,
+  }) {
+    return repo.getCharges(partyId: partyId, unpaidOnly: unpaidOnly);
+  }
+
+  Future<int> payCharge({
+    required int chargeId,
+    required int amount,
+    String? notes,
+  }) async {
+    final id = await repo.payCharge(
+      chargeId: chargeId,
+      amount: amount,
+      notes: notes,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    AppEventBus.instance.notifyInvoiceChanged();
+    return id;
+  }
+
+  Future<void> saveOrClearProductMapping({
+    required int productId,
+    int? typeId,
+    double unitsPerProductBase = 1,
+  }) async {
+    if (typeId == null) {
+      await repo.clearProductMapping(productId);
+    } else {
+      await repo.setProductMapping(
+        productId: productId,
+        typeId: typeId,
+        unitsPerProductBase: unitsPerProductBase,
+      );
+    }
+    AppEventBus.instance.notifyPackagingChanged();
+  }
+
+  Future<int> recordOpeningEmpty({
+    required int typeId,
+    required int warehouseId,
+    required double quantity,
+    String? notes,
+  }) async {
+    final id = await repo.recordOpeningEmpty(
+      typeId: typeId,
+      warehouseId: warehouseId,
+      quantity: quantity,
+      notes: notes,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    return id;
+  }
+
+  Future<int> recordOpeningIssued({
+    required int typeId,
+    required int partyId,
+    required double quantity,
+    String? notes,
+  }) async {
+    final id = await repo.recordOpeningIssued(
+      typeId: typeId,
+      partyId: partyId,
+      quantity: quantity,
+      notes: notes,
+    );
+    AppEventBus.instance.notifyPackagingChanged();
+    AppEventBus.instance.notifyInvoiceChanged();
+    return id;
+  }
+
+  Future<List<PackagingWarehouseStock>> getWarehouseStock({
+    required int warehouseId,
+  }) {
+    return repo.getWarehouseStock(warehouseId: warehouseId);
+  }
 }

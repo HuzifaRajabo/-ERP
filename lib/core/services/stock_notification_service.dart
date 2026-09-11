@@ -1,3 +1,4 @@
+import '../../models/inventory_transaction_model.dart';
 import '../../models/notification_model.dart';
 import '../../repositories/inventory_repository.dart';
 import '../../repositories/notification_repository.dart';

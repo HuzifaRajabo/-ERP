@@ -4,7 +4,6 @@ import '../../controllers/inventory_controller.dart';
 import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../models/inventory_transaction_model.dart';
-import '../../repositories/inventory_repository.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';

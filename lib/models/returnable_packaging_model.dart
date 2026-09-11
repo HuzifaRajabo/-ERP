@@ -452,3 +452,63 @@ class PackagingSaleItem {
     required this.baseQuantity,
   });
 }
+
+class PackagingException implements Exception {
+  PackagingException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class PackagingShortageException implements Exception {
+  PackagingShortageException(this.shortages);
+  final List<PackagingFillShortage> shortages;
+
+  String get message {
+    if (shortages.isEmpty) {
+      return 'كمية الشراء تتجاوز الفوارغ المتاحة في المستودع';
+    }
+    final first = shortages.first;
+    return 'كمية الشراء تتجاوز الفوارغ المتاحة لنوع "${first.typeName}": '
+        'مطلوب ${_formatQuantity(first.needed)}، '
+        'متاح ${_formatQuantity(first.available)}، '
+        'النقص ${_formatQuantity(first.shortage)}';
+  }
+
+  @override
+  String toString() => message;
+
+  static String _formatQuantity(double value) {
+    const epsilon = 0.0001;
+    if ((value - value.roundToDouble()).abs() < epsilon) {
+      return value.round().toString();
+    }
+    final asFixed = value.toStringAsFixed(2);
+    if (asFixed.endsWith('00')) {
+      return value.round().toString();
+    }
+    if (asFixed.endsWith('0')) {
+      return value.toStringAsFixed(1);
+    }
+    return asFixed;
+  }
+}
+
+class PackagingAlertRow {
+  const PackagingAlertRow({
+    required this.partyId,
+    required this.partyName,
+    required this.typeId,
+    required this.typeName,
+    required this.unsettled,
+    this.oldestIssuedAt,
+  });
+
+  final int partyId;
+  final String partyName;
+  final int typeId;
+  final String typeName;
+  final double unsettled;
+  final String? oldestIssuedAt;
+}
