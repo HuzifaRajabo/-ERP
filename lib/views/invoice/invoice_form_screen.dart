@@ -15,6 +15,7 @@ import '../../models/returnable_packaging_model.dart';
 import '../../core/utils/money_utils.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/packaging_quantity_format.dart';
 import '../../core/utils/unit_conversion.dart';
 import '../../controllers/packaging_controller.dart';
@@ -242,6 +243,8 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
               onPressed: controller.isSavingInvoice.value
                   ? null
                       : () async {
+                      final snackBg = context.semantic.success;
+                      final snackFg = context.semantic.onSuccess;
                       final success = await _saveInvoiceHandlingPackaging(
                         controller,
                       );
@@ -251,8 +254,8 @@ class InvoiceFormScreen extends GetView<InvoiceController> {
                           'تم',
                           'تم حفظ الفاتورة بنجاح',
                           snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.success,
-                          colorText: Colors.white,
+                          backgroundColor: snackBg,
+                          colorText: snackFg,
                         );
                       }
                     },
@@ -330,7 +333,6 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
             ),
           ),
           const SizedBox(height: 10),
@@ -340,7 +342,7 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
                 child: _TypeButton(
                   label: 'المبيعات',
                   icon: Icons.trending_up_rounded,
-                  color: const Color(0xFF16A34A),
+                  color: context.semantic.success,
                   selected: controller.draftType.value == InvoiceType.sale,
                   onTap: () => controller.setDraftType(InvoiceType.sale),
                 ),
@@ -350,7 +352,7 @@ class _InvoiceTypeSelector extends GetView<InvoiceController> {
                 child: _TypeButton(
                   label: 'المشتريات',
                   icon: Icons.shopping_cart_rounded,
-                  color: const Color(0xFFF59E0B),
+                  color: context.semantic.warning,
                   selected: controller.draftType.value == InvoiceType.purchase,
                   onTap: () => controller.setDraftType(InvoiceType.purchase),
                 ),
@@ -382,12 +384,12 @@ class _SalesChannelSelector extends GetView<InvoiceController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'قناة البيع',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 10),
@@ -397,7 +399,7 @@ class _SalesChannelSelector extends GetView<InvoiceController> {
                   child: _TypeButton(
                     label: 'جملة',
                     icon: Icons.storefront_outlined,
-                    color: const Color(0xFF2563EB),
+                    color: Theme.of(context).colorScheme.primary,
                     selected: current == SalesMode.wholesale.key,
                     onTap: () => controller.setDraftSalesChannel(
                       SalesMode.wholesale.key,
@@ -459,14 +461,18 @@ class _TypeButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: selected ? Colors.white : color),
+              Icon(icon, size: 18, color: selected
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : color),
               const SizedBox(width: 8),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: selected ? Colors.white : color,
+                  color: selected
+                      ? Theme.of(context).colorScheme.onPrimary
+                      : color,
                 ),
               ),
             ],
@@ -497,27 +503,29 @@ class _PartySelector extends GetView<InvoiceController> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.person_outline_rounded,
                     size: 18,
-                    color: Color(0xFF2563EB),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     typeLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
@@ -526,8 +534,8 @@ class _PartySelector extends GetView<InvoiceController> {
                     style: TextStyle(
                       fontSize: 10,
                       color: draftParty == null
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFF16A34A),
+                          ? context.semantic.error
+                          : context.semantic.success,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -540,12 +548,12 @@ class _PartySelector extends GetView<InvoiceController> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F0FF),
+                      color: Theme.of(context).colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.people_alt_rounded,
-                      color: Color(0xFF2563EB),
+                      color: Theme.of(context).colorScheme.primary,
                       size: 20,
                     ),
                   ),
@@ -554,10 +562,12 @@ class _PartySelector extends GetView<InvoiceController> {
                     child: draftParty == null
                         ? Text(
                             'اختر $typeLabel',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF6B7280),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           )
                         : Column(
@@ -565,28 +575,32 @@ class _PartySelector extends GetView<InvoiceController> {
                             children: [
                               Text(
                                 draftParty.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF111827),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
                                 ),
                               ),
                               if (draftParty.phone != null) ...[
                                 const SizedBox(height: 2),
                                 Text(
                                   draftParty.phone!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
-                                    color: Color(0xFF6B7280),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                   ),
                                 ),
                               ],
                             ],
                           ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.chevron_left_rounded,
-                    color: Color(0xFF9CA3AF),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -601,7 +615,7 @@ class _PartySelector extends GetView<InvoiceController> {
     Get.bottomSheet(
       _PartyPickerSheet(),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -630,7 +644,7 @@ class _PartyPickerSheet extends GetView<InvoiceController> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -646,9 +660,12 @@ class _PartyPickerSheet extends GetView<InvoiceController> {
               ),
               const SizedBox(height: 8),
               ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.primary,
-                  child: Icon(Icons.add, color: Colors.white),
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Icon(
+                    Icons.add,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
                 title: const Text('إضافة طرف جديد'),
                 onTap: () {
@@ -813,35 +830,37 @@ class _WarehouseSelector extends GetView<InvoiceController> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   Icon(
                     Icons.warehouse_outlined,
                     size: 18,
-                    color: Color(0xFF2563EB),
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
                     'المستودع',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   Text(
                     'يُسحب منه المخزون',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Color(0xFF6B7280),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -854,12 +873,12 @@ class _WarehouseSelector extends GetView<InvoiceController> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
+                      color: context.semantic.successContainer,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.inventory_rounded,
-                      color: Color(0xFF059669),
+                      color: context.semantic.success,
                       size: 20,
                     ),
                   ),
@@ -874,8 +893,10 @@ class _WarehouseSelector extends GetView<InvoiceController> {
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                               color: warehouses.isEmpty
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFF6B7280),
+                                  ? context.semantic.error
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                             ),
                           )
                         : Column(
@@ -883,26 +904,30 @@ class _WarehouseSelector extends GetView<InvoiceController> {
                             children: [
                               Text(
                                 warehouse.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF111827),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 warehouse.type.label,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
-                                  color: Color(0xFF6B7280),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.chevron_left_rounded,
-                    color: Color(0xFF9CA3AF),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -917,7 +942,7 @@ class _WarehouseSelector extends GetView<InvoiceController> {
     Get.bottomSheet(
       _WarehousePickerSheet(),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -944,7 +969,7 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -954,9 +979,12 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'سيتم خصم الكميات من المخزون الموجود في هذا المستودع',
-                style: TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -979,12 +1007,12 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
 
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: const Color(
-                            0xFF059669,
-                          ).withValues(alpha: 0.12),
+                          backgroundColor: context.semantic.success.withValues(
+                            alpha: 0.12,
+                          ),
                           child: Icon(
                             _warehouseIcon(warehouse.type),
-                            color: const Color(0xFF059669),
+                            color: context.semantic.success,
                             size: 20,
                           ),
                         ),
@@ -1004,17 +1032,20 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF2563EB,
-                                  ).withValues(alpha: 0.1),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'افتراضي',
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w800,
-                                    color: Color(0xFF2563EB),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                 ),
                               ),
@@ -1023,9 +1054,9 @@ class _WarehousePickerSheet extends GetView<InvoiceController> {
                         ),
                         subtitle: Text(warehouse.type.label),
                         trailing: isSelected
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check_circle_rounded,
-                                color: Color(0xFF16A34A),
+                                color: context.semantic.success,
                               )
                             : null,
                         onTap: () {
@@ -1069,33 +1100,33 @@ class _DateInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.calendar_today_outlined,
             size: 18,
-            color: Color(0xFF2563EB),
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'التاريخ',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const Spacer(),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF374151),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ],
@@ -1118,26 +1149,26 @@ class _ItemsSection extends GetView<InvoiceController> {
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               Icons.inventory_2_rounded,
               size: 18,
-              color: Color(0xFF2563EB),
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'المنتجات',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const Spacer(),
             ElevatedButton.icon(
               onPressed: () => _openProductPicker(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -1162,24 +1193,26 @@ class _ItemsSection extends GetView<InvoiceController> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 28),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
-              child: const Column(
+              child: Column(
                 children: [
                   Icon(
                     Icons.receipt_long_outlined,
                     size: 38,
-                    color: Color(0xFF9CA3AF),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Text(
                     'لم يتم إضافة منتجات بعد',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B7280),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1208,7 +1241,7 @@ class _ItemsSection extends GetView<InvoiceController> {
     Get.bottomSheet(
       _ProductPickerSheet(),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(Get.context!).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1235,9 +1268,9 @@ class _ItemCard extends GetView<InvoiceController> {
       return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1248,12 +1281,12 @@ class _ItemCard extends GetView<InvoiceController> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.inventory_2_outlined,
-                  color: Color(0xFF2563EB),
+                  color: Theme.of(context).colorScheme.primary,
                   size: 18,
                 ),
               ),
@@ -1264,10 +1297,10 @@ class _ItemCard extends GetView<InvoiceController> {
                   children: [
                     Text(
                       item.productNameSnapshot,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1276,13 +1309,13 @@ class _ItemCard extends GetView<InvoiceController> {
                       const SizedBox(height: 4),
                       PackagingEmptyBadge(typeName: typeName),
                       if (!isSale)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             'سيتم تعبئة فوارغ من مستودع الفاتورة',
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.info,
+                              color: context.semantic.info,
                             ),
                           ),
                         ),
@@ -1293,9 +1326,9 @@ class _ItemCard extends GetView<InvoiceController> {
               IconButton(
                 tooltip: 'حذف السطر',
                 onPressed: () => controller.removeDraftItem(index),
-                icon: const Icon(
+                icon: Icon(
                   Icons.delete_outline_rounded,
-                  color: Color(0xFFEF4444),
+                  color: context.semantic.error,
                   size: 20,
                 ),
               ),
@@ -1317,19 +1350,19 @@ class _ItemCard extends GetView<InvoiceController> {
             children: [
               Text(
                 'سعر الوحدة: ${MoneyUtils.formatMoney(item.unitPrice)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF6B7280),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const Spacer(),
               Text(
                 MoneyUtils.formatMoney(item.lineTotal),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -1338,9 +1371,9 @@ class _ItemCard extends GetView<InvoiceController> {
             const SizedBox(height: 6),
             Text(
               'يعادل ${_fmtQty(item.baseQuantity)} وحدة أساسية',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: Color(0xFF9CA3AF),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1355,7 +1388,10 @@ class _ItemCard extends GetView<InvoiceController> {
               onPressed: () => _openEditor(),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.4),
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1363,12 +1399,12 @@ class _ItemCard extends GetView<InvoiceController> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),
               icon: const Icon(Icons.edit_outlined, size: 16),
-              label: const Text(
+              label: Text(
                 'تعديل',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF2563EB),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -1393,7 +1429,7 @@ class _ItemCard extends GetView<InvoiceController> {
         editIndex: index,
       ),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(Get.context!).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1413,7 +1449,7 @@ class _ItemField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8FC),
+          color: Theme.of(context).colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -1421,19 +1457,19 @@ class _ItemField extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
-                color: Color(0xFF6B7280),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1462,47 +1498,54 @@ class _ItemBatchSummary extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'دفعة جديدة:',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF92400E),
+                color: context.semantic.onWarningContainer,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               '${item.newBatchNumber}'
               '${featureEnabled(AppFeature.expiry) && item.newExpiryDate != null ? ' · انتهاء ${_fmtDate(item.newExpiryDate)}' : ''}',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+              style: TextStyle(
+                fontSize: 11,
+                color: context.semantic.onWarningContainer,
+              ),
             ),
           ],
         ),
-        const Color(0xFFFFFBEB),
-        const Color(0xFFFDE68A),
+        context.semantic.warningContainer,
+        context.semantic.warningContainer,
       );
     }
 
     if (item.batchAllocations.isEmpty) {
       return _wrap(
-        const Row(
+        Row(
           children: [
-            Icon(Icons.auto_mode_rounded, size: 14, color: Color(0xFF16A34A)),
-            SizedBox(width: 6),
+            Icon(
+              Icons.auto_mode_rounded,
+              size: 14,
+              color: context.semantic.success,
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'التخصيص تلقائي — FEFO (الأقرب انتهاءً أولاً)',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF16A34A),
+                  color: context.semantic.success,
                 ),
               ),
             ),
           ],
         ),
-        const Color(0xFFF0FDF4),
-        const Color(0xFFBBF7D0),
+        context.semantic.successContainer,
+        context.semantic.successContainer,
       );
     }
 
@@ -1510,12 +1553,12 @@ class _ItemBatchSummary extends StatelessWidget {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'الدفعات:',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF065F46),
+              color: context.semantic.onSuccessContainer,
             ),
           ),
           const SizedBox(height: 4),
@@ -1526,14 +1569,17 @@ class _ItemBatchSummary extends StatelessWidget {
                 '${allocation.batchNumber} — '
                 '${_fmtQty(allocation.quantity)}'
                 '${featureEnabled(AppFeature.expiry) && allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF065F46)),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.semantic.onSuccessContainer,
+                ),
               ),
             ),
           ),
         ],
       ),
-      const Color(0xFFF0FDF4),
-      const Color(0xFFBBF7D0),
+      context.semantic.successContainer,
+      context.semantic.successContainer,
     );
   }
 
@@ -1576,7 +1622,7 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1599,9 +1645,12 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
               ),
               const SizedBox(height: 8),
               ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Colors.blue,
-                  child: Icon(Icons.add, color: Colors.white),
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Icon(
+                    Icons.add,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
                 title: const Text('إضافة منتج جديد'),
                 onTap: () {
@@ -1637,16 +1686,16 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                             ? product.salePrice
                             : product.costPrice;
                         final priceColor = isSale
-                            ? Colors.green
-                            : Colors.orange;
+                            ? context.semantic.success
+                            : context.semantic.warning;
                         final priceLabel = isSale ? 'سعر البيع' : 'سعر التكلفة';
 
                         return ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFFE3F2FD),
+                          leading: CircleAvatar(
+                            backgroundColor: context.semantic.infoContainer,
                             child: Icon(
                               Icons.inventory_2_outlined,
-                              color: Colors.blue,
+                              color: Theme.of(context).colorScheme.primary,
                               size: 20,
                             ),
                           ),
@@ -1679,8 +1728,10 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
                               ),
                               Text(
                                 priceLabel,
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   fontSize: 10,
                                 ),
                               ),
@@ -1713,7 +1764,7 @@ class _ProductPickerSheet extends GetView<InvoiceController> {
     Get.bottomSheet(
       _ItemConfigSheet(product: product),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(Get.context!).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1939,7 +1990,7 @@ class _QuickAddProductDialogState extends State<_QuickAddProductDialog> {
               'الوحدة الأساسية تُستخدم لحساب المخزون · معامل التحويل = 1\n'
               'يمكنك إضافة وحدات توزيع أخرى بعد حفظ المنتج.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textMuted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
           ],
@@ -2047,6 +2098,7 @@ class _QuickAddProductDialogState extends State<_QuickAddProductDialog> {
 
   Future<void> _submit() async {
     final controller = Get.find<InvoiceController>();
+    final sheetSurface = Theme.of(context).colorScheme.surface;
 
     final name = nameCtrl.text.trim();
     final description = descriptionCtrl.text.trim();
@@ -2107,7 +2159,7 @@ class _QuickAddProductDialogState extends State<_QuickAddProductDialog> {
         Get.bottomSheet(
           _ItemConfigSheet(product: product),
           isScrollControlled: true,
-          backgroundColor: Colors.white,
+          backgroundColor: sheetSurface,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(
               top: Radius.circular(20),
@@ -2163,8 +2215,8 @@ class _ProductStockLineState extends State<_ProductStockLine> {
         }
         final available = snapshot.data ?? 0;
         final color = available > 0
-            ? const Color(0xFF16A34A)
-            : const Color(0xFFEF4444);
+            ? context.semantic.success
+            : context.semantic.error;
         return Text(
           'المتوفر: ${_fmtQty(available)} (بالوحدة الأساسية)',
           style: TextStyle(fontSize: 11, color: color),
@@ -2419,7 +2471,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(top: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2472,12 +2524,12 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
+            color: Theme.of(context).colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.inventory_2_outlined,
-            color: Color(0xFF2563EB),
+            color: Theme.of(context).colorScheme.primary,
             size: 20,
           ),
         ),
@@ -2488,22 +2540,28 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
             children: [
               Text(
                 widget.product.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               Text(
                 isSale ? 'سطر فاتورة بيع' : 'سطر فاتورة شراء',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
         ),
         IconButton(
           onPressed: Get.back,
-          icon: const Icon(Icons.close_rounded, color: Color(0xFF6B7280)),
+          icon: Icon(
+            Icons.close_rounded,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -2515,12 +2573,12 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'الوحدة',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),
@@ -2531,19 +2589,21 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FC),
+              color: Theme.of(context).colorScheme.surfaceContainer,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     unit?.unitName ?? 'اختر الوحدة',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -2552,14 +2612,17 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                       ? ''
                       : '×${_fmtQty(unit.conversionFactor)} · '
                             '${MoneyUtils.formatMoney(isSale ? unit.defaultSalePrice : (unit.costPrice ?? 0))}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF6B7280),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.expand_more_rounded, color: Color(0xFF6B7280)),
+                Icon(
+                  Icons.expand_more_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ],
             ),
           ),
@@ -2580,7 +2643,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         },
       ),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -2595,21 +2658,23 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'الكمية',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F8FC),
+                  color: Theme.of(context).colorScheme.surfaceContainer,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -2653,10 +2718,10 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
             children: [
               Text(
                 isSale ? 'سعر البيع للوحدة' : 'سعر الشراء للوحدة',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2672,14 +2737,16 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 ),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFFF7F8FC),
+                  fillColor: Theme.of(context).colorScheme.surfaceContainer,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 14,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                 ),
                 onChanged: (_) => setState(() {}),
@@ -2697,7 +2764,11 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+        child: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -2718,19 +2789,19 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'تخصيص الدفعات',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
             Switch(
               value: manualAllocation,
-              activeThumbColor: const Color(0xFF2563EB),
+              activeThumbColor: Theme.of(context).colorScheme.primary,
               onChanged: (value) {
                 setState(() => manualAllocation = value);
                 if (value) _syncAllocControllers();
@@ -2743,13 +2814,13 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: manualAllocation
-                ? const Color(0xFFFFFBEB)
-                : const Color(0xFFF0FDF4),
+                ? context.semantic.warningContainer
+                : context.semantic.successContainer,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: manualAllocation
-                  ? const Color(0xFFFDE68A)
-                  : const Color(0xFFBBF7D0),
+                  ? context.semantic.warningContainer
+                  : context.semantic.successContainer,
             ),
           ),
           child: Row(
@@ -2760,8 +2831,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                     : Icons.auto_mode_rounded,
                 size: 16,
                 color: manualAllocation
-                    ? const Color(0xFFB45309)
-                    : const Color(0xFF16A34A),
+                    ? context.semantic.onWarningContainer
+                    : context.semantic.success,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2773,8 +2844,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: manualAllocation
-                        ? const Color(0xFF92400E)
-                        : const Color(0xFF166534),
+                        ? context.semantic.onWarningContainer
+                        : context.semantic.onSuccessContainer,
                   ),
                 ),
               ),
@@ -2817,18 +2888,18 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       () => TextEditingController(),
     );
     final statusColor = batch.isExpired
-        ? const Color(0xFFEF4444)
+        ? context.semantic.error
         : batch.isExpiringSoon
-        ? const Color(0xFFF59E0B)
-        : const Color(0xFF16A34A);
+        ? context.semantic.warning
+        : context.semantic.success;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FC),
+        color: Theme.of(context).colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2838,10 +2909,10 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               Expanded(
                 child: Text(
                   batch.batchNumber ?? 'بدون رقم',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF111827),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -2865,17 +2936,20 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
           const SizedBox(height: 4),
           Text(
             'الصلاحية: ${_fmtDate(batch.expiryDate)} · المتاح: ${_fmtQty(stock.available)}',
-            style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text(
+              Text(
                 'الكمية المسحوبة:',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF374151),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const Spacer(),
@@ -2930,13 +3004,13 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: warning == null
-            ? const Color(0xFFF0FDF4)
-            : const Color(0xFFFEF2F2),
+            ? context.semantic.successContainer
+            : context.semantic.errorContainer,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: warning == null
-              ? const Color(0xFFBBF7D0)
-              : const Color(0xFFFECACA),
+              ? context.semantic.successContainer
+              : context.semantic.errorContainer,
         ),
       ),
       child: Row(
@@ -2947,8 +3021,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 : Icons.warning_rounded,
             size: 16,
             color: warning == null
-                ? const Color(0xFF16A34A)
-                : const Color(0xFFDC2626),
+                ? context.semantic.success
+                : context.semantic.error,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -2960,8 +3034,8 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: warning == null
-                    ? const Color(0xFF166534)
-                    : const Color(0xFFB91C1C),
+                    ? context.semantic.onSuccessContainer
+                    : context.semantic.onErrorContainer,
               ),
             ),
           ),
@@ -2996,35 +3070,38 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
+        color: context.semantic.warningContainer,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        border: Border.all(color: context.semantic.warningContainer),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(
                 Icons.label_outline_rounded,
                 size: 16,
-                color: Color(0xFFB45309),
+                color: context.semantic.onWarningContainer,
               ),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text(
                 'معلومات الدفعة (اختياري)',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF92400E),
+                  color: context.semantic.onWarningContainer,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'يُقترح رقم الدفعة تلقائياً، ويمكنك تعديله أو مسحه',
-            style: TextStyle(fontSize: 10, color: Color(0xFFB45309)),
+            style: TextStyle(
+              fontSize: 10,
+              color: context.semantic.onWarningContainer,
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -3034,7 +3111,7 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
               labelText: 'رقم الدفعة',
               hintText: 'مثال: B-2026-081',
               filled: true,
-              fillColor: Colors.white,
+              fillColor: Theme.of(context).colorScheme.surface,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 12,
@@ -3081,18 +3158,18 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
-                color: Color(0xFF6B7280),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -3108,15 +3185,15 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: value == null
-                          ? const Color(0xFF9CA3AF)
-                          : const Color(0xFF111827),
+                          ? Theme.of(context).colorScheme.onSurfaceVariant
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.calendar_month_rounded,
                   size: 15,
-                  color: Color(0xFF6B7280),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ],
             ),
@@ -3154,26 +3231,26 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
+            color: Theme.of(context).colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              const Text(
+              Text(
                 'الإجمالي',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF6B7280),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               const Spacer(),
               Text(
                 MoneyUtils.formatMoney(computedTotal),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF2563EB),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ],
@@ -3186,10 +3263,10 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
             child: Text(
               blockingReason,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFDC2626),
+                color: context.semantic.error,
               ),
             ),
           ),
@@ -3201,11 +3278,12 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
                 ? null
                 : _confirm,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(
-                0xFF2563EB,
-              ).withValues(alpha: 0.4),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              disabledBackgroundColor: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -3300,25 +3378,25 @@ class _ItemConfigSheetState extends State<_ItemConfigSheet> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
+        color: context.semantic.errorContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFECACA)),
+        border: Border.all(color: context.semantic.errorContainer),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.error_outline_rounded,
-            color: Color(0xFFDC2626),
+            color: context.semantic.error,
             size: 18,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFB91C1C),
+                color: context.semantic.onErrorContainer,
               ),
             ),
           ),
@@ -3379,8 +3457,8 @@ class _UnitPickerSheet extends StatelessWidget {
                           ? Icons.radio_button_checked
                           : Icons.radio_button_off,
                       color: isSelected
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFF9CA3AF),
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     title: Text(
                       unit.unitName,
@@ -3389,8 +3467,8 @@ class _UnitPickerSheet extends StatelessWidget {
                             ? FontWeight.w900
                             : FontWeight.w600,
                         color: isSelected
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFF111827),
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     subtitle: Text(
@@ -3403,8 +3481,8 @@ class _UnitPickerSheet extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: isSale
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFF59E0B),
+                            ? context.semantic.success
+                            : context.semantic.warning,
                       ),
                     ),
                     onTap: () {
@@ -3436,9 +3514,9 @@ class _TotalSection extends GetView<InvoiceController> {
       () => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Column(
           children: [
@@ -3448,12 +3526,12 @@ class _TotalSection extends GetView<InvoiceController> {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F0FF),
+                    color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.account_balance_wallet_rounded,
-                    color: Color(0xFF2563EB),
+                    color: Theme.of(context).colorScheme.primary,
                     size: 20,
                   ),
                 ),
@@ -3466,19 +3544,19 @@ class _TotalSection extends GetView<InvoiceController> {
                         controller.draftDiscountAmount.value > 0
                             ? 'صافي الفاتورة'
                             : 'إجمالي الفاتورة',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         MoneyUtils.formatMoney(controller.draftNetTotal),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF111827),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -3489,18 +3567,18 @@ class _TotalSection extends GetView<InvoiceController> {
                   children: [
                     Text(
                       '${controller.draftItems.length} منتج',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF6B7280),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'الكمية: ${_fmtQty(controller.draftTotalBaseQuantity)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Color(0xFF6B7280),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -3542,16 +3620,16 @@ class _PaymentSection extends GetView<InvoiceController> {
 
       final statusColor = switch (status) {
         PaymentStatus.unpaid => Theme.of(context).colorScheme.error,
-        PaymentStatus.partial => AppColors.warning,
-        PaymentStatus.paid => AppColors.success,
+        PaymentStatus.partial => context.semantic.warning,
+        PaymentStatus.paid => context.semantic.success,
       };
 
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3575,7 +3653,7 @@ class _PaymentSection extends GetView<InvoiceController> {
             _PaymentStat(
               label: 'الإجمالي قبل الحسم',
               value: MoneyUtils.formatMoney(subtotal),
-              color: const Color(0xFF111827),
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             if (discount > 0) ...[
               const SizedBox(height: 8),
@@ -3605,7 +3683,7 @@ class _PaymentSection extends GetView<InvoiceController> {
               decoration: InputDecoration(
                 hintText: 'الحسم (قيمة مالية)',
                 filled: true,
-                fillColor: const Color(0xFFF7F8FC),
+                fillColor: Theme.of(context).colorScheme.surfaceContainer,
                 prefixIcon: const Icon(Icons.discount_outlined, size: 20),
                 suffixText: 'من ${MoneyUtils.formatMoney(subtotal)}',
                 border: OutlineInputBorder(
@@ -3628,7 +3706,7 @@ class _PaymentSection extends GetView<InvoiceController> {
               decoration: InputDecoration(
                 hintText: 'المبلغ المدفوع الآن',
                 filled: true,
-                fillColor: const Color(0xFFF7F8FC),
+                fillColor: Theme.of(context).colorScheme.surfaceContainer,
                 prefixIcon: const Icon(Icons.payments_rounded, size: 20),
                 suffixText: 'من ${MoneyUtils.formatMoney(total)}',
                 border: OutlineInputBorder(
@@ -3645,7 +3723,7 @@ class _PaymentSection extends GetView<InvoiceController> {
                   value: (paid / total).clamp(0.0, 1.0),
                   minHeight: 8,
                   valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                  backgroundColor: const Color(0xFFE5E7EB),
+                  backgroundColor: Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               const SizedBox(height: 12),
@@ -3656,7 +3734,7 @@ class _PaymentSection extends GetView<InvoiceController> {
                   child: _PaymentStat(
                     label: 'المدفوع',
                     value: MoneyUtils.formatMoney(paid),
-                    color: AppColors.success,
+                    color: context.semantic.success,
                   ),
                 ),
                 if (featureEnabled(AppFeature.debts))
@@ -3743,8 +3821,8 @@ class _PaymentStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFF6B7280),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
@@ -3775,27 +3853,27 @@ class _NotesField extends GetView<InvoiceController> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(
                 Icons.sticky_note_2_outlined,
                 size: 18,
-                color: Color(0xFF2563EB),
+                color: Theme.of(context).colorScheme.primary,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 'ملاحظات',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -3807,7 +3885,7 @@ class _NotesField extends GetView<InvoiceController> {
             decoration: InputDecoration(
               hintText: 'إضافة أي ملاحظات أو تعليمات خاصة...',
               filled: true,
-              fillColor: const Color(0xFFF7F8FC),
+              fillColor: Theme.of(context).colorScheme.surfaceContainer,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 14,
@@ -3841,19 +3919,19 @@ class _FormErrorMessage extends GetView<InvoiceController> {
         width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF2F2),
+          color: context.semantic.errorContainer,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFFECACA)),
+          border: Border.all(color: context.semantic.errorContainer),
         ),
         child: Row(
           children: [
-            const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
+            Icon(Icons.error_outline_rounded, color: context.semantic.error),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 controller.invoiceFormError.value!,
-                style: const TextStyle(
-                  color: AppColors.error,
+                style: TextStyle(
+                  color: context.semantic.error,
                   fontWeight: FontWeight.w700,
                 ),
               ),

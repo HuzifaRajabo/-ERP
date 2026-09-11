@@ -159,7 +159,9 @@ class AppBinding extends Bindings {
       ),
       permanent: true,
     );
-    Get.put<AppSettingsRepository>(AppSettingsRepository(), permanent: true);
+    if (!Get.isRegistered<AppSettingsRepository>()) {
+      Get.put<AppSettingsRepository>(AppSettingsRepository(), permanent: true);
+    }
     Get.put<BusinessSettingsRepository>(
       BusinessSettingsRepository(
         settings: Get.find<AppSettingsRepository>(),

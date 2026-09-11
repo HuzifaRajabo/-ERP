@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 /// أدوات واجهة مشتركة صغيرة لشاشات إدارة المستودعات.
 class AppUi {
@@ -21,12 +21,14 @@ class AppUi {
   }
 
   static void showSuccess(String message) {
+    final semantic =
+        Get.theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     Get.snackbar(
       'تم بنجاح',
       message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: AppColors.success,
-      colorText: Colors.white,
+      backgroundColor: semantic.success,
+      colorText: semantic.onSuccess,
       borderRadius: 12,
       margin: const EdgeInsets.all(12),
       duration: const Duration(seconds: 3),

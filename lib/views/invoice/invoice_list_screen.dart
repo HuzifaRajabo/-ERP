@@ -8,7 +8,7 @@ import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/invoice_model.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/shared_components.dart';
 
 class InvoiceListScreen extends GetView<InvoiceController> {
@@ -79,8 +79,10 @@ class _InvoiceHeader extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
-      color: Colors.white,
+      color: colors.surface,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Row(
         children: [
@@ -89,7 +91,7 @@ class _InvoiceHeader extends GetView<InvoiceController> {
               title: 'الفواتير',
               value: Obx(() => Text(controller.invoices.length.toString())),
               icon: Icons.receipt_long_rounded,
-              color: AppColors.primary,
+              color: colors.primary,
             ),
           ),
           const SizedBox(width: 10),
@@ -105,7 +107,7 @@ class _InvoiceHeader extends GetView<InvoiceController> {
                 ),
               ),
               icon: Icons.trending_up_rounded,
-              color: AppColors.success,
+              color: context.semantic.success,
             ),
           ),
           const SizedBox(width: 10),
@@ -121,7 +123,7 @@ class _InvoiceHeader extends GetView<InvoiceController> {
                 ),
               ),
               icon: Icons.shopping_cart_rounded,
-              color: AppColors.warning,
+              color: context.semantic.warning,
             ),
           ),
         ],
@@ -145,12 +147,14 @@ class _HeaderStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.055),
+        color: color.withValues(alpha: 0.055),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: color.withOpacity(0.12)),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
@@ -158,7 +162,7 @@ class _HeaderStat extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
+              color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 18, color: color),
@@ -170,17 +174,15 @@ class _HeaderStat extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF6B7280),
+                  style: textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
                 DefaultTextStyle(
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: Color(0xFF111827),
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w900,
                   ),
                   child: value,
@@ -203,8 +205,10 @@ class _InvoiceFilters extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
-      color: Colors.white,
+      color: colors.surface,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       child: Column(
         children: [
@@ -218,7 +222,7 @@ class _InvoiceFilters extends GetView<InvoiceController> {
                     label: 'الكل',
                     icon: Icons.apps_rounded,
                     selected: controller.selectedType.value == null,
-                    color: const Color(0xFF2563EB),
+                    color: colors.primary,
                     onTap: () => controller.filterByType(null),
                   ),
                 ),
@@ -228,7 +232,7 @@ class _InvoiceFilters extends GetView<InvoiceController> {
                     label: 'المبيعات',
                     icon: Icons.trending_up_rounded,
                     selected: controller.selectedType.value == InvoiceType.sale,
-                    color: const Color(0xFF16A34A),
+                    color: context.semantic.success,
                     onTap: () => controller.filterByType(InvoiceType.sale),
                   ),
                 ),
@@ -239,7 +243,7 @@ class _InvoiceFilters extends GetView<InvoiceController> {
                     icon: Icons.shopping_cart_rounded,
                     selected:
                         controller.selectedType.value == InvoiceType.purchase,
-                    color: const Color(0xFFF59E0B),
+                    color: context.semantic.warning,
                     onTap: () => controller.filterByType(InvoiceType.purchase),
                   ),
                 ),
@@ -252,9 +256,6 @@ class _InvoiceFilters extends GetView<InvoiceController> {
   }
 }
 
-/// حقل البحث الفعلي — مربوط بـ InvoiceController.setSearchQuery عبر
-/// debounce بسيط (350ms) لتفادي تنفيذ استعلام قاعدة بيانات مع كل
-/// ضغطة مفتاح. المسار الكامل: Widget → Controller → Repository → Database.
 class _InvoiceSearchField extends StatefulWidget {
   const _InvoiceSearchField();
 
@@ -318,8 +319,10 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Material(
-      color: selected ? color : color.withOpacity(0.06),
+      color: selected ? color : color.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -329,14 +332,14 @@ class _FilterButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: selected ? Colors.white : color),
+              Icon(icon, size: 16, color: selected ? colors.onPrimary : color),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: selected ? Colors.white : color,
+                  color: selected ? colors.onPrimary : color,
                 ),
               ),
             ],
@@ -417,18 +420,20 @@ class _InvoiceCard extends GetView<InvoiceController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final isSale = invoice.type == InvoiceType.sale;
 
-    final color = isSale ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
+    final color = isSale ? context.semantic.success : context.semantic.warning;
 
     final background = isSale
-        ? const Color(0xFFF0FDF4)
-        : const Color(0xFFFFFBEB);
+        ? context.semantic.successContainer
+        : context.semantic.warningContainer;
 
     final typeLabel = isSale ? 'مبيعات' : 'مشتريات';
 
     return Material(
-      color: Colors.white,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -439,7 +444,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Column(
             children: [
@@ -473,10 +478,8 @@ class _InvoiceCard extends GetView<InvoiceController> {
                                 invoice.invoiceNumber,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
+                                style: textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: Color(0xFF111827),
                                 ),
                               ),
                             ),
@@ -487,10 +490,10 @@ class _InvoiceCard extends GetView<InvoiceController> {
                         const SizedBox(height: 5),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.person_outline_rounded,
                               size: 14,
-                              color: Color(0xFF9CA3AF),
+                              color: colors.onSurfaceVariant,
                             ),
                             const SizedBox(width: 4),
                             Expanded(
@@ -498,10 +501,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
                                 invoice.partyNameSnapshot,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF6B7280),
-                                ),
+                                style: textTheme.bodySmall,
                               ),
                             ),
                           ],
@@ -512,9 +512,9 @@ class _InvoiceCard extends GetView<InvoiceController> {
 
                   PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.more_vert_rounded,
-                      color: Color(0xFF9CA3AF),
+                      color: colors.onSurfaceVariant,
                     ),
                     onSelected: (value) {
                       if (value == 'delete') {
@@ -565,7 +565,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
                       child: _AmountItem(
                         title: 'المدفوع',
                         value: invoice.paidAmount,
-                        color: const Color(0xFF16A34A),
+                        color: context.semantic.success,
                       ),
                     ),
                     if (featureEnabled(AppFeature.debts)) ...[
@@ -576,7 +576,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
                           value: invoice.remaining,
                           color: invoice.remaining > 0
                               ? Theme.of(context).colorScheme.error
-                              : AppColors.success,
+                              : context.semantic.success,
                         ),
                       ),
                     ],
@@ -594,18 +594,15 @@ class _InvoiceCard extends GetView<InvoiceController> {
                   if (invoice.createdAt != null)
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.schedule_rounded,
                           size: 13,
-                          color: Color(0xFF9CA3AF),
+                          color: colors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           invoice.createdAt!,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Color(0xFF9CA3AF),
-                          ),
+                          style: textTheme.labelSmall,
                         ),
                       ],
                     ),
@@ -619,14 +616,16 @@ class _InvoiceCard extends GetView<InvoiceController> {
   }
 
   void _confirmDelete(BuildContext context) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).colorScheme;
     Get.dialog(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
-            SizedBox(width: 8),
-            Text('حذف الفاتورة'),
+            Icon(Icons.warning_amber_rounded, color: colors.error),
+            const SizedBox(width: 8),
+            const Text('حذف الفاتورة'),
           ],
         ),
         content: Text(
@@ -639,7 +638,7 @@ class _InvoiceCard extends GetView<InvoiceController> {
           TextButton(onPressed: Get.back, child: const Text('إلغاء')),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
+              backgroundColor: colors.error,
             ),
             onPressed: () async {
               Get.back();
@@ -653,8 +652,8 @@ class _InvoiceCard extends GetView<InvoiceController> {
                     'حذف الفاتورة',
                     'تم حذف الفاتورة',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: const Color(0xFF22C55E),
-                    colorText: Colors.white,
+                    backgroundColor: semantic.success,
+                    colorText: semantic.onSuccess,
                     margin: const EdgeInsets.all(12),
                   );
                 } else {
@@ -662,8 +661,8 @@ class _InvoiceCard extends GetView<InvoiceController> {
                     'تعذّر الحذف',
                     result.reason ?? 'حدث خطأ غير متوقع',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.red,
-                    colorText: Colors.white,
+                    backgroundColor: semantic.error,
+                    colorText: semantic.onError,
                     margin: const EdgeInsets.all(12),
                     duration: const Duration(seconds: 4),
                   );
@@ -695,13 +694,13 @@ class _AmountItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 10,
-            color: Color(0xFF9CA3AF),
+          style: textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -724,7 +723,7 @@ class _AmountItem extends StatelessWidget {
 class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 28, color: const Color(0xFFE5E7EB));
+    return Container(width: 1, height: 28, color: Theme.of(context).colorScheme.outlineVariant);
   }
 }
 
@@ -751,20 +750,22 @@ class _PaymentStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final semantic = context.semantic;
+
     final data = switch (status) {
       PaymentStatus.paid => (
         'مدفوعة',
-        const Color(0xFF16A34A),
+        semantic.success,
         Icons.check_circle_rounded,
       ),
       PaymentStatus.partial => (
         'مدفوعة جزئياً',
-        const Color(0xFFF59E0B),
+        semantic.warning,
         Icons.timelapse_rounded,
       ),
       PaymentStatus.unpaid => (
         'غير مدفوعة',
-        const Color(0xFFDC2626),
+        semantic.error,
         Icons.pending_rounded,
       ),
     };

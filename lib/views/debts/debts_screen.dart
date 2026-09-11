@@ -7,6 +7,7 @@ import '../../models/debt_report_model.dart';
 import '../../views/shared/shared_components.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/app_ui.dart';
 
 class DebtsScreen extends GetView<PaymentController> {
@@ -178,7 +179,7 @@ class _DebtList extends StatelessWidget {
                       Text(
                         config.directionLabel,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: config.color.withOpacity(0.7),
+                          color: config.color.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -225,13 +226,14 @@ class _DebtCard extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(
         children: [
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: config.color.withOpacity(0.1),
+                backgroundColor: config.color.withValues(alpha: 0.1),
                 child: Icon(config.icon, color: config.color),
               ),
               SizedBox(width: AppSpacing.sm),
@@ -247,14 +249,14 @@ class _DebtCard extends GetView<PaymentController> {
                       Text(
                         debt.partyPhone!,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[500],
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                     if (debt.invoiceCount > 0)
                       Text(
                         '${debt.invoiceCount} فاتورة غير مسددة',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Colors.grey[400],
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                     if (debt.packagingCompensationRemaining > 0) ...[
@@ -311,7 +313,7 @@ class _DebtCard extends GetView<PaymentController> {
                   label: const Text('الفواتير'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: config.color,
-                    side: BorderSide(color: config.color.withOpacity(0.4)),
+                    side: BorderSide(color: config.color.withValues(alpha: 0.4)),
                   ),
                 ),
               ),
@@ -329,7 +331,7 @@ class _DebtCard extends GetView<PaymentController> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: config.color,
-                    foregroundColor: Colors.white,
+                    foregroundColor: colors.onPrimary,
                   ),
                 ),
               ),
@@ -459,6 +461,7 @@ class _GeneralPaymentSheetState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,
@@ -469,8 +472,8 @@ class _GeneralPaymentSheetState
         expand: false,
         builder: (context, scrollController) {
           return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: colors.surface,
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(24),
               ),
@@ -497,7 +500,7 @@ class _GeneralPaymentSheetState
                       width: 42,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: colors.outlineVariant,
                         borderRadius:
                         BorderRadius.circular(10),
                       ),
@@ -531,7 +534,7 @@ class _GeneralPaymentSheetState
                       Text(
                         'إجمالي المستحق',
                         style: TextStyle(
-                          color: Colors.grey.shade600,
+                          color: colors.onSurfaceVariant,
                           fontSize: 13,
                         ),
                       ),
@@ -540,7 +543,7 @@ class _GeneralPaymentSheetState
                         child: Text(
                           '${MoneyUtils.formatInput(widget.debt.totalRemaining)} \$',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: colors.onSurfaceVariant,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -596,7 +599,7 @@ class _GeneralPaymentSheetState
                                     fontWeight:
                                     FontWeight.bold,
                                     color:
-                                    Colors.grey.shade700,
+                                    colors.onSurfaceVariant,
                                   ),
                                 ),
                               ),
@@ -716,7 +719,7 @@ class _GeneralPaymentSheetState
                           const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color:
-                            Colors.orange.shade50,
+                            context.semantic.warningContainer,
                             borderRadius:
                             BorderRadius.circular(
                               12,
@@ -835,14 +838,14 @@ class _GeneralPaymentSheetState
                               decoration:
                               BoxDecoration(
                                 color:
-                                Colors.grey.shade50,
+                                colors.surfaceContainerLowest,
                                 borderRadius:
                                 BorderRadius.circular(
                                   12,
                                 ),
                                 border: Border.all(
-                                  color: Colors
-                                      .grey.shade200,
+                                  color:
+                                  colors.outlineVariant,
                                 ),
                               ),
                               child: Column(
@@ -871,13 +874,14 @@ class _GeneralPaymentSheetState
                                         child: Text(
                                           '${MoneyUtils.formatInput(distributed)} \$',
                                           style:
-                                          const TextStyle(
+                                          TextStyle(
                                             fontWeight:
                                             FontWeight
                                                 .bold,
                                             color:
-                                            Colors
-                                                .green,
+                                            context
+                                                .semantic
+                                                .success,
                                           ),
                                         ),
                                       ),
@@ -918,10 +922,12 @@ class _GeneralPaymentSheetState
                                             color:
                                             remainingDebt >
                                                 0
-                                                ? Colors
-                                                .orange
-                                                : Colors
-                                                .green,
+                                                ? context
+                                                .semantic
+                                                .warning
+                                                : context
+                                                .semantic
+                                                .success,
                                           ),
                                         ),
                                       ),
@@ -962,10 +968,12 @@ class _GeneralPaymentSheetState
                                             color:
                                             undistributed >
                                                 0
-                                                ? Colors
-                                                .orange
-                                                : Colors
-                                                .green,
+                                                ? context
+                                                .semantic
+                                                .warning
+                                                : context
+                                                .semantic
+                                                .success,
                                           ),
                                         ),
                                       ),
@@ -1077,9 +1085,9 @@ class _GeneralPaymentSheetState
                                 ElevatedButton
                                     .styleFrom(
                                   backgroundColor:
-                                  Colors.green,
+                                  context.semantic.success,
                                   foregroundColor:
-                                  Colors.white,
+                                  context.semantic.onSuccess,
                                   shape:
                                   RoundedRectangleBorder(
                                     borderRadius:
@@ -1119,6 +1127,7 @@ class _DistributionRow extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     // المبلغ المتبقي على الفاتورة بعد الدفعة الحالية.
     //
     // info.remaining:
@@ -1133,10 +1142,10 @@ class _DistributionRow extends GetView<PaymentController> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: colors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: Colors.grey.shade200,
+          color: colors.outlineVariant,
         ),
       ),
       child: Row(
@@ -1165,7 +1174,7 @@ class _DistributionRow extends GetView<PaymentController> {
                   child: Text(
                     'المتبقي: ${MoneyUtils.formatInput(remainingAfterPayment)} \$',
                     style: TextStyle(
-                      color: Colors.grey[500],
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -1187,7 +1196,7 @@ class _DistributionRow extends GetView<PaymentController> {
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: context.semantic.successContainer,
               borderRadius:
               BorderRadius.circular(8),
             ),
@@ -1195,8 +1204,8 @@ class _DistributionRow extends GetView<PaymentController> {
               textDirection: TextDirection.ltr,
               child: Text(
                 '${MoneyUtils.formatInput(info.suggestedPayment)} \$',
-                style: const TextStyle(
-                  color: Colors.green,
+                style: TextStyle(
+                  color: context.semantic.success,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),
@@ -1266,18 +1275,18 @@ class _ErrorBox extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: context.semantic.errorContainer,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: context.semantic.error.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+          Icon(Icons.warning_amber_rounded, color: context.semantic.error, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
+              style: TextStyle(color: context.semantic.error, fontSize: 13),
             ),
           ),
         ],

@@ -6,8 +6,8 @@ import '../../controllers/feature_controller.dart';
 import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
@@ -141,15 +141,16 @@ class _ProductDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(product.name),
         actions: [
           IconButton(
             tooltip: 'حذف المنتج',
-            icon: const Icon(
+            icon: Icon(
               Icons.delete_outline,
-              color: AppColors.error,
+              color: colors.error,
             ),
             onPressed: () => _confirmDelete(context),
           ),
@@ -186,6 +187,8 @@ class _ProductDetailsScreenState
   // ============================================================
 
   Widget _buildHeaderCard() {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return AppCard(
       padding: EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -197,9 +200,7 @@ class _ProductDetailsScreenState
                 width: 62,
                 height: 62,
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
+                  color: colors.primary
                       .withValues(alpha: 0.08),
                   borderRadius:
                       BorderRadius.circular(AppRadius.medium),
@@ -207,7 +208,7 @@ class _ProductDetailsScreenState
                 child: Icon(
                   Icons.inventory_2_outlined,
                   size: 32,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: colors.primary,
                 ),
               ),
 
@@ -233,16 +234,14 @@ class _ProductDetailsScreenState
                         _StatusBadge(
                           icon: Icons.check_circle_outline,
                           text: 'فعال',
-                          color: Colors.green,
+                          color: semantic.success,
                         ),
                         if (product.categoryName != null &&
                             product.categoryName!.trim().isNotEmpty)
                           _StatusBadge(
                             icon: Icons.category_outlined,
                             text: product.categoryName!,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary,
+                            color: colors.primary,
                           ),
                       ],
                     ),
@@ -273,7 +272,7 @@ class _ProductDetailsScreenState
               width: double.infinity,
               padding: EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
               decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
+                color: colors.surfaceContainer,
                 borderRadius: BorderRadius.circular(AppRadius.medium),
               ),
               child: Row(
@@ -282,7 +281,7 @@ class _ProductDetailsScreenState
                   Icon(
                     Icons.description_outlined,
                     size: 20,
-                    color: AppColors.textSecondary,
+                    color: colors.onSurfaceVariant,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -337,6 +336,8 @@ class _ProductDetailsScreenState
   }
 
   Widget _buildPackagingSection() {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final mapping = packagingMapping;
     if (mapping == null) return const SizedBox.shrink();
     return AppCard(
@@ -353,12 +354,12 @@ class _ProductDetailsScreenState
           Text(mapping.typeName ?? 'نوع عبوة'),
           Text(
             '${mapping.unitsPerProductBase == mapping.unitsPerProductBase.roundToDouble() ? mapping.unitsPerProductBase.toInt() : mapping.unitsPerProductBase} عبوة لكل وحدة أساسية',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colors.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'الشراء يعبّئ فوارغ من المستودع، والبيع يسلّمها للعميل.',
-            style: TextStyle(color: AppColors.info, fontSize: 12),
+            style: TextStyle(color: semantic.info, fontSize: 12),
           ),
         ],
       ),
@@ -384,13 +385,14 @@ class _ProductDetailsScreenState
   }
 
   Widget _buildUnitsHeader() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.small),
       ),
       child: Row(
@@ -434,6 +436,7 @@ class _ProductDetailsScreenState
   Widget _buildUnitRow(
     ProductUnitModel unit,
   ) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(
@@ -442,19 +445,13 @@ class _ProductDetailsScreenState
       ),
       decoration: BoxDecoration(
         color: unit.isDefaultSellUnit
-            ? Theme.of(context)
-                .colorScheme
-                .primary
-                .withValues(alpha: 0.035)
-            : Colors.white,
+            ? colors.primary.withValues(alpha: 0.035)
+            : colors.surface,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: unit.isDefaultSellUnit
-              ? Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.20)
-              : AppColors.border,
+              ? colors.primary.withValues(alpha: 0.20)
+              : colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -541,11 +538,12 @@ class _ProductDetailsScreenState
   }
 
   Widget _buildNoUnits() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.medium),
       ),
       child: Column(
@@ -553,7 +551,7 @@ class _ProductDetailsScreenState
           Icon(
             Icons.inventory_2_outlined,
             size: 38,
-            color: AppColors.textMuted,
+            color: colors.onSurfaceVariant,
           ),
           const SizedBox(height: AppSpacing.sm),
           const Text(
@@ -588,6 +586,7 @@ class _ProductDetailsScreenState
   // ============================================================
 
   Widget _buildLegacyPriceSummary() {
+    final semantic = context.semantic;
     final defaultUnit =
         units.firstWhereOrNull(
       (unit) => unit.isDefaultSellUnit,
@@ -600,17 +599,17 @@ class _ProductDetailsScreenState
     return Container(
       padding: EdgeInsets.all(AppSpacing.md + AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.06),
+        color: semantic.success.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
-          color: AppColors.success.withValues(alpha: 0.15),
+          color: semantic.success.withValues(alpha: 0.15),
         ),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_outline,
-            color: AppColors.success,
+            color: semantic.success,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -624,8 +623,8 @@ class _ProductDetailsScreenState
           ),
           Text(
             _money(defaultUnit.defaultSalePrice),
-            style: const TextStyle(
-              color: AppColors.success,
+            style: TextStyle(
+              color: semantic.success,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -743,13 +742,14 @@ class _TinyBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.large),
       ),
       child: Row(
@@ -759,14 +759,14 @@ class _TinyBadge extends StatelessWidget {
             Icon(
               icon,
               size: 12,
-              color: AppColors.textSecondary,
+              color: colors.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.xs),
           ],
           Text(
             text,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.textSecondary,
+              color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),

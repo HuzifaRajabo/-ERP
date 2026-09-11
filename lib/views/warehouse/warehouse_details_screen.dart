@@ -6,6 +6,7 @@ import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
 import '../../core/utils/money_utils.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../models/warehouse_model.dart';
 import '../../models/returnable_packaging_model.dart';
@@ -142,6 +143,7 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Obx(() {
       final w = controller.warehouse.value;
       return RefreshIndicator(
@@ -150,7 +152,7 @@ class _OverviewTab extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            _InfoCard(w: w),
+            _infoCard(context, w: w),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -168,7 +170,7 @@ class _OverviewTab extends StatelessWidget {
                     label: 'عدد الأصناف',
                     value: '${controller.productCount.value}',
                     icon: Icons.category_rounded,
-                    color: const Color(0xFF2563EB),
+                    color: colors.primary,
                   ),
                 ),
               ],
@@ -181,7 +183,7 @@ class _OverviewTab extends StatelessWidget {
                     label: 'عمليات التحويل',
                     value: '${controller.transferCount.value}',
                     icon: Icons.swap_horiz_rounded,
-                    color: const Color(0xFFF59E0B),
+                    color: context.semantic.warning,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -190,7 +192,7 @@ class _OverviewTab extends StatelessWidget {
                     label: 'الحركات المتاحة',
                     value: '${controller.movements.length}',
                     icon: Icons.history_rounded,
-                    color: const Color(0xFF16A34A),
+                    color: context.semantic.success,
                   ),
                 ),
               ],
@@ -208,7 +210,7 @@ class _OverviewTab extends StatelessWidget {
                   icon: const Icon(Icons.delete_forever_outlined),
                   label: const Text('إتلاف بضاعة'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFB91C1C),
+                    backgroundColor: context.semantic.error,
                   ),
                 ),
               ),
@@ -221,12 +223,14 @@ class _OverviewTab extends StatelessWidget {
     });
   }
 
-  Widget _InfoCard({required WarehouseModel? w}) {
+  Widget _infoCard(BuildContext context, {required WarehouseModel? w}) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        side: BorderSide(color: colors.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -236,20 +240,19 @@ class _OverviewTab extends StatelessWidget {
             Row(
               children: [
                 Text(w?.name ?? '',
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800)),
+                    style: textTheme.titleLarge),
                 if (w?.isDefault ?? false) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 20),
+                  Icon(Icons.star_rounded, color: context.semantic.warning, size: 20),
                 ],
               ],
             ),
             const SizedBox(height: 8),
-            _row(Icons.business_rounded, w?.type.label ?? ''),
+            _row(context, Icons.business_rounded, w?.type.label ?? ''),
             if (w?.address != null && w!.address!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: _row(Icons.location_on_outlined, w.address!),
+                child: _row(context, Icons.location_on_outlined, w.address!),
               ),
           ],
         ),
@@ -257,12 +260,14 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _row(IconData icon, String text) {
+  Widget _row(BuildContext context, IconData icon, String text) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Row(
       children: [
-        Icon(icon, size: 16, color: Colors.grey[500]),
+        Icon(icon, size: 16, color: colors.onSurfaceVariant),
         const SizedBox(width: 8),
-        Text(text, style: TextStyle(color: Colors.grey[700])),
+        Text(text, style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
       ],
     );
   }
@@ -285,12 +290,14 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,18 +306,22 @@ class _StatCard extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(height: 12),
           Text(value,
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.w900, fontSize: 18)),
+              style: textTheme.titleLarge?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w900,
+              )),
           const SizedBox(height: 2),
           Text(label,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+              )),
         ],
       ),
     );
@@ -332,7 +343,7 @@ class _InventoryTab extends StatelessWidget {
         return const Center(child: CircularProgressIndicator());
       }
       if (controller.stockSummaries.isEmpty) {
-        return _empty('لا توجد منتجات في هذا المستودع', Icons.inventory_outlined);
+        return _empty(context, 'لا توجد منتجات في هذا المستودع', Icons.inventory_outlined);
       }
       return RefreshIndicator(
         onRefresh: controller.loadStock,
@@ -379,10 +390,12 @@ class _BatchesSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       height: MediaQuery.of(context).size.height * 0.6,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: colors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: const EdgeInsets.all(16),
@@ -390,14 +403,13 @@ class _BatchesSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(summary.productName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              style: textTheme.titleLarge),
           const SizedBox(height: 4),
           Text('المتاح: ${_fmt(summary.available)}',
-              style: TextStyle(
-                  color: Color(0xFF16A34A), fontWeight: FontWeight.w700)),
+              style: textTheme.titleSmall?.copyWith(color: context.semantic.success)),
           const SizedBox(height: 16),
-          const Text('الدفعات',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          Text('الدفعات',
+              style: textTheme.titleSmall),
           const SizedBox(height: 8),
           Expanded(
             child: Obx(() {
@@ -417,14 +429,10 @@ class _BatchesSheet extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('إجمالي القيمة',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13)),
+                      Text('إجمالي القيمة',
+                          style: textTheme.titleSmall),
                       Text(_moneyText,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: Color(0xFF2563EB))),
+                          style: textTheme.titleMedium?.copyWith(color: colors.primary)),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -439,13 +447,13 @@ class _BatchesSheet extends StatelessWidget {
                           dense: true,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
-                          tileColor: const Color(0xFFF9FAFB),
-                          leading: const Icon(Icons.inventory_2_outlined,
-                              color: Color(0xFF2563EB)),
+                          tileColor: colors.surfaceContainerLowest,
+                          leading: Icon(Icons.inventory_2_outlined,
+                              color: colors.primary),
                           title: Text(
                             b.batchNumber ?? 'بدون رقم دفعة',
                             style:
-                                const TextStyle(fontWeight: FontWeight.w600),
+                                textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,12 +462,13 @@ class _BatchesSheet extends StatelessWidget {
                                 b.expiryDate == null
                                     ? 'بدون تاريخ صلاحية'
                                     : 'انتهاء: ${b.expiryDate}',
-                                style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12),
+                                style:
+                                    textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
                               ),
                               Text('التكلفة: ${MoneyUtils.formatMoney(b.costPrice)}',
-                                  style: TextStyle(
-                                      color: Colors.grey[500], fontSize: 11)),
+                                  style: textTheme.bodySmall?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                      fontSize: 11)),
                             ],
                           ),
                           trailing: Column(
@@ -467,12 +476,12 @@ class _BatchesSheet extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(_fmt(b.available),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16)),
+                                  style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800)),
                               Text(MoneyUtils.formatMoney(lineValue),
-                                  style: TextStyle(
-                                      color: Colors.grey[500], fontSize: 11)),
+                                  style: textTheme.bodySmall?.copyWith(
+                                      color: colors.onSurfaceVariant,
+                                      fontSize: 11)),
                             ],
                           ),
                         );
@@ -507,11 +516,14 @@ class _ProductStockTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final semantic = context.semantic;
     final color = summary.available <= 0
-        ? Colors.red
+        ? semantic.error
         : summary.available <= 5
-            ? Colors.orange
-            : const Color(0xFF16A34A);
+            ? semantic.warning
+            : semantic.success;
     final stockLabel = summary.available <= 0
         ? 'نفد المخزون'
         : summary.available <= 5
@@ -522,7 +534,7 @@ class _ProductStockTile extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        side: BorderSide(color: colors.outlineVariant),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -535,7 +547,7 @@ class _ProductStockTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.inventory_2_outlined, color: color),
@@ -548,16 +560,15 @@ class _ProductStockTile extends StatelessWidget {
                     Text(summary.productName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
+                        style: textTheme.titleSmall),
                     const SizedBox(height: 2),
                     if (summary.productDescription.isNotEmpty)
                       Text(
                         summary.productDescription,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            TextStyle(color: Colors.grey[500], fontSize: 11),
+                        style: textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant),
                       ),
                     const SizedBox(height: 4),
                     Row(
@@ -565,10 +576,7 @@ class _ProductStockTile extends StatelessWidget {
                         Icon(Icons.circle, size: 8, color: color),
                         const SizedBox(width: 4),
                         Text(stockLabel,
-                            style: TextStyle(
-                                color: color,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                            style: textTheme.labelMedium?.copyWith(color: color)),
                       ],
                     ),
                   ],
@@ -584,22 +592,21 @@ class _ProductStockTile extends StatelessWidget {
                     children: [
                       Text(
                         _fmt(summary.available),
-                        style: TextStyle(
-                            color: color,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 20),
+                        style: textTheme.titleLarge?.copyWith(
+                            color: color, fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         summary.unitName ?? 'وحدة',
-                        style:
-                            TextStyle(color: Colors.grey[400], fontSize: 11),
+                        style: textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant),
                       ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(MoneyUtils.formatMoney(summary.value),
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      style: textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant)),
                 ],
               ),
             ],
@@ -629,11 +636,11 @@ class _MovementsTab extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             if (controller.hasMovementError) {
-              return _empty(controller.errorMessage.value ?? 'خطأ',
+              return _empty(context, controller.errorMessage.value ?? 'خطأ',
                   Icons.error_outline);
             }
             if (controller.isEmptyMovements) {
-              return _empty('لا توجد حركات', Icons.history);
+              return _empty(context, 'لا توجد حركات', Icons.history);
             }
             return NotificationListener<ScrollNotification>(
               onNotification: (n) {
@@ -685,10 +692,10 @@ class _Filters extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             children: [
-              _chip('الكل', null, controller.selectedType.value == null),
+              _chip('الكل', null, controller.selectedType.value == null, context),
               const SizedBox(width: 8),
               for (final t in types) ...[
-                _chip(t.label, t, controller.selectedType.value == t),
+                _chip(t.label, t, controller.selectedType.value == t, context),
                 const SizedBox(width: 8),
               ],
             ],
@@ -696,26 +703,28 @@ class _Filters extends StatelessWidget {
         ));
   }
 
-  Widget _chip(String label, InventoryTransactionType? type, bool selected) {
+  Widget _chip(
+      String label,
+      InventoryTransactionType? type,
+      bool selected,
+      BuildContext chipContext) {
+    final colors = Theme.of(chipContext).colorScheme;
+    final textTheme = Theme.of(chipContext).textTheme;
     return GestureDetector(
       onTap: () => controller.filterByType(type),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF2563EB) : Colors.white,
+          color: selected ? colors.primary : colors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected
-                ? const Color(0xFF2563EB)
-                : const Color(0xFFE5E7EB),
+            color: selected ? colors.primary : colors.outlineVariant,
           ),
         ),
         child: Text(label,
-            style: TextStyle(
-                color: selected ? Colors.white : const Color(0xFF374151),
-                fontWeight: FontWeight.w600,
-                fontSize: 12)),
+            style: textTheme.labelMedium?.copyWith(
+                color: selected ? colors.onPrimary : colors.onSurface)),
       ),
     );
   }
@@ -728,10 +737,13 @@ class _MovementTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final semantic = context.semantic;
     final type = view.transaction.type;
     final qty = view.transaction.quantity;
     final qtyStr = _fmt(qty);
-    final color = _colorFor(type);
+    final color = _colorFor(type, colors, semantic);
     final icon = _iconFor(type);
     final prefix = type.increasesStock ? '+' : '-';
 
@@ -739,7 +751,7 @@ class _MovementTile extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        side: BorderSide(color: colors.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -749,7 +761,7 @@ class _MovementTile extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -760,8 +772,7 @@ class _MovementTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(view.productName,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                      style: textTheme.titleSmall),
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -769,20 +780,17 @@ class _MovementTile extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(type.label,
-                            style: TextStyle(
-                                color: color,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
+                            style: textTheme.labelMedium?.copyWith(color: color)),
                       ),
                       if (view.invoiceNumber != null) ...[
                         const SizedBox(width: 6),
                         Text(view.invoiceNumber!,
-                            style: TextStyle(
-                                color: Colors.grey[500], fontSize: 11)),
+                            style: textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant)),
                       ],
                     ],
                   ),
@@ -791,14 +799,14 @@ class _MovementTile extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         '↔ ${view.counterpartyWarehouseName}',
-                        style: TextStyle(
-                            color: Colors.grey[600], fontSize: 11),
+                        style: textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant),
                       ),
                     ),
                   if (view.batchNumber != null)
                     Text('دفعة: ${view.batchNumber}',
-                        style: TextStyle(
-                            color: Colors.grey[400], fontSize: 10)),
+                        style: textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant, fontSize: 10)),
                 ],
               ),
             ),
@@ -806,13 +814,11 @@ class _MovementTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text('$prefix$qtyStr',
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18)),
+                    style: textTheme.titleLarge?.copyWith(
+                        color: color, fontWeight: FontWeight.bold)),
                 Text('وحدة',
-                    style:
-                        TextStyle(color: Colors.grey[400], fontSize: 10)),
+                    style: textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant, fontSize: 10)),
               ],
             ),
           ],
@@ -821,14 +827,15 @@ class _MovementTile extends StatelessWidget {
     );
   }
 
-  Color _colorFor(InventoryTransactionType t) => switch (t) {
-        InventoryTransactionType.sale => const Color(0xFF2563EB),
-        InventoryTransactionType.purchase => const Color(0xFFF59E0B),
+  Color _colorFor(InventoryTransactionType t, ColorScheme colors, AppSemanticColors semantic) =>
+      switch (t) {
+        InventoryTransactionType.sale => colors.primary,
+        InventoryTransactionType.purchase => semantic.warning,
         InventoryTransactionType.saleReturn => const Color(0xFF7C3AED),
-        InventoryTransactionType.purchaseReturn => const Color(0xFF0891B2),
-        InventoryTransactionType.transferOut => const Color(0xFFDC2626),
-        InventoryTransactionType.transferIn => const Color(0xFF16A34A),
-        InventoryTransactionType.waste => const Color(0xFFB91C1C),
+        InventoryTransactionType.purchaseReturn => semantic.info,
+        InventoryTransactionType.transferOut => semantic.error,
+        InventoryTransactionType.transferIn => semantic.success,
+        InventoryTransactionType.waste => semantic.error,
         InventoryTransactionType.expiredReturn => const Color(0xFF9A3412),
       };
 
@@ -848,14 +855,16 @@ class _MovementTile extends StatelessWidget {
 // أدوات مساعدة
 // ==============================
 
-Widget _empty(String msg, IconData icon) {
+Widget _empty(BuildContext context, String msg, IconData icon) {
+  final colors = Theme.of(context).colorScheme;
+  final textTheme = Theme.of(context).textTheme;
   return Center(
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: 64, color: Colors.grey[400]),
+        Icon(icon, size: 64, color: colors.onSurfaceVariant),
         const SizedBox(height: 12),
-        Text(msg, style: TextStyle(color: Colors.grey[600], fontSize: 15)),
+        Text(msg, style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
       ],
     ),
   );
@@ -904,20 +913,22 @@ class _WarehousePackagingStockState extends State<_WarehousePackagingStock> {
   @override
   Widget build(BuildContext context) {
     if (_rows.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE5E7EB)),
+        side: BorderSide(color: colors.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'مخزون العبوات',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             for (final row in _rows)
@@ -931,14 +942,12 @@ class _WarehousePackagingStockState extends State<_WarehousePackagingStock> {
                       children: [
                         Text(
                           'فارغ: ${PackagingQuantityFormat.formatQuantity(row.empty)}',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         Text(
                           'ممتلئ: ${PackagingQuantityFormat.formatQuantity(row.fullInStock)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                            color: Color(0xFF6B7280),
+                          style: textTheme.labelMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],

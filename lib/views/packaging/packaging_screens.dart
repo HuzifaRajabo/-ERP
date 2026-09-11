@@ -3,8 +3,8 @@ import 'package:get/get.dart';
 
 import '../../controllers/packaging_controller.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/money_utils.dart';
 import '../../core/utils/packaging_quantity_format.dart';
 import '../../core/utils/unit_conversion.dart';
@@ -23,7 +23,6 @@ class PackagingHubScreen extends StatelessWidget {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(
           title: const Text('العبوات القابلة للإرجاع'),
           centerTitle: true,
@@ -82,6 +81,7 @@ class _TypesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Obx(() {
       if (controller.types.isEmpty) {
         return const AppEmptyState(
@@ -105,10 +105,10 @@ class _TypesTab extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.1),
+                    color: context.semantic.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppRadius.medium),
                   ),
-                  child: const Icon(Icons.liquor_outlined, color: AppColors.info),
+                  child: Icon(Icons.liquor_outlined, color: context.semantic.info),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -123,8 +123,8 @@ class _TypesTab extends StatelessWidget {
                       Text(
                         'القيمة: ${MoneyUtils.formatMoney(type.value)}'
                         '${units.isEmpty ? '' : ' • ${units.map((u) => u.unitName).join(' / ')}'}',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),
@@ -133,7 +133,7 @@ class _TypesTab extends StatelessWidget {
                 ),
                 AppStatusBadge(
                   label: type.isActive ? 'فعال' : 'متوقف',
-                  color: type.isActive ? AppColors.success : AppColors.textMuted,
+                  color: type.isActive ? context.semantic.success : colors.onSurfaceVariant,
                 ),
               ],
             ),
@@ -197,6 +197,7 @@ class _PackagingTypeStockCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AppCard(
       padding: EdgeInsets.zero,
       onTap: () => Get.to(() => PackagingTypeStockScreen(ownership: row)),
@@ -208,12 +209,12 @@ class _PackagingTypeStockCard extends StatelessWidget {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.12),
+                color: context.semantic.info.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.liquor_outlined,
-                color: AppColors.info,
+                color: context.semantic.info,
                 size: 26,
               ),
             ),
@@ -233,8 +234,8 @@ class _PackagingTypeStockCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'فارغ: $emptyLabel • ممتلئ: $fullLabel',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -243,8 +244,8 @@ class _PackagingTypeStockCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${row.warehouseCount} مستودع',
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
                         fontSize: 11,
                       ),
                     ),
@@ -252,7 +253,7 @@ class _PackagingTypeStockCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_left_rounded, color: Colors.grey),
+            Icon(Icons.chevron_left_rounded, color: colors.onSurfaceVariant),
           ],
         ),
       ),
@@ -289,7 +290,7 @@ class _TransactionsTab extends StatelessWidget {
                         _FilterChip(
                           label: type.label,
                           selected: controller.filterMovement.value == type,
-                          color: _movementColor(type),
+                          color: _movementColor(type, context),
                           onTap: () => controller.setMovementFilter(type),
                         ),
                         const SizedBox(width: 8),
@@ -418,6 +419,7 @@ class _TransactionsTab extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
               itemBuilder: (context, index) {
                 final txn = controller.transactions[index];
+                final colors = Theme.of(context).colorScheme;
                 return AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,7 +428,7 @@ class _TransactionsTab extends StatelessWidget {
                         children: [
                           AppStatusBadge(
                             label: txn.movementType.label,
-                            color: _movementColor(txn.movementType),
+                            color: _movementColor(txn.movementType, context),
                           ),
                           const Spacer(),
                           Text(
@@ -445,8 +447,8 @@ class _TransactionsTab extends StatelessWidget {
                           if (txn.settlementNumber != null) txn.settlementNumber!,
                           if (txn.createdAt != null) txn.createdAt!,
                         ].join(' • '),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),
@@ -542,6 +544,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return FilterChip(
       label: Text(label),
       selected: selected,
@@ -551,7 +554,7 @@ class _FilterChip extends StatelessWidget {
       backgroundColor: color.withValues(alpha: 0.08),
       side: BorderSide(color: color.withValues(alpha: 0.4)),
       labelStyle: TextStyle(
-        color: selected ? Colors.white : color,
+        color: selected ? colors.onPrimary : color,
         fontWeight: FontWeight.w600,
       ),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
@@ -570,17 +573,17 @@ InputDecoration _filterDecoration(String label) {
   );
 }
 
-Color _movementColor(PackagingMovementType type) => switch (type) {
-      PackagingMovementType.issued => AppColors.info,
-      PackagingMovementType.returned => AppColors.success,
-      PackagingMovementType.broken => AppColors.error,
-      PackagingMovementType.lost => AppColors.warning,
-      PackagingMovementType.reversed => AppColors.secondary,
-      PackagingMovementType.openingEmpty => AppColors.primary,
-      PackagingMovementType.openingIssued => AppColors.primary,
-      PackagingMovementType.purchasedEmpty => AppColors.info,
-      PackagingMovementType.filled => AppColors.warning,
-      PackagingMovementType.unfilled => AppColors.success,
+Color _movementColor(PackagingMovementType type, BuildContext context) => switch (type) {
+      PackagingMovementType.issued => context.semantic.info,
+      PackagingMovementType.returned => context.semantic.success,
+      PackagingMovementType.broken => context.semantic.error,
+      PackagingMovementType.lost => context.semantic.warning,
+      PackagingMovementType.reversed => Theme.of(context).colorScheme.secondary,
+      PackagingMovementType.openingEmpty => Theme.of(context).colorScheme.primary,
+      PackagingMovementType.openingIssued => Theme.of(context).colorScheme.primary,
+      PackagingMovementType.purchasedEmpty => context.semantic.info,
+      PackagingMovementType.filled => context.semantic.warning,
+      PackagingMovementType.unfilled => context.semantic.success,
     };
 
 class PackagingTypeFormScreen extends StatefulWidget {
@@ -709,8 +712,8 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(_isEditing ? 'تعديل نوع العبوة' : 'إضافة نوع عبوة'),
       ),
@@ -780,7 +783,7 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
                     if (!unit.isBaseUnit)
                       IconButton(
                         onPressed: () => _deleteUnit(unit),
-                        icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                        icon: Icon(Icons.delete_outline, color: colors.error),
                       ),
                   ],
                 ),
@@ -814,9 +817,9 @@ class _PackagingTypeFormScreenState extends State<PackagingTypeFormScreen> {
             ),
             const SizedBox(height: 8),
             if (_mappings.isEmpty)
-              const Text(
+              Text(
                 'اربط المنتجات من شاشة المنتج.',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             for (final mapping in _mappings)
               AppCard(
@@ -1014,8 +1017,8 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('تسوية العبوات')),
       body: _loading
           ? const AppLoadingState()
@@ -1089,7 +1092,7 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                 AppCard(
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: AppColors.info),
+                      Icon(Icons.info_outline, color: context.semantic.info),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1103,7 +1106,7 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                 const SizedBox(height: 12),
                 _QtySection(
                   title: 'سليم',
-                  color: AppColors.success,
+                  color: context.semantic.success,
                   showCrates: _crate != null,
                   crateLabel: _crate?.unitName ?? 'صندوق',
                   bottleLabel:
@@ -1114,7 +1117,7 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                 ),
                 _QtySection(
                   title: 'مكسر',
-                  color: AppColors.error,
+                  color: context.semantic.error,
                   showCrates: _crate != null,
                   crateLabel: _crate?.unitName ?? 'صندوق',
                   bottleLabel:
@@ -1125,7 +1128,7 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                 ),
                 _QtySection(
                   title: 'مفقود',
-                  color: AppColors.warning,
+                  color: context.semantic.warning,
                   showCrates: _crate != null,
                   crateLabel: _crate?.unitName ?? 'صندوق',
                   bottleLabel:
@@ -1167,9 +1170,9 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                               ),
                               Text(
                                 MoneyUtils.formatMoney(compensation),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.error,
+                                  color: colors.error,
                                 ),
                               ),
                             ],
@@ -1189,12 +1192,12 @@ class _PackagingSettlementScreenState extends State<PackagingSettlementScreen> {
                           const SizedBox(height: 8),
                           Text(
                             remaining > 0
-                                ? 'المتبقي يُسجَّل ديناً: تعويض عن العبوات المفقودة (${MoneyUtils.formatMoney(remaining)})'
+                                ? 'المتبقي يُسجَّل ديناً: تعويض عن العبوات المفقودة (${MoneyUtils.formatMoney(remaining)})'
                                 : 'لا ذمة متبقية بعد هذه الدفعة',
                             style: TextStyle(
                               color: remaining > 0
-                                  ? AppColors.warning
-                                  : AppColors.success,
+                                  ? context.semantic.warning
+                                  : context.semantic.success,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1351,6 +1354,7 @@ class _PartyPackagingSectionState extends State<PartyPackagingSection> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
@@ -1401,7 +1405,7 @@ class _PartyPackagingSectionState extends State<PartyPackagingSection> {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'قيمة الكسر والفقد: ${MoneyUtils.formatMoney(balance.chargeDue)}',
-                      style: const TextStyle(color: AppColors.error),
+                      style: TextStyle(color: colors.error),
                     ),
                   ),
               ],
@@ -1493,8 +1497,8 @@ class _PackagingTypeStockScreenState extends State<PackagingTypeStockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(_row.typeName),
         centerTitle: true,
@@ -1566,12 +1570,12 @@ class _PackagingTypeStockScreenState extends State<PackagingTypeStockScreen> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
+                              color: colors.primary.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.warehouse_outlined,
-                              color: AppColors.primary,
+                              color: colors.primary,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
@@ -1588,15 +1592,15 @@ class _PackagingTypeStockScreenState extends State<PackagingTypeStockScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   'فارغ: ${_packaging.formatQty(warehouse.empty, warehouse.typeId)}',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                                  style: TextStyle(
+                                    color: colors.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
                                 Text(
                                   'ممتلئ: ${_packaging.formatQty(warehouse.fullInStock, warehouse.typeId)}',
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                                  style: TextStyle(
+                                    color: colors.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -1747,7 +1751,6 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
     final bottleLabel =
         PackagingQuantityFormat.baseUnit(_units)?.unitName ?? 'زجاجة';
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('رصيد افتتاحي للعبوات')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -1795,7 +1798,7 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
                 const SizedBox(height: 8),
                 _QtySection(
                   title: 'الكمية',
-                  color: AppColors.success,
+                  color: context.semantic.success,
                   showCrates: _crate != null,
                   crateLabel: _crate?.unitName ?? 'صندوق',
                   bottleLabel: bottleLabel,
@@ -1821,7 +1824,7 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'لدى العملاء ولم يُسوَّ',
+            'لدى العملاء ولم يُسوَّ',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
@@ -1845,7 +1848,7 @@ class _PackagingOpeningScreenState extends State<PackagingOpeningScreen> {
                 const SizedBox(height: 8),
                 _QtySection(
                   title: 'الكمية',
-                  color: AppColors.info,
+                  color: context.semantic.info,
                   showCrates: _crate != null,
                   crateLabel: _crate?.unitName ?? 'صندوق',
                   bottleLabel: bottleLabel,

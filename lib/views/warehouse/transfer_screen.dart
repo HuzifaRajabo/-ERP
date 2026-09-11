@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../controllers/transfer_controller.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/app_ui.dart';
 
 /// شاشة كاملة لنقل المخزون بين مستودعين.
@@ -118,6 +119,9 @@ class _TransferBodyState extends State<_TransferBody> {
   }
 
   Widget _buildForm() {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final semantic = context.semantic;
     final c = widget.controller;
     final fromId = c.fromWarehouseId.value;
     final productId = c.selectedProductId.value;
@@ -138,22 +142,24 @@ class _TransferBodyState extends State<_TransferBody> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
+                  color: semantic.errorContainer,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                  border: Border.all(
+                    color: semantic.error.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline,
-                        color: Color(0xFFB91C1C), size: 20),
+                    Icon(Icons.error_outline,
+                        color: semantic.error, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(err,
-                          style: const TextStyle(color: Color(0xFFB91C1C))),
+                          style: TextStyle(color: semantic.error)),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
-                      color: const Color(0xFFB91C1C),
+                      color: semantic.error,
                       onPressed: () => c.errorMessage.value = null,
                     ),
                   ],
@@ -201,29 +207,28 @@ class _TransferBodyState extends State<_TransferBody> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
+                        color: colors.surfaceContainer,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: colors.outlineVariant),
                       ),
                       child: Row(
                         children: [
                           Expanded(
                             child: Text(item.productName,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: textTheme.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.w600)),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             _fmt(item.quantity),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF2563EB),
+                            style: textTheme.titleSmall?.copyWith(
+                              color: colors.primary,
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close, size: 18),
-                            color: Colors.grey[500],
+                            color: colors.onSurfaceVariant,
                             onPressed: () => c.removeFromCart(index),
                           ),
                         ],
@@ -261,8 +266,8 @@ class _TransferBodyState extends State<_TransferBody> {
                                   overflow: TextOverflow.ellipsis),
                             ),
                             Text(' (${_fmt(p.available)})',
-                                style: TextStyle(
-                                    color: Colors.grey[600], fontSize: 12)),
+                                style: textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurfaceVariant)),
                           ],
                         )),
                 ],
@@ -345,7 +350,7 @@ class _TransferBodyState extends State<_TransferBody> {
   Widget _sectionTitle(String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(t,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            style: Theme.of(context).textTheme.titleSmall),
       );
 
   String _fmt(double q) =>
@@ -360,6 +365,8 @@ class _SuccessView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final r = controller.lastResult;
     final itemsCount = r?.items.length ?? 0;
     final totalQty =
@@ -370,17 +377,17 @@ class _SuccessView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle_rounded,
-                color: Color(0xFF16A34A), size: 72),
+            Icon(Icons.check_circle_rounded,
+                color: context.semantic.success, size: 72),
             const SizedBox(height: 16),
-            const Text('تم التحويل بنجاح',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            Text('تم التحويل بنجاح',
+                style: textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               itemsCount <= 1
                   ? 'الكمية المنقولة: ${_fmtQty(totalQty)} وحدة أساسية'
                   : '$itemsCount منتجات — إجمالي ${_fmtQty(totalQty)} وحدة أساسية',
-              style: TextStyle(color: Colors.grey[600]),
+              style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),

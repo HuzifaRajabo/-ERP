@@ -3,16 +3,16 @@ import 'package:get/get.dart';
 
 import '../../controllers/stock_loss_controller.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/money_utils.dart';
 import '../../models/expired_return_model.dart';
 import '../../models/waste_model.dart';
 import '../shared/app_ui.dart';
 import '../shared/shared_components.dart';
 
-const Color _wasteColor = AppColors.error;
-const Color _expiredColor = AppColors.warning;
+Color _wasteColor(BuildContext context) => context.semantic.error;
+Color _expiredColor(BuildContext context) => context.semantic.warning;
 
 String _fmtQty(double v) =>
     v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(2);
@@ -62,9 +62,8 @@ class _StockLossFormScreenState extends State<StockLossFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.isExpiredReturn ? _expiredColor : _wasteColor;
+    final color = widget.isExpiredReturn ? _expiredColor(context) : _wasteColor(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(widget.isExpiredReturn
             ? 'مرتجع منتهي الصلاحية'
@@ -126,6 +125,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
@@ -134,7 +134,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
           if (err == null) return const SizedBox.shrink();
           return Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Text(err, style: const TextStyle(color: AppColors.error)),
+            child: Text(err, style: TextStyle(color: colors.error)),
           );
         }),
         _FormSection(
@@ -219,7 +219,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
                   child: Text(
                     'صافي الخسارة: ${MoneyUtils.formatMoney(loss)}',
                     style: TextStyle(
-                      color: loss >= 0 ? AppColors.error : AppColors.success,
+                      color: loss >= 0 ? colors.error : context.semantic.success,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -232,7 +232,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
         _FormSection(
           icon: Icons.add_box_outlined,
           title: 'إضافة منتج',
-          color: AppColors.primary,
+          color: colors.primary,
           children: [
             Obx(
               () => DropdownButtonFormField<int>(
@@ -286,7 +286,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
                   'تكلفة الوحدة الأساسية: ${MoneyUtils.formatMoney(batch.costPrice)}'
                   ' · المتاح: ${_fmtQty(batch.available)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: colors.onSurfaceVariant,
                       ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -331,8 +331,8 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
                 child: Text(
                   'الكمية الأساسية: ${_fmtQty(c.baseQuantity)}'
                   ' · قيمة السطر: ${MoneyUtils.formatMoney(c.lineCost)}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: colors.primary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -394,15 +394,15 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
                         ),
                         Text(
                           MoneyUtils.formatMoney(c.lines[i].lineCost),
-                          style: const TextStyle(
-                            color: AppColors.error,
+                          style: TextStyle(
+                            color: colors.error,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.delete_outline,
-                            color: AppColors.error,
+                            color: colors.error,
                           ),
                           onPressed: () => c.removeLine(i),
                         ),
@@ -441,7 +441,7 @@ class _StockLossFormBodyState extends State<_StockLossFormBody> {
               onPressed: c.isSaving.value ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: accent,
-                foregroundColor: Colors.white,
+                foregroundColor: colors.onPrimary,
               ),
               child: Text(
                 c.isSaving.value ? 'جاري الحفظ...' : 'حفظ العملية',
@@ -495,8 +495,8 @@ class _WasteListState extends State<WasteList> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: FutureBuilder<List<WasteRecord>>(
         future: _future,
         builder: (context, snapshot) {
@@ -521,7 +521,7 @@ class _WasteListState extends State<WasteList> {
                 return _StockLossListCard(
                   number: w.wasteNumber,
                   badge: 'إتلاف',
-                  color: _wasteColor,
+                  color: _wasteColor(context),
                   icon: Icons.delete_forever_outlined,
                   amount: w.totalCost,
                   warehouse: w.warehouseName,
@@ -536,8 +536,8 @@ class _WasteListState extends State<WasteList> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openForm,
-        backgroundColor: _wasteColor,
-        foregroundColor: Colors.white,
+        backgroundColor: _wasteColor(context),
+        foregroundColor: colors.onPrimary,
         icon: const Icon(Icons.add),
         label: const Text(
           'عملية إتلاف جديدة',
@@ -587,8 +587,8 @@ class _ExpiredReturnListState extends State<ExpiredReturnList> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: FutureBuilder<List<ExpiredReturnRecord>>(
         future: _future,
         builder: (context, snapshot) {
@@ -615,7 +615,7 @@ class _ExpiredReturnListState extends State<ExpiredReturnList> {
                 return _StockLossListCard(
                   number: r.returnNumber,
                   badge: 'مرتجع منتهي',
-                  color: _expiredColor,
+                  color: _expiredColor(context),
                   icon: Icons.event_busy_outlined,
                   amount: r.netLoss,
                   warehouse: r.warehouseName,
@@ -632,8 +632,8 @@ class _ExpiredReturnListState extends State<ExpiredReturnList> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openForm,
-        backgroundColor: _expiredColor,
-        foregroundColor: Colors.white,
+        backgroundColor: _expiredColor(context),
+        foregroundColor: colors.onPrimary,
         icon: const Icon(Icons.add),
         label: const Text(
           'مرتجع منتهي جديد',
@@ -668,7 +668,6 @@ class WasteDetailsScreen extends StatelessWidget {
         }
         final r = data.record;
         return Scaffold(
-          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: Text(r.wasteNumber),
             centerTitle: true,
@@ -686,7 +685,7 @@ class WasteDetailsScreen extends StatelessWidget {
               _DocumentHeader(
                 number: r.wasteNumber,
                 badge: 'إتلاف بضاعة',
-                color: _wasteColor,
+                color: _wasteColor(context),
                 icon: Icons.delete_forever_outlined,
                 rows: [
                   _IconMeta(
@@ -712,7 +711,7 @@ class WasteDetailsScreen extends StatelessWidget {
                   _MoneyLine(
                     label: 'إجمالي الإتلاف',
                     value: r.totalCost,
-                    color: AppColors.error,
+                    color: context.semantic.error,
                     large: true,
                   ),
                 ],
@@ -722,11 +721,11 @@ class WasteDetailsScreen extends StatelessWidget {
                 _FormSection(
                   icon: Icons.notes_outlined,
                   title: 'الملاحظات',
-                  color: AppColors.secondary,
+                  color: Theme.of(context).colorScheme.secondary,
                   children: [
                     Text(
                       r.notes!,
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -781,7 +780,6 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
         }
         final r = data.record;
         return Scaffold(
-          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: Text(r.returnNumber),
             centerTitle: true,
@@ -800,7 +798,7 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
               _DocumentHeader(
                 number: r.returnNumber,
                 badge: 'مرتجع منتهي الصلاحية',
-                color: _expiredColor,
+                color: _expiredColor(context),
                 icon: Icons.event_busy_outlined,
                 rows: [
                   _IconMeta(
@@ -832,17 +830,17 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
                   _MoneyLine(
                     label: 'تكلفة المخزون',
                     value: r.inventoryCost,
-                    color: AppColors.warning,
+                    color: context.semantic.warning,
                   ),
                   _MoneyLine(
                     label: 'التعويض',
                     value: r.compensationAmount,
-                    color: AppColors.success,
+                    color: context.semantic.success,
                   ),
                   _MoneyLine(
                     label: 'صافي الخسارة',
                     value: r.netLoss,
-                    color: AppColors.error,
+                    color: context.semantic.error,
                     large: true,
                   ),
                 ],
@@ -852,11 +850,11 @@ class ExpiredReturnDetailsScreen extends StatelessWidget {
                 _FormSection(
                   icon: Icons.notes_outlined,
                   title: 'الملاحظات',
-                  color: AppColors.secondary,
+                  color: Theme.of(context).colorScheme.secondary,
                   children: [
                     Text(
                       r.notes!,
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -909,6 +907,7 @@ class _StockLossListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AppCard(
       padding: const EdgeInsets.all(14),
       onTap: onTap,
@@ -946,7 +945,7 @@ class _StockLossListCard extends StatelessWidget {
                   Text(
                     _fmtDocDate(date),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.textMuted,
+                          color: colors.onSurfaceVariant,
                         ),
                   ),
               ],
@@ -956,7 +955,7 @@ class _StockLossListCard extends StatelessWidget {
             MoneyUtils.formatMoney(amount),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.error,
+                  color: colors.error,
                 ),
           ),
         ],
@@ -1024,6 +1023,7 @@ class _DocumentHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -1058,8 +1058,8 @@ class _DocumentHeader extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${row.label}:',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 13,
                     ),
                   ),
@@ -1102,6 +1102,7 @@ class _FinancialCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(
         children: [
@@ -1113,7 +1114,7 @@ class _FinancialCard extends StatelessWidget {
                   child: Text(
                     rows[i].label,
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: colors.onSurfaceVariant,
                       fontWeight:
                           rows[i].large ? FontWeight.w800 : FontWeight.w600,
                     ),
@@ -1157,18 +1158,19 @@ class _ItemsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
+          Padding(
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Icon(Icons.list_alt, color: AppColors.textSecondary, size: 18),
-                SizedBox(width: 8),
-                Text(
+                Icon(Icons.list_alt, color: colors.onSurfaceVariant, size: 18),
+                const SizedBox(width: 8),
+                const Text(
                   'المنتجات',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
@@ -1204,11 +1206,12 @@ class _StockLossItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1222,9 +1225,9 @@ class _StockLossItemCard extends StatelessWidget {
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.inventory_2_outlined,
-                  color: AppColors.primary,
+                  color: colors.primary,
                   size: 17,
                 ),
               ),
@@ -1249,19 +1252,19 @@ class _StockLossItemCard extends StatelessWidget {
                 label: batchNumber?.isNotEmpty == true
                     ? batchNumber!
                     : 'بدون رقم دفعة',
-                color: AppColors.secondary,
+                color: colors.secondary,
                 icon: Icons.qr_code_2_outlined,
               ),
               if (expiryDate != null && expiryDate!.isNotEmpty)
                 AppStatusBadge(
                   label: expiryDate!,
-                  color: AppColors.warning,
+                  color: context.semantic.warning,
                   icon: Icons.event_outlined,
                 ),
               if (unitName != null && unitName!.isNotEmpty)
                 AppStatusBadge(
                   label: unitName!,
-                  color: AppColors.info,
+                  color: context.semantic.info,
                   icon: Icons.straighten,
                 ),
             ],
@@ -1271,21 +1274,21 @@ class _StockLossItemCard extends StatelessWidget {
             children: [
               Text(
                 '${_fmtQty(quantity)} ${unitName ?? ''}'.trim(),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
               Text(
                 MoneyUtils.formatMoney(unitCost),
-                style: const TextStyle(color: AppColors.warning, fontSize: 12),
+                style: TextStyle(color: context.semantic.warning, fontSize: 12),
               ),
               const SizedBox(width: 10),
               Text(
                 MoneyUtils.formatMoney(lineCost),
-                style: const TextStyle(
-                  color: AppColors.error,
+                style: TextStyle(
+                  color: colors.error,
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
                 ),

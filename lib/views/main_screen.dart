@@ -5,6 +5,7 @@ import '../controllers/report_controller.dart';
 import '../controllers/invoice_controller.dart';
 import '../controllers/feature_controller.dart';
 import '../core/utils/money_utils.dart';
+import '../core/theme/app_semantic_colors.dart';
 import '../models/report_model.dart';
 import '../models/invoice_model.dart';
 import '../models/business_config.dart';
@@ -163,7 +164,6 @@ class _MainScreenState extends State<MainScreen> {
         final maxIndex = specs.isEmpty ? 0 : specs.length - 1;
         final index = currentIndex.value.clamp(0, maxIndex);
         return Scaffold(
-          backgroundColor: const Color(0xFFF7F8FC),
           drawer: const _MainDrawer(),
           body: IndexedStack(
             index: index,
@@ -265,17 +265,18 @@ class _ScrollableBottomNavState extends State<_ScrollableBottomNav> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: colors.surface,
         border: Border(
-          top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
+          top: BorderSide(color: colors.outlineVariant, width: 1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: colors.shadow.withValues(alpha: 0.04),
             blurRadius: 10,
-            offset: Offset(0, -2),
+            offset: const Offset(0, -2),
           ),
         ],
       ),
@@ -327,11 +328,11 @@ class _NavBarItem extends StatelessWidget {
     required this.onTap,
   });
 
-  static const Color _primary = Color(0xFF2563EB);
-  static const Color _inactive = Color(0xFF6B7280);
-
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final selectedColor = colors.primary;
+    final inactiveColor = colors.onSurfaceVariant;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -348,14 +349,14 @@ class _NavBarItem extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: selected
-                      ? _primary.withOpacity(0.10)
+                      ? selectedColor.withValues(alpha: 0.10)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   selected ? selectedIcon : icon,
                   size: 22,
-                  color: selected ? _primary : _inactive,
+                  color: selected ? selectedColor : inactiveColor,
                 ),
               ),
               const SizedBox(height: 4),
@@ -366,8 +367,9 @@ class _NavBarItem extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 10.5,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? _primary : _inactive,
+                  fontWeight:
+                      selected ? FontWeight.w800 : FontWeight.w600,
+                  color: selected ? selectedColor : inactiveColor,
                 ),
               ),
             ],
@@ -405,7 +407,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
       appBar: _buildAppBar(context),
       drawer: const _MainDrawer(),
       body: Obx(() {
@@ -477,10 +478,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return AppBar(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
-      elevation: 0,
       leading: Builder(
         builder: (context) {
           return IconButton(
@@ -490,24 +490,21 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-      title: const Column(
+      title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'لوحة التحكم',
-            style: TextStyle(
-              fontSize: 18,
+            style: textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+              color: colors.onSurface,
             ),
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
           Text(
             'نظرة عامة على نشاط النظام',
-            style: TextStyle(
-              fontSize: 11,
-              color: Color(0xFF6B7280),
-              fontWeight: FontWeight.w400,
+            style: textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
@@ -535,6 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader() {
+    final colors = Theme.of(context).colorScheme;
     final now = DateTime.now();
 
     final greeting = switch (now.hour) {
@@ -558,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.18),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.18),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -570,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.16),
+              color: colors.onPrimary.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
@@ -609,15 +607,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPeriodSelector() {
+    final colors = Theme.of(context).colorScheme;
     return Obx(
       () => Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFE5E7EB),
-          ),
+          border: Border.all(color: colors.outlineVariant),
         ),
         child: Row(
           children: [
@@ -647,6 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required ReportDateRange value,
   }) {
+    final colors = Theme.of(context).colorScheme;
     final selected = controller.selectedRange.value == value;
 
     return Expanded(
@@ -656,21 +654,16 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF2563EB)
-                : Colors.transparent,
+            color: selected ? colors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: selected
-                  ? Colors.white
-                  : const Color(0xFF6B7280),
+              color: selected ? colors.onPrimary : colors.onSurfaceVariant,
               fontSize: 12,
-              fontWeight:
-                  selected ? FontWeight.w800 : FontWeight.w600,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             ),
           ),
         ),
@@ -869,9 +862,9 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.event_busy_outlined,
         child: ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(
+          leading: Icon(
             Icons.warning_amber_rounded,
-            color: Color(0xFFB45309),
+            color: context.semantic.warning,
           ),
           title: Text('$count تنبيه قرب/انتهاء صلاحية'),
           subtitle: const Text('من الإشعارات النشطة الحالية'),
@@ -882,11 +875,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final actions = <Widget>[
       _QuickAction(
         title: 'فاتورة بيع',
         icon: Icons.point_of_sale_rounded,
-        color: const Color(0xFF2563EB),
+        color: colors.primary,
         onTap: () async {
           await Get.find<InvoiceController>().startNewInvoice();
           Get.toNamed('/invoice-form');
@@ -895,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _QuickAction(
         title: 'فاتورة شراء',
         icon: Icons.shopping_cart_rounded,
-        color: const Color(0xFFF59E0B),
+        color: semantic.warning,
         onTap: () async {
           await Get.find<InvoiceController>().startNewInvoice(
             type: InvoiceType.purchase,
@@ -906,7 +901,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _QuickAction(
         title: 'إضافة منتج',
         icon: Icons.add_box_rounded,
-        color: const Color(0xFF16A34A),
+        color: semantic.success,
         onTap: () => Get.toNamed('/product-form'),
       ),
       _QuickAction(
@@ -919,14 +914,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _QuickAction(
           title: 'إتلاف بضاعة',
           icon: Icons.delete_forever_outlined,
-          color: const Color(0xFFB91C1C),
+          color: semantic.error,
           onTap: () => Get.toNamed('/waste-form'),
         ),
       if (featureEnabled(AppFeature.expiry))
         _QuickAction(
           title: 'مرتجع منتهي',
           icon: Icons.event_busy_outlined,
-          color: const Color(0xFF9A3412),
+          color: semantic.warning,
           onTap: () => Get.toNamed('/expired-return-form'),
         ),
       if (featureEnabled(AppFeature.returnablePackaging))
@@ -954,6 +949,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildReportButton(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SizedBox(
       height: 56,
       child: FilledButton.icon(
@@ -966,7 +962,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF111827),
+          backgroundColor: colors.inverseSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -987,8 +983,9 @@ class _MainDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Drawer(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.surface,
       child: SafeArea(
         child: Column(
           children: [
@@ -1005,20 +1002,20 @@ class _MainDrawer extends StatelessWidget {
                   ],
                 ),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: Colors.white24,
-                    child: Icon(
+                    backgroundColor: colors.onPrimary.withValues(alpha: 0.24),
+                    child: const Icon(
                       Icons.business_center_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
                   ),
-                  SizedBox(height: 14),
-                  Text(
+                  const SizedBox(height: 14),
+                  const Text(
                     'نظام إدارة المؤسسة',
                     style: TextStyle(
                       color: Colors.white,
@@ -1026,8 +1023,8 @@ class _MainDrawer extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     'ERP Management System',
                     style: TextStyle(
                       color: Colors.white70,
@@ -1206,12 +1203,12 @@ class _MainDrawer extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
+                        color: colors.surfaceContainer,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.settings_outlined,
-                        color: Color(0xFF6B7280),
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1223,9 +1220,9 @@ class _MainDrawer extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.chevron_left_rounded,
-                      color: Color(0xFF9CA3AF),
+                      color: colors.outline,
                     ),
                   ],
                 ),
@@ -1259,17 +1256,19 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFE5E7EB),
+          color: colors.outlineVariant,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.025),
+            color: colors.shadow.withValues(alpha: 0.025),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
@@ -1284,7 +1283,7 @@ class _StatCard extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.10),
+                  color: color.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
@@ -1296,7 +1295,7 @@ class _StatCard extends StatelessWidget {
               const Spacer(),
               Icon(
                 Icons.more_horiz_rounded,
-                color: Colors.grey.shade400,
+                color: colors.outline,
                 size: 20,
               ),
             ],
@@ -1304,9 +1303,8 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 12,
+            style: textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1315,9 +1313,8 @@ class _StatCard extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 17,
+            style: textTheme.headlineSmall?.copyWith(
+              color: colors.onSurface,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1326,9 +1323,8 @@ class _StatCard extends StatelessWidget {
             subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 10,
+            style: textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
@@ -1350,13 +1346,14 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFE5E7EB),
+          color: colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -1367,20 +1364,20 @@ class _SectionCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
+                  color: colors.surfaceContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   icon,
                   size: 18,
-                  color: const Color(0xFF374151),
+                  color: colors.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  color: Color(0xFF111827),
+                style: TextStyle(
+                  color: colors.onSurface,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1412,13 +1409,14 @@ class _FinancialRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
+            color: color.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -1432,7 +1430,7 @@ class _FinancialRow extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              color: const Color(0xFF4B5563),
+              color: colors.onSurfaceVariant,
               fontSize: 13,
               fontWeight:
                   emphasize ? FontWeight.w800 : FontWeight.w600,
@@ -1444,7 +1442,7 @@ class _FinancialRow extends StatelessWidget {
           style: TextStyle(
             color: emphasize
                 ? color
-                : const Color(0xFF111827),
+                : colors.onSurface,
             fontSize: emphasize ? 15 : 13,
             fontWeight:
                 emphasize ? FontWeight.w900 : FontWeight.w700,
@@ -1472,13 +1470,14 @@ class _DebtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.055),
+        color: color.withValues(alpha: 0.055),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withOpacity(0.14),
+          color: color.withValues(alpha: 0.14),
         ),
       ),
       child: Column(
@@ -1490,7 +1489,7 @@ class _DebtCard extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.10),
+                  color: color.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -1503,7 +1502,7 @@ class _DebtCard extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: color.withOpacity(0.75),
+                  color: color.withValues(alpha: 0.75),
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1513,8 +1512,8 @@ class _DebtCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(
-              color: Color(0xFF374151),
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -1553,13 +1552,14 @@ class _OperationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 11,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
+        color: colors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -1568,7 +1568,7 @@ class _OperationRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
+              color: color.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -1584,10 +1584,10 @@ class _OperationRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF374151),
+                    color: colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1595,7 +1595,7 @@ class _OperationRow extends StatelessWidget {
                   '$count عملية',
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.grey.shade500,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1631,7 +1631,7 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color.withOpacity(0.07),
+      color: color.withValues(alpha: 0.07),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -1662,7 +1662,7 @@ class _QuickAction extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_left_rounded,
-                color: color.withOpacity(0.6),
+                color: color.withValues(alpha: 0.6),
                 size: 18,
               ),
             ],
@@ -1688,6 +1688,7 @@ class _DrawerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return ListTile(
       onTap: onTap,
       dense: true,
@@ -1697,25 +1698,25 @@ class _DrawerItem extends StatelessWidget {
       leading: Icon(
         icon,
         size: 21,
-        color: const Color(0xFF4B5563),
+        color: colors.onSurfaceVariant,
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF374151),
+          color: colors.onSurface,
         ),
       ),
       trailing: badgeCount > 0
           ? Badge(
-              backgroundColor: const Color(0xFFB91C1C),
+              backgroundColor: colors.error,
               label: Text(badgeCount > 99 ? '99+' : '$badgeCount'),
             )
-          : const Icon(
+          : Icon(
               Icons.chevron_left_rounded,
               size: 18,
-              color: Color(0xFF9CA3AF),
+              color: colors.outline,
             ),
     );
   }
@@ -1730,6 +1731,7 @@ class _DrawerSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         12,
@@ -1739,8 +1741,8 @@ class _DrawerSectionTitle extends StatelessWidget {
       ),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Color(0xFF9CA3AF),
+        style: TextStyle(
+          color: colors.onSurfaceVariant,
           fontSize: 10,
           fontWeight: FontWeight.w800,
         ),
@@ -1760,6 +1762,9 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final semantic = context.semantic;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(30),
@@ -1770,20 +1775,19 @@ class _ErrorState extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
+                color: semantic.errorContainer,
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.cloud_off_rounded,
-                color: Color(0xFFDC2626),
+                color: semantic.error,
                 size: 34,
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'تعذر تحميل لوحة التحكم',
-              style: TextStyle(
-                fontSize: 17,
+              style: textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1791,9 +1795,8 @@ class _ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 12,
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 18),

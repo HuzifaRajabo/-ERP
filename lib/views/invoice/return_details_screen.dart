@@ -14,6 +14,8 @@ class ReturnDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final controller = Get.find<ReturnController>();
 
     return FutureBuilder<ReturnWithItems?>(
@@ -49,9 +51,9 @@ class ReturnDetailsScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.06),
+                  color: color.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.2)),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   children: [
@@ -60,10 +62,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                       children: [
                         Text(
                           ret.returnNumber,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                          style: textTheme.titleLarge,
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -76,10 +75,9 @@ class ReturnDetailsScreen extends StatelessWidget {
                           ),
                           child: Text(
                             ret.type.label,
-                            style: const TextStyle(
+                            style: textTheme.labelMedium?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -89,18 +87,15 @@ class ReturnDetailsScreen extends StatelessWidget {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.calendar_today_outlined,
                             size: 14,
-                            color: Colors.grey,
+                            color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             ret.createdAt!,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13,
-                            ),
+                            style: textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -146,7 +141,7 @@ class ReturnDetailsScreen extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: colors.outlineVariant),
                 ),
                 child: Column(
                   children: [
@@ -157,21 +152,20 @@ class ReturnDetailsScreen extends StatelessWidget {
                         vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: colors.surfaceContainer,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(12),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Expanded(
                             flex: 3,
                             child: Text(
                               'المنتج',
-                              style: TextStyle(
+                              style: textTheme.labelMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
+                                color: colors.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -180,10 +174,9 @@ class ReturnDetailsScreen extends StatelessWidget {
                             child: Text(
                               'الكمية',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: textTheme.labelMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
+                                color: colors.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -192,10 +185,9 @@ class ReturnDetailsScreen extends StatelessWidget {
                             child: Text(
                               'السعر',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
+                              style: textTheme.labelMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
+                                color: colors.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -204,10 +196,9 @@ class ReturnDetailsScreen extends StatelessWidget {
                             child: Text(
                               'الإجمالي',
                               textAlign: TextAlign.end,
-                              style: TextStyle(
+                              style: textTheme.labelMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.grey,
+                                color: colors.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -225,7 +216,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade100),
+                            bottom: BorderSide(color: colors.outlineVariant),
                           ),
                         ),
                         child: Row(
@@ -234,7 +225,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                               flex: 3,
                               child: Text(
                                 item.productNameSnapshot,
-                                style: const TextStyle(fontSize: 13),
+                                style: textTheme.bodySmall,
                               ),
                             ),
                             Expanded(
@@ -245,14 +236,14 @@ class ReturnDetailsScreen extends StatelessWidget {
                                   Text(
                                     _fmtQty(item.quantity),
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13),
+                                    style: textTheme.bodySmall,
                                   ),
                                   if (item.unitName != null)
                                     Text(
                                       item.unitName!,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: Colors.grey[500],
+                                        color: colors.onSurfaceVariant,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -261,7 +252,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                                       '= ${_fmtQty(item.baseQuantity)} أساسية',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: Colors.grey[400],
+                                        color: colors.onSurfaceVariant,
                                         fontSize: 10,
                                       ),
                                     ),
@@ -273,7 +264,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                               child: Text(
                                 MoneyUtils.formatMoney(item.unitPrice),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 13),
+                                style: textTheme.bodySmall,
                               ),
                             ),
                             Expanded(
@@ -281,9 +272,8 @@ class ReturnDetailsScreen extends StatelessWidget {
                               child: Text(
                                 MoneyUtils.formatMoney(item.lineTotal),
                                 textAlign: TextAlign.end,
-                                style: const TextStyle(
+                                style: textTheme.bodySmall?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 13,
                                 ),
                               ),
                             ),
@@ -301,9 +291,12 @@ class ReturnDetailsScreen extends StatelessWidget {
                 _InfoCard(
                   icon: Icons.notes_outlined,
                   title: 'الملاحظات',
-                  color: Colors.grey,
+                  color: colors.onSurfaceVariant,
                   children: [
-                    Text(ret.notes!, style: TextStyle(color: Colors.grey[700])),
+                    Text(
+                      ret.notes!,
+                      style: TextStyle(color: colors.onSurfaceVariant),
+                    ),
                   ],
                 ),
               if (ret.notes != null && ret.notes!.isNotEmpty)
@@ -315,26 +308,24 @@ class ReturnDetailsScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.08),
+                  color: color.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'إجمالي المرتجع',
-                      style: TextStyle(
+                      style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
                       ),
                     ),
                     Text(
                       MoneyUtils.formatMoney(ret.totalAmount),
-                      style: TextStyle(
+                      style: textTheme.headlineLarge?.copyWith(
                         color: color,
                         fontWeight: FontWeight.bold,
-                        fontSize: 24,
                       ),
                     ),
                   ],
@@ -362,11 +353,10 @@ class ReturnDetailsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'الدفعات المرتبطة بالمرتجع',
-                        style: TextStyle(
+                        style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -376,8 +366,8 @@ class ReturnDetailsScreen extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            color: Colors.grey.shade50,
-                            border: Border.all(color: Colors.grey.shade200),
+                            color: colors.surfaceContainer,
+                            border: Border.all(color: colors.outlineVariant),
                           ),
                           child: Row(
                             children: [
@@ -385,7 +375,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                                 width: 36,
                                 height: 36,
                                 decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.12),
+                                  color: Colors.red.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -411,7 +401,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                                       Text(
                                         payment.notes!,
                                         style: TextStyle(
-                                          color: Colors.grey[500],
+                                          color: colors.onSurfaceVariant,
                                           fontSize: 12,
                                         ),
                                       ),
@@ -419,7 +409,7 @@ class ReturnDetailsScreen extends StatelessWidget {
                                       Text(
                                         payment.createdAt!,
                                         style: TextStyle(
-                                          color: Colors.grey[400],
+                                          color: colors.onSurfaceVariant,
                                           fontSize: 11,
                                         ),
                                       ),
@@ -458,11 +448,14 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,10 +466,9 @@ class _InfoCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
+                style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: color,
-                  fontSize: 14,
                 ),
               ),
             ],
@@ -497,6 +489,8 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -505,14 +499,14 @@ class _InfoRow extends StatelessWidget {
             width: 70,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
+              style: textTheme.bodySmall,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
         ],

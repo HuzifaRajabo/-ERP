@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
 import '../../models/party_model.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/shared_components.dart';
 
 class PartyListScreen extends GetView<PartyController> {
@@ -74,6 +74,7 @@ class _FilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Obx(
       () => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -89,14 +90,14 @@ class _FilterChips extends StatelessWidget {
             _Chip(
               label: 'عملاء',
               selected: controller.selectedType.value == PartyType.customer,
-              color: AppColors.primary,
+              color: colors.primary,
               onTap: () => controller.filterByType(PartyType.customer),
             ),
             const SizedBox(width: 8),
             _Chip(
               label: 'موردين',
               selected: controller.selectedType.value == PartyType.supplier,
-              color: AppColors.warning,
+              color: context.semantic.warning,
               onTap: () => controller.filterByType(PartyType.supplier),
             ),
             const SizedBox(width: 8),
@@ -116,28 +117,30 @@ class _FilterChips extends StatelessWidget {
 class _Chip extends StatelessWidget {
   final String label;
   final bool selected;
-  final Color color;
+  final Color? color;
   final VoidCallback onTap;
 
   const _Chip({
     required this.label,
     required this.selected,
-    this.color = AppColors.primary,
+    this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final chipColor = color ?? colors.primary;
     return FilterChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
       showCheckmark: false,
-      selectedColor: color,
-      backgroundColor: color.withValues(alpha: 0.08),
-      side: BorderSide(color: color.withValues(alpha: 0.4)),
+      selectedColor: chipColor,
+      backgroundColor: chipColor.withValues(alpha: 0.08),
+      side: BorderSide(color: chipColor.withValues(alpha: 0.4)),
       labelStyle: TextStyle(
-        color: selected ? Colors.white : color,
+        color: selected ? colors.onPrimary : chipColor,
         fontWeight: FontWeight.w600,
       ),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
@@ -214,6 +217,9 @@ class _PartyCard extends GetView<PartyController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
+    final typeColor = _typeColor(party.type, colors, semantic);
     return AppCard(
       padding: EdgeInsets.zero,
       onTap: () => Get.toNamed('/party-details', arguments: party),
@@ -223,8 +229,8 @@ class _PartyCard extends GetView<PartyController> {
           vertical: AppSpacing.sm,
         ),
         leading: CircleAvatar(
-          backgroundColor: _typeColor(party.type).withOpacity(0.15),
-          child: Icon(_typeIcon(party.type), color: _typeColor(party.type)),
+          backgroundColor: typeColor.withValues(alpha: 0.15),
+          child: Icon(_typeIcon(party.type), color: typeColor),
         ),
         title: Text(
           party.name,
@@ -234,11 +240,12 @@ class _PartyCard extends GetView<PartyController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (party.phone != null)
-              Text(party.phone!, style: TextStyle(color: Colors.grey[600])),
+              Text(party.phone!,
+                  style: TextStyle(color: colors.onSurfaceVariant)),
             if (party.address != null)
               Text(
                 party.address!,
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -281,24 +288,25 @@ class _PartyCard extends GetView<PartyController> {
               Get.back();
               controller.deleteParty(party.id!);
             },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: Text('حذف', style: TextStyle(color: context.semantic.error)),
           ),
         ],
       ),
     );
   }
 
-  Color _typeColor(PartyType type) => switch (type) {
-    PartyType.customer => Colors.blue,
-    PartyType.supplier => Colors.orange,
-    PartyType.both => Colors.purple,
-  };
+  Color _typeColor(PartyType type, ColorScheme colors, AppSemanticColors semantic) =>
+      switch (type) {
+        PartyType.customer => colors.primary,
+        PartyType.supplier => semantic.warning,
+        PartyType.both => Colors.purple,
+      };
 
   IconData _typeIcon(PartyType type) => switch (type) {
-    PartyType.customer => Icons.person_outline,
-    PartyType.supplier => Icons.local_shipping_outlined,
-    PartyType.both => Icons.people_outline,
-  };
+        PartyType.customer => Icons.person_outline,
+        PartyType.supplier => Icons.local_shipping_outlined,
+        PartyType.both => Icons.people_outline,
+      };
 }
 
 // ==============================
@@ -312,9 +320,10 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final (label, color) = switch (type) {
-      PartyType.customer => ('عميل', AppColors.primary),
-      PartyType.supplier => ('مورد', AppColors.warning),
+      PartyType.customer => ('عميل', colors.primary),
+      PartyType.supplier => ('مورد', context.semantic.warning),
       PartyType.both => ('عميل ومورد', Theme.of(context).colorScheme.secondary),
     };
 

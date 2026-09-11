@@ -5,7 +5,7 @@ import '../../controllers/payment_controller.dart';
 import '../../models/invoice_model.dart';
 import '../../views/shared/shared_components.dart';
 import '../../core/theme/app_dimensions.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 class PaymentBottomSheet extends GetView<PaymentController> {
   final InvoiceModel invoice;
@@ -13,19 +13,11 @@ class PaymentBottomSheet extends GetView<PaymentController> {
   const PaymentBottomSheet({super.key, required this.invoice});
 
   static Future<void> show(InvoiceModel invoice) async {
-    // تهيئة نموذج الدفعة مرة واحدة فقط قبل فتح النافذة — وليس داخل
-    // build()، لأن build() يُعاد تنفيذه في كل مرة يتغيّر فيها
-    // MediaQuery.viewInsets (أي عند ظهور/اختفاء لوحة المفاتيح)، وكان هذا
-    // يُصفّر المبلغ الذي كتبه المستخدم ويعيده إلى "المتبقي بالكامل" —
-    // وغالباً يحدث هذا التصفير عند الضغط على زر الحفظ نفسه (لأن لمس
-    // الشاشة يُغلق لوحة المفاتيح قبل تنفيذ onPressed)، فيُحفظ المبلغ
-    // الخاطئ (المتبقي الكامل) بدل المبلغ الذي أدخله المستخدم فعلياً.
     Get.find<PaymentController>().initPaymentForm(invoice);
 
     await Get.bottomSheet(
       PaymentBottomSheet(invoice: invoice),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -34,6 +26,8 @@ class PaymentBottomSheet extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -59,7 +53,7 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: colors.outlineVariant,
                     borderRadius: BorderRadius.circular(AppRadius.small),
                   ),
                 ),
@@ -100,7 +94,7 @@ class PaymentBottomSheet extends GetView<PaymentController> {
                   ),
                 ),
               ),
-SizedBox(height: AppSpacing.sm),
+              SizedBox(height: AppSpacing.sm),
 
               // حقل الملاحظات
               TextFormField(
@@ -144,18 +138,18 @@ SizedBox(height: AppSpacing.sm),
                                 'تم',
                                 'تم تسجيل الدفعة بنجاح',
                                 snackPosition: SnackPosition.BOTTOM,
-                                backgroundColor: Colors.green,
-                                colorText: Colors.white,
+                                backgroundColor: semantic.success,
+                                colorText: colors.onPrimary,
                               );
                             }
                           },
                     icon: controller.isSaving.value
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: colors.onPrimary,
                             ),
                           )
                         : const Icon(Icons.check),
@@ -166,8 +160,8 @@ SizedBox(height: AppSpacing.sm),
                       style: const TextStyle(fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                      backgroundColor: semantic.success,
+                      foregroundColor: colors.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.medium),
                       ),
@@ -190,6 +184,8 @@ class _InvoiceSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,17 +203,17 @@ class _InvoiceSummaryCard extends StatelessWidget {
               _SummaryItem(
                 label: 'الإجمالي',
                 value: MoneyUtils.formatMoney(invoice.totalAmount),
-                color: Theme.of(context).colorScheme.onSurface,
+                color: colors.onSurface,
               ),
               _SummaryItem(
                 label: 'المدفوع',
                 value: MoneyUtils.formatMoney(invoice.paidAmount),
-                color: AppColors.success,
+                color: semantic.success,
               ),
               _SummaryItem(
                 label: 'المتبقي',
                 value: MoneyUtils.formatMoney(invoice.remaining),
-                color: Theme.of(context).colorScheme.error,
+                color: colors.error,
               ),
             ],
           ),
@@ -227,8 +223,8 @@ class _InvoiceSummaryCard extends StatelessWidget {
                 ? (invoice.paidAmount / invoice.totalAmount).clamp(0.0, 1.0)
                 : 0,
             minHeight: 6,
-            color: AppColors.success,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            color: semantic.success,
+            backgroundColor: colors.surfaceContainerHighest,
           ),
         ],
       ),
@@ -249,12 +245,13 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.grey[500],
+            color: colors.onSurfaceVariant,
             fontSize: 12,
           ),
         ),

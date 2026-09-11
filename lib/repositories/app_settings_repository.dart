@@ -11,6 +11,7 @@ class AppSettingsRepository {
 
   static const expiryWarningDaysKey = 'expiry_warning_days';
   static const expiryAlertsEnabledKey = 'expiry_alerts_enabled';
+  static const themeModeKey = 'app_theme_mode';
   static const defaultWarningDays = 30;
   static const minPeriodDays = 1;
   static const maxPeriodDays = 730;
@@ -63,5 +64,22 @@ class AppSettingsRepository {
 
   Future<void> setExpiryAlertsEnabled(bool enabled) async {
     await setValue(expiryAlertsEnabledKey, enabled ? '1' : '0');
+  }
+
+  /// يقرأ وضع المظهر المحفوظ.
+  ///
+  /// القيم المقبولة: `'light'`، `'dark'`، `'system'` (الافتراضي).
+  Future<String> getThemeMode() async {
+    final raw = await getValue(themeModeKey);
+    if (raw != null &&
+        (raw == 'light' || raw == 'dark' || raw == 'system')) {
+      return raw;
+    }
+    return 'system';
+  }
+
+  Future<void> setThemeMode(String mode) async {
+    if (mode != 'light' && mode != 'dark' && mode != 'system') return;
+    await setValue(themeModeKey, mode);
   }
 }

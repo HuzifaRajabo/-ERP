@@ -7,12 +7,12 @@ import '../../controllers/feature_controller.dart';
 import '../../controllers/packaging_controller.dart';
 import '../../models/business_config.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../models/invoice_model.dart';
 import '../../models/payment_model.dart';
 import '../../models/returnable_packaging_model.dart';
 import '../shared/shared_components.dart';
-import '../../core/theme/app_dimensions.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../shared/app_ui.dart';
 
@@ -89,6 +89,8 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return Scaffold(
       appBar: AppBar(
         title: Text(partyName),
@@ -128,12 +130,12 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
                 Icon(
                   Icons.receipt_long_outlined,
                   size: 64,
-                  color: Colors.grey[400],
+                  color: colors.onSurfaceVariant,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'لا توجد مستحقات لهذا الطرف',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 16),
                 ),
               ],
             ),
@@ -159,6 +161,10 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
             partyInvoices.fold<int>(0, (sum, i) => sum + i.paidAmount) +
             packagingCharges.fold<int>(0, (sum, c) => sum + c.paidAmount);
 
+        final gradientColors = totalRemaining > 0
+            ? [semantic.error.withValues(alpha: 0.85), semantic.error]
+            : [semantic.success.withValues(alpha: 0.85), semantic.success];
+
         return Column(
           children: [
             Container(
@@ -166,9 +172,7 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: totalRemaining > 0
-                      ? [Colors.red.shade400, Colors.red.shade600]
-                      : [Colors.green.shade400, Colors.green.shade600],
+                  colors: gradientColors,
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -247,48 +251,6 @@ class _PartyInvoicesScreenState extends State<PartyInvoicesScreen> {
 }
 
 // ==============================
-// فلتر الحالة
-// ==============================
-
-// class _FilterChip extends StatelessWidget {
-//   final String label;
-//   final bool selected;
-//   final Color color;
-//   final VoidCallback onTap;
-
-//   const _FilterChip({
-//     required this.label,
-//     required this.selected,
-//     required this.color,
-//     required this.onTap,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return GestureDetector(
-//       onTap: onTap,
-//       child: AnimatedContainer(
-//         duration: const Duration(milliseconds: 200),
-//         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-//         decoration: BoxDecoration(
-//           color: selected ? color : color.withOpacity(0.08),
-//           borderRadius: BorderRadius.circular(20),
-//           border: Border.all(color: color.withOpacity(0.4)),
-//         ),
-//         child: Text(
-//           label,
-//           style: TextStyle(
-//             color: selected ? Colors.white : color,
-//             fontWeight: FontWeight.w600,
-//             fontSize: 12,
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
-
-// ==============================
 // بطاقة تعويض العبوات
 // ==============================
 
@@ -300,8 +262,10 @@ class _PackagingChargeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final isPartial = charge.paidAmount > 0 && charge.remaining > 0;
-    final statusColor = isPartial ? Colors.orange : Colors.red;
+    final statusColor = isPartial ? semantic.warning : semantic.error;
     final statusLabel = isPartial ? 'مدفوع جزئياً' : 'غير مدفوع';
 
     return AppCard(
@@ -324,7 +288,7 @@ class _PackagingChargeCard extends StatelessWidget {
                           if (charge.createdAt != null) charge.createdAt!,
                         ].join(' • '),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[400],
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                   ],
@@ -333,9 +297,9 @@ class _PackagingChargeCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const AppStatusBadge(
+                  AppStatusBadge(
                     label: 'تعويض عبوات',
-                    color: AppColors.warning,
+                    color: semantic.warning,
                     icon: null,
                   ),
                   const SizedBox(height: 4),
@@ -357,17 +321,17 @@ class _PackagingChargeCard extends StatelessWidget {
               _AmountItem(
                 label: 'الإجمالي',
                 value: MoneyUtils.formatMoney(charge.amount),
-                color: Theme.of(context).colorScheme.onSurface,
+                color: colors.onSurface,
               ),
               _AmountItem(
                 label: 'المدفوع',
                 value: MoneyUtils.formatMoney(charge.paidAmount),
-                color: Colors.green,
+                color: semantic.success,
               ),
               _AmountItem(
                 label: 'المتبقي',
                 value: MoneyUtils.formatMoney(charge.remaining),
-                color: charge.remaining > 0 ? Colors.red : Colors.grey,
+                color: charge.remaining > 0 ? semantic.error : colors.onSurfaceVariant,
               ),
             ],
           ),
@@ -380,7 +344,7 @@ class _PackagingChargeCard extends StatelessWidget {
                   : 0,
               minHeight: 6,
               color: statusColor,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: colors.outlineVariant,
             ),
           ),
           SizedBox(height: AppSpacing.sm),
@@ -394,8 +358,8 @@ class _PackagingChargeCard extends StatelessWidget {
               icon: const Icon(Icons.payments_outlined, size: 16),
               label: const Text('تحصيل'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
+                backgroundColor: colors.primary,
+                foregroundColor: colors.onPrimary,
               ),
             ),
           ),
@@ -421,7 +385,6 @@ class _PackagingChargePaymentSheet extends StatefulWidget {
     return Get.bottomSheet(
       _PackagingChargePaymentSheet(charge: charge, onPaid: onPaid),
       isScrollControlled: true,
-      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -490,6 +453,7 @@ class _PackagingChargePaymentSheetState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -509,7 +473,7 @@ class _PackagingChargePaymentSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: colors.outlineVariant,
                   borderRadius: BorderRadius.circular(AppRadius.small),
                 ),
               ),
@@ -541,7 +505,7 @@ class _PackagingChargePaymentSheetState
             ),
             if (_error != null) ...[
               SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: const TextStyle(color: AppColors.error)),
+              Text(_error!, style: TextStyle(color: colors.error)),
             ],
             SizedBox(height: AppSpacing.md),
             SizedBox(
@@ -552,8 +516,8 @@ class _PackagingChargePaymentSheetState
                 icon: const Icon(Icons.check),
                 label: Text(_saving ? 'جاري الحفظ...' : 'حفظ الدفعة'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.onPrimary,
                 ),
               ),
             ),
@@ -576,10 +540,12 @@ class _PartyInvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final statusColor = switch (invoice.paymentStatus) {
-      PaymentStatus.unpaid => Colors.red,
-      PaymentStatus.partial => Colors.orange,
-      PaymentStatus.paid => Colors.green,
+      PaymentStatus.unpaid => semantic.error,
+      PaymentStatus.partial => semantic.warning,
+      PaymentStatus.paid => semantic.success,
     };
 
     return AppCard(
@@ -600,7 +566,7 @@ class _PartyInvoiceCard extends StatelessWidget {
                       Text(
                         invoice.createdAt!,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[400],
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
                   ],
@@ -626,17 +592,17 @@ class _PartyInvoiceCard extends StatelessWidget {
               _AmountItem(
                 label: 'الإجمالي',
                 value: MoneyUtils.formatMoney(invoice.totalAmount),
-                color: Theme.of(context).colorScheme.onSurface,
+                color: colors.onSurface,
               ),
               _AmountItem(
                 label: 'المدفوع',
                 value: MoneyUtils.formatMoney(invoice.paidAmount),
-                color: Colors.green,
+                color: semantic.success,
               ),
               _AmountItem(
                 label: 'المتبقي',
                 value: MoneyUtils.formatMoney(invoice.remaining),
-                color: invoice.remaining > 0 ? Colors.red : Colors.grey,
+                color: invoice.remaining > 0 ? semantic.error : colors.onSurfaceVariant,
               ),
             ],
           ),
@@ -651,7 +617,7 @@ class _PartyInvoiceCard extends StatelessWidget {
                   : 0,
               minHeight: 6,
               color: statusColor,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: colors.outlineVariant,
             ),
           ),
 
@@ -675,8 +641,8 @@ class _PartyInvoiceCard extends StatelessWidget {
                     icon: const Icon(Icons.payments_outlined, size: 16),
                     label: const Text('دفعة'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                      backgroundColor: colors.primary,
+                      foregroundColor: colors.onPrimary,
                     ),
                   ),
                 ),
@@ -702,12 +668,13 @@ class _AmountItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.grey[500],
+            color: colors.onSurfaceVariant,
             fontSize: 11,
           ),
         ),
@@ -744,7 +711,7 @@ class _SummaryCol extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: color.withOpacity(0.8), fontSize: 11),
+          style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 11),
         ),
         const SizedBox(height: 4),
         Text(

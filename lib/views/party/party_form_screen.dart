@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/party_controller.dart';
 import '../../models/party_model.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 class PartyFormScreen extends GetView<PartyController> {
   const PartyFormScreen({super.key});
@@ -13,6 +13,8 @@ class PartyFormScreen extends GetView<PartyController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final nameController = TextEditingController(text: party?.name);
     final phoneController = TextEditingController(text: party?.phone);
     final addressController = TextEditingController(text: party?.address);
@@ -87,7 +89,7 @@ class PartyFormScreen extends GetView<PartyController> {
                     _TypeOption(
                       label: 'عميل',
                       icon: Icons.person_outline,
-                      color: AppColors.primary,
+                      color: colors.primary,
                       selected: selectedType.value == PartyType.customer,
                       onTap: () => selectedType.value = PartyType.customer,
                     ),
@@ -95,7 +97,7 @@ class PartyFormScreen extends GetView<PartyController> {
                     _TypeOption(
                       label: 'مورد',
                       icon: Icons.local_shipping_outlined,
-                      color: AppColors.warning,
+                      color: semantic.warning,
                       selected: selectedType.value == PartyType.supplier,
                       onTap: () => selectedType.value = PartyType.supplier,
                     ),
@@ -103,7 +105,7 @@ class PartyFormScreen extends GetView<PartyController> {
                     _TypeOption(
                       label: 'كلاهما',
                       icon: Icons.people_outline,
-                      color: AppColors.secondary,
+                      color: colors.secondary,
                       selected: selectedType.value == PartyType.both,
                       onTap: () => selectedType.value = PartyType.both,
                     ),
@@ -201,7 +203,7 @@ class _TypeOption extends StatelessWidget {
         label: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: selected ? Colors.white : color),
+            Icon(icon, color: selected ? Theme.of(context).colorScheme.onPrimary : color),
             const SizedBox(width: AppSpacing.xs),
             Text(label),
           ],
@@ -211,7 +213,7 @@ class _TypeOption extends StatelessWidget {
         selectedColor: color,
         side: BorderSide(color: color.withValues(alpha: 0.4)),
         labelStyle: TextStyle(
-          color: selected ? Colors.white : color,
+          color: selected ? Theme.of(context).colorScheme.onPrimary : color,
           fontWeight: FontWeight.w600,
         ),
       ),

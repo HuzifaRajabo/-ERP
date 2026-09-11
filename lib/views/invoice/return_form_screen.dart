@@ -6,6 +6,7 @@ import '../../models/invoice_model.dart';
 import '../../models/return_model.dart';
 import '../../models/product_unit_model.dart';
 import '../../controllers/product_controller.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 class ReturnFormScreen extends StatefulWidget {
   const ReturnFormScreen({super.key});
@@ -38,6 +39,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(title: Text(returnType.label), centerTitle: true),
       body: Obx(() {
@@ -53,12 +56,12 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                 Icon(
                   Icons.check_circle_outline,
                   size: 64,
-                  color: Colors.green[300],
+                  color: context.semantic.success,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'لا توجد كميات قابلة للإرجاع',
-                  style: TextStyle(fontSize: 16),
+                  style: textTheme.bodyLarge,
                 ),
               ],
             ),
@@ -147,8 +150,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                               'تم',
                               'تم تسجيل المرتجع بنجاح',
                               snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: Colors.green,
-                              colorText: Colors.white,
+                              backgroundColor: context.semantic.success,
+                              colorText: context.semantic.onSuccess,
                             );
                           }
                         },
@@ -197,16 +200,19 @@ class _InvoiceInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Row(
         children: [
-          const Icon(Icons.receipt_long_outlined, color: Colors.grey),
+          Icon(Icons.receipt_long_outlined, color: colors.onSurfaceVariant),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -214,14 +220,13 @@ class _InvoiceInfoCard extends StatelessWidget {
               children: [
                 Text(
                   invoice.invoiceNumber,
-                  style: const TextStyle(
+                  style: textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
                   ),
                 ),
                 Text(
                   invoice.partyNameSnapshot,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  style: textTheme.bodySmall,
                 ),
               ],
             ),
@@ -231,14 +236,13 @@ class _InvoiceInfoCard extends StatelessWidget {
             children: [
               Text(
                 MoneyUtils.formatMoney(invoice.totalAmount),
-                style: const TextStyle(
+                style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
               Text(
                 'إجمالي الفاتورة',
-                style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                style: textTheme.labelSmall,
               ),
             ],
           ),
@@ -259,12 +263,14 @@ class _ItemsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
+        Text(
           'اختر الكميات المرتجعة',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
         // زر تحديد الكل
         TextButton.icon(
@@ -341,19 +347,21 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final selectedQty = widget.item.selectedQuantity;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: selectedQty > 0
-            ? Colors.purple.withOpacity(0.04)
-            : Colors.white,
+            ? Colors.purple.withValues(alpha: 0.04)
+            : colors.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: selectedQty > 0
-              ? Colors.purple.withOpacity(0.3)
-              : Colors.grey.shade200,
+              ? Colors.purple.withValues(alpha: 0.3)
+              : colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -362,7 +370,7 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
           // اسم المنتج
           Text(
             widget.item.productName,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Row(
@@ -377,39 +385,39 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
                       label: 'الأصلي',
                       value: '${_fmt(widget.item.originalQuantity)} '
                           '${widget.item.invoiceUnitName ?? _baseUnitName}',
-                      color: Colors.grey,
+                      color: colors.onSurfaceVariant,
                     ),
                     if (widget.item.returnedBaseQuantity > 0)
                       _QtyInfo(
                         label: 'مُرجع سابقاً',
                         value:
                             '${_fmt(widget.item.returnedBaseQuantity)} $_baseUnitName',
-                        color: Colors.orange,
+                        color: context.semantic.warning,
                       ),
                     _QtyInfo(
                       label: 'المتبقي',
                       value:
                           '${_fmt(widget.item.remainingBaseQuantity)} $_baseUnitName',
-                      color: Colors.green,
+                      color: context.semantic.success,
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'وحدة الإرجاع',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      style: textTheme.labelSmall,
                     ),
                     const SizedBox(height: 4),
                     Obx(() {
                       if (_units.isEmpty) {
                         return Text(
                           widget.item.selectedUnitName ?? _baseUnitName,
-                          style: const TextStyle(fontSize: 13),
+                          style: textTheme.bodySmall,
                         );
                       }
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: colors.outlineVariant),
                         ),
                         child: DropdownButton<int>(
                           value: widget.item.selectedUnitId,
@@ -421,7 +429,7 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
                                   value: u.id,
                                   child: Text(
                                     '${u.unitName} (1 = ${_fmt(u.conversionFactor)} $_baseUnitName)',
-                                    style: const TextStyle(fontSize: 12),
+                                    style: textTheme.labelMedium,
                                   ),
                                 ),
                               )
@@ -510,14 +518,13 @@ class _ReturnItemRowState extends State<_ReturnItemRow> {
               children: [
                 Text(
                   'قيمة المرتجع: ',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  style: textTheme.labelSmall,
                 ),
                 Text(
                   MoneyUtils.formatMoney(widget.item.lineTotal),
-                  style: const TextStyle(
+                  style: textTheme.titleSmall?.copyWith(
                     color: Colors.purple,
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
                   ),
                 ),
               ],
@@ -545,13 +552,15 @@ class _QtyInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Row(
         children: [
           Text(
             '$label: ',
-            style: TextStyle(color: Colors.grey[400], fontSize: 11),
+            style: textTheme.labelSmall,
           ),
           Text(
             value,
@@ -578,6 +587,8 @@ class _ReturnSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Obx(() {
       final total = controller.returnTotal;
       final activeCount = controller.returnableItems
@@ -589,9 +600,9 @@ class _ReturnSummary extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.purple.withOpacity(0.06),
+          color: Colors.purple.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.purple.withOpacity(0.2)),
+          border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -599,22 +610,23 @@ class _ReturnSummary extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'إجمالي المرتجع',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   '$activeCount منتج',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  style: textTheme.labelSmall,
                 ),
               ],
             ),
             Text(
               MoneyUtils.formatMoney(total),
-              style: const TextStyle(
+              style: textTheme.headlineLarge?.copyWith(
                 color: Colors.purple,
                 fontWeight: FontWeight.bold,
-                fontSize: 24,
               ),
             ),
           ],
@@ -635,21 +647,23 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: context.semantic.errorContainer,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: colors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
+          Icon(Icons.warning_amber_rounded, color: colors.error, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.red, fontSize: 13),
+              style: TextStyle(color: colors.onSurface, fontSize: 13),
             ),
           ),
         ],

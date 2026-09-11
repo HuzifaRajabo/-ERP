@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/category_controller.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../models/category_model.dart';
 
 class ProductCategoryListScreen extends StatefulWidget {
@@ -24,6 +25,8 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return Scaffold(
       appBar: AppBar(
         title: const Text('الأصناف'),
@@ -42,7 +45,7 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.category_outlined, size: 64, color: Colors.grey[400]),
+                Icon(Icons.category_outlined, size: 64, color: colors.onSurfaceVariant),
                 const SizedBox(height: 12),
                 const Text('لا توجد أصناف'),
               ],
@@ -56,13 +59,14 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
           separatorBuilder: (context, index) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
             final category = controller.categories[index];
+            final accent = category.isPreset ? colors.primary : semantic.success;
             return Card(
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: category.isPreset ? Colors.blue.shade100 : Colors.green.shade100,
+                  backgroundColor: accent.withValues(alpha: 0.12),
                   child: Icon(
                     category.isPreset ? Icons.star : Icons.category,
-                    color: category.isPreset ? Colors.blue : Colors.green,
+                    color: accent,
                   ),
                 ),
                 title: Text(category.name),
@@ -76,10 +80,10 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
                       onPressed: () => _editCategory(category),
                     ),
                     if (category.isPreset)
-                      const Icon(Icons.lock_outline, color: Colors.grey)
+                      Icon(Icons.lock_outline, color: colors.onSurfaceVariant)
                     else
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        icon: Icon(Icons.delete_outline, color: colors.error),
                         tooltip: 'حذف الصنف',
                         onPressed: () => _deleteCategory(category),
                       ),
@@ -179,6 +183,7 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
   }
 
   Future<void> _deleteCategory(CategoryModel category) async {
+    final colors = Theme.of(context).colorScheme;
     final confirm = await Get.dialog<bool>(
       AlertDialog(
         title: const Text('حذف الصنف'),
@@ -187,7 +192,7 @@ class ProductCategoryListScreenState extends State<ProductCategoryListScreen> {
           TextButton(onPressed: () => Get.back(result: false), child: const Text('إلغاء')),
           TextButton(
             onPressed: () => Get.back(result: true),
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: Text('حذف', style: TextStyle(color: colors.error)),
           ),
         ],
       ),

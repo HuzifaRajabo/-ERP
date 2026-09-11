@@ -7,6 +7,7 @@ import '../../controllers/report_controller.dart';
 import '../../controllers/invoice_controller.dart';
 import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../models/report_model.dart';
 
 int _displayNetProfit(ReportOverview ov) {
@@ -19,6 +20,7 @@ class ReportScreen extends GetView<ReportController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -69,7 +71,7 @@ class ReportScreen extends GetView<ReportController> {
                 child: Obx(
                   () => Text(
                     controller.rangeLabel,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
                   ),
                 ),
               ),
@@ -100,6 +102,7 @@ class _DateRangeBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final labels = {
       ReportDateRange.today: 'اليوم',
       ReportDateRange.thisWeek: 'الأسبوع',
@@ -127,14 +130,14 @@ class _DateRangeBar extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: sel ? Colors.blue : Colors.blue.withOpacity(0.08),
+                    color: sel ? colors.primary : colors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     labels[r]!,
                     style: TextStyle(
-                      color: sel ? Colors.white : Colors.blue,
+                      color: sel ? colors.onPrimary : colors.primary,
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
                     ),
@@ -174,6 +177,7 @@ class _SummaryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final displayedNet = _displayNetProfit(ov);
     final isProfit = displayedNet >= 0;
 
@@ -195,27 +199,27 @@ class _SummaryTab extends StatelessWidget {
                 label: 'صافي الربح',
                 value: displayedNet,
                 icon: Icons.trending_up,
-                color: isProfit ? Colors.green : Colors.red,
+                color: isProfit ? context.semantic.success : context.semantic.error,
                 prefix: isProfit ? '+' : '',
               ),
               _KpiCard(
                 label: 'النقدية المقبوضة',
                 value: ov.salePaid,
                 icon: Icons.payments_outlined,
-                color: Colors.blue,
+                color: colors.primary,
               ),
               _KpiCard(
                 label: 'الذمم المدينة',
                 value: ov.debtsOwedToUs,
                 icon: Icons.inbox_outlined,
-                color: Colors.orange,
+                color: context.semantic.warning,
                 subtitle: 'مستحق لنا',
               ),
               _KpiCard(
                 label: 'الذمم الدائنة',
                 value: ov.debtsOwedByUs,
                 icon: Icons.outbox_outlined,
-                color: Colors.red,
+                color: context.semantic.error,
                 subtitle: 'مستحق علينا',
               ),
             ],
@@ -226,11 +230,11 @@ class _SummaryTab extends StatelessWidget {
           const SizedBox(height: 10),
           _InfoTable(
             rows: [
-              _InfoRow('إجمالي المبيعات', ov.saleTotal, Colors.blueGrey),
+              _InfoRow('إجمالي المبيعات', ov.saleTotal, colors.onSurfaceVariant),
               if (ov.saleDiscountTotal > 0)
                 _InfoRow('الحسومات', ov.saleDiscountTotal, Colors.purple),
-              _InfoRow('صافي المبيعات', ov.saleNetTotal, Colors.green),
-              _InfoRow('صافي المشتريات', ov.purchaseNetTotal, Colors.orange),
+              _InfoRow('صافي المبيعات', ov.saleNetTotal, context.semantic.success),
+              _InfoRow('صافي المشتريات', ov.purchaseNetTotal, context.semantic.warning),
               _InfoRow(
                 'تكلفة البضاعة المباعة',
                 ov.cogsTotal,
@@ -239,16 +243,16 @@ class _SummaryTab extends StatelessWidget {
               _InfoRow(
                 'مجمل الربح',
                 ov.grossProfit,
-                ov.grossProfit >= 0 ? Colors.green : Colors.red,
+                ov.grossProfit >= 0 ? context.semantic.success : context.semantic.error,
                 bold: true,
               ),
               if (featureEnabled(AppFeature.expenses))
-                _InfoRow('المصاريف', ov.expenseTotal, Colors.red)
+                _InfoRow('المصاريف', ov.expenseTotal, context.semantic.error)
               else
-                const _InfoRow(
+                _InfoRow(
                   'المصاريف',
                   0,
-                  Colors.grey,
+                  colors.onSurfaceVariant,
                   displayText: 'إدارة المصروفات غير مفعلة',
                 ),
               if (featureEnabled(AppFeature.waste) && ov.wasteCost > 0)
@@ -264,7 +268,7 @@ class _SummaryTab extends StatelessWidget {
               _InfoRow(
                 'صافي الربح',
                 displayedNet,
-                isProfit ? Colors.green[800]! : Colors.red[800]!,
+                isProfit ? context.semantic.success : context.semantic.error,
                 bold: true,
               ),
             ],
@@ -296,25 +300,25 @@ class _SummaryTab extends StatelessWidget {
                 _InfoRow(
                   'مسلّم',
                   ov.packagingIssued.round(),
-                  Colors.blue,
+                  colors.primary,
                   isCount: true,
                 ),
                 _InfoRow(
                   'مستلم سليم',
                   ov.packagingReturned.round(),
-                  Colors.green,
+                  context.semantic.success,
                   isCount: true,
                 ),
                 _InfoRow(
                   'مكسر',
                   ov.packagingBroken.round(),
-                  Colors.red,
+                  context.semantic.error,
                   isCount: true,
                 ),
                 _InfoRow(
                   'مفقود',
                   ov.packagingLost.round(),
-                  Colors.orange,
+                  context.semantic.warning,
                   isCount: true,
                 ),
                 _InfoRow(
@@ -332,7 +336,7 @@ class _SummaryTab extends StatelessWidget {
                 _InfoRow(
                   'ممتلئ في المخزون',
                   ov.packagingFullInStock.round(),
-                  Colors.cyan,
+                  context.semantic.info,
                   isCount: true,
                 ),
                 _InfoRow(
@@ -361,12 +365,13 @@ class _WarehouseSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.teal.withOpacity(0.04),
+        color: context.semantic.info.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.teal.withOpacity(0.18)),
+        border: Border.all(color: context.semantic.info.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,12 +383,12 @@ class _WarehouseSummaryCard extends StatelessWidget {
           const SizedBox(height: 8),
           _InfoTable(
             rows: [
-              _InfoRow('إجمالي المبيعات', summary.sales, Colors.green),
+              _InfoRow('إجمالي المبيعات', summary.sales, context.semantic.success),
               _InfoRow('الحسومات', summary.discounts, Colors.purple),
               _InfoRow('مرتجعات المبيعات', summary.salesReturns, Colors.purple),
-              _InfoRow('صافي المبيعات', summary.netSales, Colors.green),
+              _InfoRow('صافي المبيعات', summary.netSales, context.semantic.success),
               _InfoRow('تكلفة البضاعة', summary.cogs, Colors.deepOrange),
-              _InfoRow('مجمل الربح', summary.grossProfit, Colors.blue),
+              _InfoRow('مجمل الربح', summary.grossProfit, colors.primary),
               _InfoRow('قيمة المخزون', summary.inventoryValue, Colors.teal),
             ],
           ),
@@ -402,19 +407,20 @@ class _SalesPurchasesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader('المبيعات', Icons.arrow_upward_rounded, Colors.green),
+          _SectionHeader('المبيعات', Icons.arrow_upward_rounded, context.semantic.success),
           const SizedBox(height: 10),
           _InfoTable(
             rows: [
               _InfoRow(
                 'عدد الفواتير',
                 ov.saleInvoiceCount,
-                Colors.grey,
+                colors.onSurfaceVariant,
                 isCount: true,
               ),
               _InfoRow('إجمالي الفواتير', ov.saleTotal, null),
@@ -433,11 +439,11 @@ class _SalesPurchasesTab extends StatelessWidget {
               _InfoRow(
                 'صافي المبيعات',
                 ov.saleNetTotal,
-                Colors.green,
+                context.semantic.success,
                 bold: true,
               ),
-              _InfoRow('المقبوض من العملاء', ov.salePaid, Colors.blue),
-              _InfoRow('الذمم على العملاء', ov.debtsOwedToUs, Colors.orange),
+              _InfoRow('المقبوض من العملاء', ov.salePaid, colors.primary),
+              _InfoRow('الذمم على العملاء', ov.debtsOwedToUs, context.semantic.warning),
             ],
           ),
           const SizedBox(height: 20),
@@ -445,7 +451,7 @@ class _SalesPurchasesTab extends StatelessWidget {
           _SectionHeader(
             'المشتريات',
             Icons.arrow_downward_rounded,
-            Colors.orange,
+            context.semantic.warning,
           ),
           const SizedBox(height: 10),
           _InfoTable(
@@ -453,7 +459,7 @@ class _SalesPurchasesTab extends StatelessWidget {
               _InfoRow(
                 'عدد الفواتير',
                 ov.purchaseInvoiceCount,
-                Colors.grey,
+                colors.onSurfaceVariant,
                 isCount: true,
               ),
               _InfoRow('إجمالي المشتريات', ov.purchaseTotal, null),
@@ -466,11 +472,11 @@ class _SalesPurchasesTab extends StatelessWidget {
               _InfoRow(
                 'صافي المشتريات',
                 ov.purchaseNetTotal,
-                Colors.orange,
+                context.semantic.warning,
                 bold: true,
               ),
-              _InfoRow('المدفوع للموردين', ov.purchasePaid, Colors.blue),
-              _InfoRow('الذمم للموردين', ov.debtsOwedByUs, Colors.red),
+              _InfoRow('المدفوع للموردين', ov.purchasePaid, colors.primary),
+              _InfoRow('الذمم للموردين', ov.debtsOwedByUs, context.semantic.error),
             ],
           ),
         ],
@@ -488,6 +494,7 @@ class _ProfitLossTab extends GetView<ReportController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final displayedNet = _displayNetProfit(ov);
     final grossIsProfit = ov.grossProfit >= 0;
     final netIsProfit = displayedNet >= 0;
@@ -506,14 +513,14 @@ class _ProfitLossTab extends GetView<ReportController> {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: colors.outlineVariant),
             ),
             child: Column(
               children: [
                 _PLRow(
                   'صافي المبيعات',
                   ov.saleNetTotal,
-                  Colors.green,
+                  context.semantic.success,
                   bold: true,
                 ),
                 _Divider(),
@@ -527,7 +534,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                 _PLRow(
                   '= مجمل الربح',
                   ov.grossProfit,
-                  grossIsProfit ? Colors.green[700]! : Colors.red,
+                  grossIsProfit ? context.semantic.success : context.semantic.error,
                   bold: true,
                   highlight: true,
                 ),
@@ -536,7 +543,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                   _PLRow(
                     '(-) المصاريف التشغيلية',
                     ov.expenseTotal,
-                    Colors.red,
+                    context.semantic.error,
                     prefix: '-',
                   )
                 else
@@ -563,7 +570,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                 _PLRow(
                   '= صافي الربح',
                   displayedNet,
-                  netIsProfit ? Colors.green[800]! : Colors.red[800]!,
+                  netIsProfit ? context.semantic.success : context.semantic.error,
                   bold: true,
                   highlight: true,
                   isLast: true,
@@ -581,7 +588,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                   label: 'هامش الربح',
                   value: '${margin.toStringAsFixed(1)}%',
                   icon: Icons.percent,
-                  color: netIsProfit ? Colors.green : Colors.red,
+                  color: netIsProfit ? context.semantic.success : context.semantic.error,
                 ),
               ),
               const SizedBox(width: 10),
@@ -590,7 +597,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                   label: 'عدد فواتير البيع',
                   value: '${ov.saleInvoiceCount}',
                   icon: Icons.receipt_outlined,
-                  color: Colors.blue,
+                  color: colors.primary,
                 ),
               ),
             ],
@@ -652,11 +659,11 @@ class _ProfitLossTab extends GetView<ReportController> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: colors.outlineVariant),
                 ),
                 child: Text(
                   'لا توجد فواتير بيع',
-                  style: TextStyle(color: Colors.grey[500]),
+                  style: TextStyle(color: colors.onSurfaceVariant),
                 ),
               );
             }
@@ -664,18 +671,18 @@ class _ProfitLossTab extends GetView<ReportController> {
             return Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: colors.outlineVariant),
               ),
               child: Column(
                 children: [
                   // رأس الجدول
                   Container(
-                    color: Colors.grey[50],
+                    color: colors.surfaceContainerLowest,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Expanded(
                           flex: 2,
@@ -684,7 +691,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: colors.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -696,7 +703,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: colors.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -708,7 +715,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: colors.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -720,7 +727,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: colors.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -752,7 +759,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                         ),
                         decoration: BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade100),
+                            bottom: BorderSide(color: colors.outlineVariant),
                           ),
                         ),
                         child: Row(
@@ -772,7 +779,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                                   Text(
                                     d.partyName,
                                     style: TextStyle(
-                                      color: Colors.grey[400],
+                                      color: colors.onSurfaceVariant,
                                       fontSize: 10,
                                     ),
                                     maxLines: 1,
@@ -786,8 +793,8 @@ class _ProfitLossTab extends GetView<ReportController> {
                               child: Text(
                                 MoneyUtils.formatMoney(d.saleAmount),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.green,
+                                style: TextStyle(
+                                  color: context.semantic.success,
                                   fontSize: 13,
                                 ),
                               ),
@@ -798,7 +805,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                                 MoneyUtils.formatMoney(d.costAmount),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Colors.orange[700],
+                                  color: context.semantic.warning,
                                   fontSize: 13,
                                 ),
                               ),
@@ -813,7 +820,7 @@ class _ProfitLossTab extends GetView<ReportController> {
                                         ? '+${MoneyUtils.formatMoney(d.profit)}'
                                         : MoneyUtils.formatMoney(d.profit),
                                     style: TextStyle(
-                                      color: isP ? Colors.green : Colors.red,
+                                      color: isP ? context.semantic.success : context.semantic.error,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
@@ -822,8 +829,8 @@ class _ProfitLossTab extends GetView<ReportController> {
                                     '${d.margin.toStringAsFixed(1)}%',
                                     style: TextStyle(
                                       color: isP
-                                          ? Colors.green[300]
-                                          : Colors.red[300],
+                                          ? context.semantic.success.withValues(alpha: 0.6)
+                                          : context.semantic.error.withValues(alpha: 0.6),
                                       fontSize: 10,
                                     ),
                                   ),
@@ -876,10 +883,11 @@ class _InfoTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         children: rows.asMap().entries.map((e) {
@@ -890,7 +898,7 @@ class _InfoTable extends StatelessWidget {
             decoration: BoxDecoration(
               border: isLast
                   ? null
-                  : Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                  : Border(bottom: BorderSide(color: colors.outlineVariant)),
             ),
             child: Row(
               children: [
@@ -902,7 +910,7 @@ class _InfoTable extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: r.bold ? FontWeight.bold : FontWeight.normal,
-                      color: Colors.grey[700],
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -913,7 +921,7 @@ class _InfoTable extends StatelessWidget {
                           ? '${r.value}'
                           : '${r.prefix}${MoneyUtils.formatMoney(r.value)}'),
                   style: TextStyle(
-                    color: r.color ?? Colors.black87,
+                    color: r.color ?? colors.onSurface,
                     fontWeight: r.bold ? FontWeight.bold : FontWeight.w500,
                     fontSize: r.bold ? 15 : 13,
                   ),
@@ -946,12 +954,13 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -964,7 +973,7 @@ class _KpiCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -984,7 +993,7 @@ class _KpiCard extends StatelessWidget {
           if (subtitle != null)
             Text(
               subtitle!,
-              style: TextStyle(color: color.withOpacity(0.6), fontSize: 10),
+              style: TextStyle(color: color.withValues(alpha: 0.6), fontSize: 10),
             ),
         ],
       ),
@@ -1007,12 +1016,13 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1028,7 +1038,7 @@ class _MetricCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+          Text(label, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11)),
         ],
       ),
     );
@@ -1042,13 +1052,14 @@ class _PLMessageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Text(
         message,
         style: TextStyle(
-          color: Colors.grey[600],
+          color: colors.onSurfaceVariant,
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
@@ -1078,10 +1089,11 @@ class _PLRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: highlight ? color.withOpacity(0.05) : Colors.transparent,
+        color: highlight ? color.withValues(alpha: 0.05) : Colors.transparent,
         borderRadius: isLast
             ? const BorderRadius.vertical(bottom: Radius.circular(12))
             : BorderRadius.zero,
@@ -1096,7 +1108,7 @@ class _PLRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                color: bold ? Colors.black87 : Colors.grey[700],
+                color: bold ? colors.onSurface : colors.onSurfaceVariant,
               ),
             ),
           ),
@@ -1121,10 +1133,11 @@ class _Divider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Divider(
       height: 1,
       thickness: thick ? 2 : 1,
-      color: thick ? Colors.grey.shade300 : Colors.grey.shade100,
+      color: thick ? colors.outline : colors.outlineVariant,
     );
   }
 }
@@ -1156,7 +1169,7 @@ class _SectionHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 16),
@@ -1189,7 +1202,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            Icon(Icons.error_outline, size: 64, color: context.semantic.error),
             const SizedBox(height: 16),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),

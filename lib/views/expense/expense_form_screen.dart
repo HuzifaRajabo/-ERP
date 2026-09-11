@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/money_utils.dart';
 import '../../controllers/expense_controller.dart';
 import '../../models/expense_model.dart';
@@ -42,6 +42,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return Scaffold(
       appBar: AppBar(
         title: Obx(() {
@@ -107,15 +109,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
+                    color: colors.errorContainer,
                     borderRadius: BorderRadius.circular(AppRadius.medium),
                     border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.3),
+                      color: colors.error,
                     ),
                   ),
                   child: Text(
                     controller.formError.value!,
-                    style: const TextStyle(color: AppColors.error),
+                    style: TextStyle(color: colors.error),
                   ),
                 );
               }
@@ -137,15 +139,15 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                               'تم',
                               'تم حفظ المصروف بنجاح',
                               snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: AppColors.success,
-                              colorText: Colors.white,
+                              backgroundColor: semantic.success,
+                              colorText: colors.onPrimary,
                             );
                           }
                         },
                   child: controller.isSaving.value
-                      ? const CircularProgressIndicator(
+                      ? CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                            colors.onPrimary,
                           ),
                         )
                       : const Text('حفظ المصروف'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/feature_controller.dart';
+import '../../controllers/theme_controller.dart';
 import '../../core/config/activity_profiles.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../models/business_config.dart';
@@ -21,6 +22,7 @@ class SettingsScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
+            const _AppearanceCard(),
             _SectionCard(
               title: 'المنشأة',
               child: ListTile(
@@ -463,6 +465,56 @@ class _SectionCard extends StatelessWidget {
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.sm),
             child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// بطاقة المظهر (فاتح / داكن / حسب النظام) مع الحفظ الفوري.
+class _AppearanceCard extends StatelessWidget {
+  const _AppearanceCard();
+
+  static const _options = <(ThemeMode, String, IconData)>[
+    (ThemeMode.light, 'فاتح', Icons.light_mode_outlined),
+    (ThemeMode.dark, 'داكن', Icons.dark_mode_outlined),
+    (ThemeMode.system, 'حسب النظام', Icons.brightness_auto_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final themeController = Get.find<ThemeController>();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('المظهر', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            Obx(
+              () => Column(
+                children: [
+                  for (final (mode, label, icon) in _options)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(icon),
+                      title: Text(label),
+                      trailing: Radio<ThemeMode>(
+                        value: mode,
+                        groupValue: themeController.themeMode,
+                        onChanged: (value) {
+                          if (value != null) {
+                            themeController.setThemeMode(value);
+                          }
+                        },
+                      ),
+                      onTap: () => themeController.setThemeMode(mode),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

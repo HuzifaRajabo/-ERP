@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/expense_controller.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../models/expense_model.dart';
 import '../../core/utils/money_utils.dart';
 import '../shared/shared_components.dart';
@@ -80,6 +80,7 @@ class _ExpenseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final semantic = context.semantic;
     final controller = Get.find<ExpenseController>();
 
     return AppCard(
@@ -94,10 +95,10 @@ class _ExpenseCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.12),
+              color: semantic.error.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.medium),
             ),
-            child: const Icon(Icons.money_off, color: AppColors.error),
+            child: Icon(Icons.money_off, color: semantic.error),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -128,13 +129,13 @@ class _ExpenseCard extends StatelessWidget {
                 MoneyUtils.formatMoney(expense.amount),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.error,
+                      color: semantic.error,
                     ),
               ),
               const SizedBox(height: AppSpacing.xs),
               IconButton(
                 visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                icon: Icon(Icons.delete_outline, color: semantic.error),
                 onPressed: () =>
                     _confirmDelete(context, controller, expense.id!),
               ),

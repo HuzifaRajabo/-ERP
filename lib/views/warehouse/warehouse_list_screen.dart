@@ -7,8 +7,8 @@ import '../../models/warehouse_model.dart';
 import 'warehouse_details_screen.dart';
 import 'warehouse_form_screen.dart';
 import '../shared/shared_components.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 class WarehouseListScreen extends GetView<WarehouseController> {
   const WarehouseListScreen({super.key});
@@ -90,20 +90,24 @@ class _WarehouseCard extends StatelessWidget {
 
   const _WarehouseCard({required this.warehouse, required this.onTap});
 
-  Color get _typeColor => switch (warehouse.type) {
-    WarehouseType.main => AppColors.primary,
-    WarehouseType.van => AppColors.warning,
-    WarehouseType.branch => AppColors.success,
-  };
+  Color _typeColor(ColorScheme colors, AppSemanticColors semantic) =>
+      switch (warehouse.type) {
+        WarehouseType.main => colors.primary,
+        WarehouseType.van => semantic.warning,
+        WarehouseType.branch => semantic.success,
+      };
 
   IconData get _typeIcon => switch (warehouse.type) {
-    WarehouseType.main => Icons.warehouse_rounded,
-    WarehouseType.van => Icons.local_shipping_rounded,
-    WarehouseType.branch => Icons.store_mall_directory_rounded,
-  };
+        WarehouseType.main => Icons.warehouse_rounded,
+        WarehouseType.van => Icons.local_shipping_rounded,
+        WarehouseType.branch => Icons.store_mall_directory_rounded,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
+    final typeColor = _typeColor(colors, semantic);
     return AppCard(
       padding: EdgeInsets.zero,
       onTap: onTap,
@@ -115,10 +119,10 @@ class _WarehouseCard extends StatelessWidget {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: _typeColor.withOpacity(0.12),
+                color: typeColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(_typeIcon, color: _typeColor, size: 26),
+              child: Icon(_typeIcon, color: typeColor, size: 26),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -141,7 +145,7 @@ class _WarehouseCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         AppStatusBadge(
                           label: 'افتراضي',
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                       ],
                       if (!warehouse.isActive) ...[
@@ -159,7 +163,7 @@ class _WarehouseCard extends StatelessWidget {
                       Text(
                         warehouse.type.label,
                         style: TextStyle(
-                          color: _typeColor,
+                          color: typeColor,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -172,7 +176,7 @@ class _WarehouseCard extends StatelessWidget {
                             warehouse.address!,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.grey[500],
+                              color: colors.onSurfaceVariant,
                               fontSize: 11,
                             ),
                           ),
@@ -183,7 +187,7 @@ class _WarehouseCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_left_rounded, color: Colors.grey),
+            Icon(Icons.chevron_left_rounded, color: colors.onSurfaceVariant),
           ],
         ),
       ),

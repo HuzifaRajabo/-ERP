@@ -5,8 +5,8 @@ import '../../controllers/packaging_controller.dart';
 import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../models/product_model.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../views/shared/shared_components.dart';
 
 class ProductListScreen extends GetView<ProductController> {
@@ -233,7 +233,7 @@ class _ProductCard extends GetView<ProductController> {
                 const SizedBox(width: 8),
                 AppStatusBadge(
                   label: 'غير فعال',
-                  color: AppColors.error,
+                  color: context.semantic.error,
                   icon: Icons.block,
                 ),
               ],
@@ -252,7 +252,7 @@ class _ProductCard extends GetView<ProductController> {
               Text(
                 product.description,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
                 maxLines: 1,
@@ -276,7 +276,7 @@ class _ProductCard extends GetView<ProductController> {
               IconButton(
                 tooltip: 'إعادة تفعيل المنتج',
                 icon: const Icon(Icons.restore),
-                color: const Color(0xFF22C55E),
+                color: context.semantic.success,
                 onPressed: () => _confirmReactivate(context),
               ),
             IconButton(
@@ -310,7 +310,7 @@ class _ProductCard extends GetView<ProductController> {
               Get.back();
               controller.deleteProduct(product.id!);
             },
-            child: const Text('حذف', style: TextStyle(color: AppColors.error)),
+            child: Text('حذف', style: TextStyle(color: context.semantic.error)),
           ),
         ],
       ),

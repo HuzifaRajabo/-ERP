@@ -1,8 +1,8 @@
 // lib/views/shared/payment_widgets.dart
 
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../views/shared/shared_components.dart';
 import '../../core/utils/money_utils.dart';
 
@@ -72,14 +72,14 @@ class PaymentSummaryCard extends StatelessWidget {
               _SummaryItem(
                 label: 'المدفوع',
                 value: MoneyUtils.formatMoney(paidAmount),
-                color: AppColors.success,
+                color: context.semantic.success,
               ),
               _SummaryItem(
                 label: 'المتبقي',
                 value: MoneyUtils.formatMoney(remaining),
                 color: remaining > 0
                     ? Theme.of(context).colorScheme.error
-                    : AppColors.success,
+                    : context.semantic.success,
               ),
             ],
           ),
@@ -89,7 +89,7 @@ class PaymentSummaryCard extends StatelessWidget {
                 ? (paidAmount / totalAmount).clamp(0.0, 1.0)
                 : 0,
             minHeight: 6,
-            color: AppColors.success,
+            color: context.semantic.success,
             backgroundColor:
                 Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
@@ -117,8 +117,7 @@ class _SummaryItem extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.grey[500],
-            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),

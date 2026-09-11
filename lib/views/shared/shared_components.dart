@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 
 class AppCard extends StatelessWidget {
   final Widget child;
@@ -122,7 +122,7 @@ class PackagingEmptyBadge extends StatelessWidget {
       label: typeName == null || typeName!.trim().isEmpty
           ? 'عبوة فارغة'
           : 'عبوة فارغة • $typeName',
-      color: AppColors.info,
+      color: context.semantic.info,
       icon: Icons.liquor_outlined,
     );
   }
@@ -150,7 +150,7 @@ class AppEmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 56, color: AppColors.textMuted),
+            Icon(icon, size: 56, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: AppSpacing.lg),
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             if (message != null) ...[

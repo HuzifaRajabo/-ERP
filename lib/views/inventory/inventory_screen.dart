@@ -5,8 +5,8 @@ import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../models/inventory_transaction_model.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/shared_components.dart';
 import 'stock_loss_screens.dart';
 
@@ -102,21 +102,22 @@ class _StockCard extends GetView<InventoryController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     // المؤثرات اللونية حسب الكمية المتاحة
     final Color stockColor;
     final IconData stockIcon;
     final String stockLabel;
 
     if (summary.available <= 0) {
-      stockColor = Theme.of(context).colorScheme.error;
+      stockColor = colors.error;
       stockIcon = Icons.warning_amber_rounded;
       stockLabel = 'نفد المخزون';
     } else if (summary.available <= 5) {
-      stockColor = AppColors.warning;
+      stockColor = context.semantic.warning;
       stockIcon = Icons.info_outline;
       stockLabel = 'مخزون منخفض';
     } else {
-      stockColor = AppColors.success;
+      stockColor = context.semantic.success;
       stockIcon = Icons.check_circle_outline;
       stockLabel = 'متوفر';
     }
@@ -133,7 +134,7 @@ class _StockCard extends GetView<InventoryController> {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: stockColor.withOpacity(0.12),
+                color: stockColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -195,7 +196,7 @@ class _StockCard extends GetView<InventoryController> {
                 ),
                 Text(
                   summary.unitName ?? 'وحدة',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
                 ),
               ],
             ),
@@ -265,7 +266,7 @@ class _TransactionFilters extends StatelessWidget {
               selected:
                   controller.selectedType.value ==
                   InventoryTransactionType.purchase,
-              color: AppColors.warning,
+              color: context.semantic.warning,
               onTap: () =>
                   controller.filterByType(InventoryTransactionType.purchase),
             ),
@@ -285,7 +286,7 @@ class _TransactionFilters extends StatelessWidget {
               selected:
                   controller.selectedType.value ==
                   InventoryTransactionType.waste,
-              color: const Color(0xFFB91C1C),
+              color: context.semantic.error,
               onTap: () =>
                   controller.filterByType(InventoryTransactionType.waste),
             ),
@@ -322,6 +323,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return FilterChip(
       label: Text(label),
       selected: selected,
@@ -331,26 +333,10 @@ class _FilterChip extends StatelessWidget {
       backgroundColor: color.withValues(alpha: 0.08),
       side: BorderSide(color: color.withValues(alpha: 0.4)),
       labelStyle: TextStyle(
-        color: selected ? Colors.white : color,
+        color: selected ? colors.onPrimary : color,
         fontWeight: FontWeight.w600,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      /* AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.4)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ), */
     );
   }
 }
@@ -418,6 +404,7 @@ class _TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final type = view.transaction.type;
     final qty = view.transaction.quantity;
     final qtyStr = qty % 1 == 0
@@ -425,17 +412,13 @@ class _TransactionCard extends StatelessWidget {
         : qty.toStringAsFixed(2);
 
     final Color color = switch (type) {
-      InventoryTransactionType.sale => Theme.of(context).colorScheme.primary,
-      InventoryTransactionType.purchase => AppColors.warning,
-      InventoryTransactionType.saleReturn => Theme.of(
-        context,
-      ).colorScheme.secondary,
-      InventoryTransactionType.purchaseReturn => AppColors.info,
-      InventoryTransactionType.transferOut => Theme.of(
-        context,
-      ).colorScheme.error,
-      InventoryTransactionType.transferIn => AppColors.success,
-      InventoryTransactionType.waste => const Color(0xFFB91C1C),
+      InventoryTransactionType.sale => colors.primary,
+      InventoryTransactionType.purchase => context.semantic.warning,
+      InventoryTransactionType.saleReturn => colors.secondary,
+      InventoryTransactionType.purchaseReturn => context.semantic.info,
+      InventoryTransactionType.transferOut => colors.error,
+      InventoryTransactionType.transferIn => context.semantic.success,
+      InventoryTransactionType.waste => context.semantic.error,
       InventoryTransactionType.expiredReturn => const Color(0xFF9A3412),
     };
 
@@ -465,7 +448,7 @@ class _TransactionCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 20),
@@ -493,7 +476,7 @@ class _TransactionCard extends StatelessWidget {
                         Text(
                           view.invoiceNumber!,
                           style: TextStyle(
-                            color: Colors.grey[500],
+                            color: colors.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -502,7 +485,7 @@ class _TransactionCard extends StatelessWidget {
                   if (view.transaction.createdAt != null)
                     Text(
                       view.transaction.createdAt!,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
                     ),
                 ],
               ),
@@ -522,7 +505,7 @@ class _TransactionCard extends StatelessWidget {
                 ),
                 Text(
                   view.unitName ?? 'وحدة',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
                 ),
               ],
             ),

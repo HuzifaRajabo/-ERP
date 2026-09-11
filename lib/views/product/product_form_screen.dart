@@ -12,7 +12,6 @@ import '../../models/category_model.dart';
 import '../../models/product_model.dart';
 import '../../models/product_unit_model.dart';
 import '../../models/returnable_packaging_model.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../../views/shared/shared_components.dart';
 
@@ -182,6 +181,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   // ============================================================
 
   Widget _buildBasicInformation() {
+    final colors = Theme.of(context).colorScheme;
     return _SectionCard(
       title: 'البيانات الأساسية',
       icon: Icons.inventory_2_outlined,
@@ -262,7 +262,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               'ومعامل تحويلها يساوي 1.',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: colors.onSurfaceVariant,
               ),
               textAlign: TextAlign.start,
             ),
@@ -393,15 +393,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Widget _buildEmptyUnits() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.grey.shade200,
+          color: colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -409,7 +410,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           Icon(
             Icons.inventory_2_outlined,
             size: 42,
-            color: Colors.grey.shade500,
+            color: colors.onSurfaceVariant,
           ),
           const SizedBox(height: 8),
           const Text(
@@ -423,7 +424,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             'أضف الوحدة الأساسية أو وحدات مثل كرتون، طرد، صندوق...',
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: colors.onSurfaceVariant,
             ),
             textAlign: TextAlign.center,
           ),
@@ -436,17 +437,15 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     int index,
     ProductUnitModel unit,
   ) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: unit.isDefaultSellUnit
-              ? Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withOpacity(.35)
-              : Colors.grey.shade200,
+              ? colors.primary.withValues(alpha: 0.35)
+              : colors.outlineVariant,
         ),
       ),
       child: Padding(
@@ -460,19 +459,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withOpacity(.08),
+                    color: colors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     unit.isBaseUnit
                         ? Icons.star_outline
                         : Icons.inventory_2_outlined,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
+                    color: colors.primary,
                   ),
                 ),
 
@@ -497,7 +491,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         _conversionText(unit),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
 
@@ -554,16 +548,16 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                         ),
                       ),
                       if (!unit.isBaseUnit)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'delete',
                           child: Row(
                             children: [
                               Icon(
                                 Icons.delete_outline,
-                                color: AppColors.error,
+                                color: colors.error,
                               ),
-                              SizedBox(width: 8),
-                              Text('حذف'),
+                              const SizedBox(width: 8),
+                              const Text('حذف'),
                             ],
                           ),
                         ),
@@ -700,6 +694,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   void _deleteUnit(int index) {
+    final colors = Theme.of(context).colorScheme;
     final unit = controller.tempUnits[index];
 
     if (unit.isBaseUnit) {
@@ -727,9 +722,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               Get.back();
               controller.removeTempUnit(index);
             },
-            child: const Text(
+            child: Text(
               'حذف',
-              style: TextStyle(color: AppColors.error),
+              style: TextStyle(color: colors.error),
             ),
           ),
         ],
@@ -738,6 +733,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Widget _buildPackagingSection() {
+    final colors = Theme.of(context).colorScheme;
     return _SectionCard(
       title: 'العبوة القابلة للإرجاع',
       icon: Icons.liquor_outlined,
@@ -809,7 +805,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               'لا تُضاف قيمتها إلى إجمالي الفاتورة.',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: colors.onSurfaceVariant,
               ),
             ),
           ),
@@ -897,6 +893,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Widget _buildSaveError() {
+    final colors = Theme.of(context).colorScheme;
     return Obx(
       () {
         final message =
@@ -911,24 +908,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.error,
+            color: colors.errorContainer,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: AppColors.error,
+              color: colors.error,
             ),
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
-                color: AppColors.error,
+                color: colors.error,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   message,
-                  style: const TextStyle(
-                    color: AppColors.error,
+                  style: TextStyle(
+                    color: colors.onErrorContainer,
                   ),
                 ),
               ),
@@ -1076,6 +1073,7 @@ class _UnitFormDialogState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return AlertDialog(
       title: Text(
         isEditing
@@ -1155,19 +1153,19 @@ class _UnitFormDialogState
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(.08),
+                      color: colors.primary.withValues(alpha: 0.08),
                       borderRadius:
                           BorderRadius.circular(10),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(
                           Icons.info_outline,
                           size: 18,
-                          color: Colors.blue,
+                          color: colors.primary,
                         ),
-                        SizedBox(width: 8),
-                        Expanded(
+                        const SizedBox(width: 8),
+                        const Expanded(
                           child: Text(
                             'هذه هي الوحدة الأساسية. '
                             'معامل التحويل لها يساوي 1 ولا يمكن تغيير ذلك.',
@@ -1505,12 +1503,13 @@ class _UnitPrice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Row(
       children: [
         Icon(
           icon,
           size: 19,
-          color: Colors.grey.shade600,
+          color: colors.onSurfaceVariant,
         ),
         const SizedBox(width: 7),
         Expanded(
@@ -1521,7 +1520,7 @@ class _UnitPrice extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: Colors.grey.shade600,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 3),
@@ -1552,16 +1551,14 @@ class _SmallBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 8,
         vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .primary
-            .withOpacity(.08),
+        color: colors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -1570,18 +1567,14 @@ class _SmallBadge extends StatelessWidget {
           Icon(
             icon,
             size: 13,
-            color: Theme.of(context)
-                .colorScheme
-                .primary,
+            color: colors.primary,
           ),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontSize: 10,
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary,
+              color: colors.primary,
               fontWeight: FontWeight.w600,
             ),
           ),

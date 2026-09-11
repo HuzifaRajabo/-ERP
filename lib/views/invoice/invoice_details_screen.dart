@@ -14,8 +14,8 @@ import '../../models/payment_model.dart';
 import '../../models/return_model.dart';
 import '../debts/payment_bottom_sheet.dart';
 import '../../core/services/app_event_bus.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../shared/shared_components.dart';
 
 class InvoiceDetailsScreen extends StatefulWidget {
@@ -35,14 +35,13 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    invoice = Get.arguments as InvoiceModel; // ← فقط هذا السطر
+    invoice = Get.arguments as InvoiceModel;
     _invoiceFuture = _loadInvoice();
 
     _invoiceWorker = AppEventBus.instance.listenToInvoices(() async {
       final updated = await controller.getInvoiceById(invoice.id!);
       if (updated != null && mounted) {
         setState(() => invoice = updated);
-        // إعادة تحميل الفاتورة كاملة
         setState(() => _invoiceFuture = _loadInvoice());
       }
     });
@@ -60,6 +59,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return FutureBuilder<InvoiceWithItems?>(
       future: _invoiceFuture,
       builder: (context, snapshot) {
@@ -80,7 +82,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         final invoice = data.invoice;
         final items = data.items;
         final isSale = invoice.type == InvoiceType.sale;
-        final typeColor = isSale ? AppColors.success : AppColors.warning;
+        final typeColor = isSale ? context.semantic.success : context.semantic.warning;
         final statusColor = Color(
           int.parse('FF${invoice.paymentStatus.colorHex}', radix: 16),
         );
@@ -103,7 +105,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               IconButton(
                 icon: Icon(
                   Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
+                  color: colors.error,
                 ),
                 onPressed: () => _confirmDelete(context, invoice),
               ),
@@ -112,7 +114,6 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // ─── رأس الفاتورة ───
               AppCard(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
@@ -124,10 +125,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       children: [
                         Text(
                           invoice.invoiceNumber,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                          style: textTheme.titleLarge,
                         ),
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -163,18 +161,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                           const SizedBox(width: 4),
                           Text(
                             'المستودع:',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13,
-                            ),
+                            style: textTheme.bodySmall,
                           ),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               data.warehouseName!,
-                              style: const TextStyle(
+                              style: textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -186,18 +180,15 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.calendar_today_outlined,
                             size: 14,
-                            color: Colors.grey,
+                            color: colors.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             invoice.createdAt!,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13,
-                            ),
+                            style: textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -207,11 +198,10 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ─── معلومات الطرف ───
               _SectionCard(
                 icon: Icons.people_outline,
                 title: isSale ? 'العميل' : 'المورد',
-                color: Theme.of(context).colorScheme.primary,
+                color: colors.primary,
                 children: [
                   _DetailRow(label: 'الاسم', value: invoice.partyNameSnapshot),
                   if (invoice.partyAddressSnapshot.isNotEmpty)
@@ -223,27 +213,24 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ─── بطاقات أسطر الفاتورة ───
               _ItemsCardsSection(data: data),
               const SizedBox(height: 12),
 
-              // ─── الملاحظات ───
               if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
                 _SectionCard(
                   icon: Icons.notes_outlined,
                   title: 'الملاحظات',
-                  color: Theme.of(context).colorScheme.secondary,
+                  color: colors.secondary,
                   children: [
                     Text(
                       invoice.notes!,
-                      style: TextStyle(color: Colors.grey[700]),
+                      style: TextStyle(color: colors.onSurfaceVariant),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
               ],
 
-              // ─── سجل الدفعات ───
               _PaymentHistorySection(invoiceId: invoice.id!),
               const SizedBox(height: 12),
 
@@ -256,15 +243,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('تسجيل دفعة'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
+                      backgroundColor: context.semantic.success,
+                      foregroundColor: context.semantic.onSuccess,
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
 
-              // ─── قسم المرتجعات ───
               _ReturnsSection(invoiceId: invoice.id!),
               const SizedBox(height: 12),
 
@@ -296,17 +282,21 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         batchesByProductId: batchesByProductId,
       );
     } catch (e) {
+      final colors = Theme.of(context).colorScheme;
+      final semantic = Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
       Get.snackbar(
         'خطأ',
         'فشل تصدير الفاتورة: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: semantic.error,
+        colorText: colors.onError,
       );
     }
   }
 
   void _confirmDelete(BuildContext context, InvoiceModel invoice) {
+    final semantic = Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).colorScheme;
     Get.dialog(
       AlertDialog(
         title: const Text('حذف الفاتورة'),
@@ -329,14 +319,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                   'تعذّر الحذف',
                   result.reason ?? 'حدث خطأ غير متوقع',
                   snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: Colors.red,
-                  colorText: Colors.white,
+                  backgroundColor: semantic.error,
+                  colorText: colors.onError,
                   margin: const EdgeInsets.all(12),
                   duration: const Duration(seconds: 4),
                 );
               }
             },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: Text('حذف', style: TextStyle(color: colors.error)),
           ),
         ],
       ),
@@ -346,9 +336,6 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
 // ─── بطاقات أسطر الفاتورة ───
 
-/// بطاقات الأسطر بدل الجدول القديم — تعرض الوحدة والسعر والدفعات
-/// المخصصة وتواريخ الصلاحية، مع توافق كامل مع الفواتير القديمة
-/// (وحدة/دفعات غير متوفرة → تُخفى أو تُعرض كـ "الوحدة الأساسية").
 class _ItemsCardsSection extends StatelessWidget {
   final InvoiceWithItems data;
 
@@ -356,12 +343,14 @@ class _ItemsCardsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final items = data.items;
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,13 +359,12 @@ class _ItemsCardsSection extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Icon(Icons.list_alt, color: Colors.grey[600], size: 18),
+                Icon(Icons.list_alt, color: colors.onSurfaceVariant, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'المنتجات (${items.length})',
-                  style: const TextStyle(
+                  style: textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
                   ),
                 ),
               ],
@@ -415,11 +403,11 @@ class _ItemDetailCard extends StatelessWidget {
         '${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
 
-  Color _batchStatusColor(BatchAllocationSnapshot allocation) {
+  Color _batchStatusColor(BuildContext context, BatchAllocationSnapshot allocation) {
     final expiry = allocation.expiryDate;
-    if (expiry == null) return Colors.grey;
+    if (expiry == null) return Theme.of(context).colorScheme.onSurfaceVariant;
     final date = DateTime.tryParse(expiry);
-    if (date == null) return Colors.grey;
+    if (date == null) return Theme.of(context).colorScheme.onSurfaceVariant;
     final days = date
         .difference(
           DateTime(
@@ -429,35 +417,37 @@ class _ItemDetailCard extends StatelessWidget {
           ),
         )
         .inDays;
-    if (days < 0) return Colors.red;
-    if (days <= 30) return Colors.orange;
-    return Colors.green;
+    if (days < 0) return context.semantic.error;
+    if (days <= 30) return context.semantic.warning;
+    return context.semantic.success;
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // اسم المنتج
           Row(
             children: [
               Container(
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: colors.primaryContainer,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.inventory_2_outlined,
-                  color: Color(0xFF2563EB),
+                  color: colors.primary,
                   size: 17,
                 ),
               ),
@@ -465,8 +455,7 @@ class _ItemDetailCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.productNameSnapshot,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -475,62 +464,56 @@ class _ItemDetailCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
-          // الكمية × السعر
           Text(
             '${_fmtQty(item.quantity)} '
             '${item.unitNameSnapshot ?? 'الوحدة الأساسية'}'
             ' × ${MoneyUtils.formatMoney(item.unitPrice)}',
-            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+            style: textTheme.bodySmall,
           ),
           const SizedBox(height: 6),
 
-          // الإجمالي
           Row(
             children: [
               Text(
                 'الإجمالي:',
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                style: textTheme.bodySmall,
               ),
               const Spacer(),
               Text(
                 MoneyUtils.formatMoney(item.lineTotal),
-                style: const TextStyle(
+                style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
                 ),
               ),
             ],
           ),
 
-          // المكافئ بالوحدة الأساسية (معلومة ثانوية)
           if (item.conversionFactorSnapshot != 1) ...[
             const SizedBox(height: 4),
             Text(
               'يعادل ${_fmtQty(item.baseQuantity)} وحدة أساسية',
-              style: TextStyle(color: Colors.grey[500], fontSize: 11),
+              style: textTheme.labelSmall,
             ),
           ],
 
-          // الدفعات المخصصة
           if (featureEnabled(AppFeature.batches) && allocations.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
+                color: context.semantic.successContainer,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFBBF7D0)),
+                border: Border.all(color: context.semantic.success.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     allocations.length == 1 ? 'الدفعة:' : 'الدفعات المخصصة:',
-                    style: const TextStyle(
-                      fontSize: 11,
+                    style: textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF065F46),
+                      color: context.semantic.success,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -543,7 +526,7 @@ class _ItemDetailCard extends StatelessWidget {
                             width: 7,
                             height: 7,
                             decoration: BoxDecoration(
-                              color: _batchStatusColor(allocation),
+                              color: _batchStatusColor(context, allocation),
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -553,9 +536,8 @@ class _ItemDetailCard extends StatelessWidget {
                               '${allocation.batchNumber} — '
                               '${_fmtQty(allocation.quantity)}'
                               '${featureEnabled(AppFeature.expiry) && allocation.expiryDate != null ? ' — انتهاء ${_fmtDate(allocation.expiryDate)}' : ''}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: Color(0xFF065F46),
+                              style: textTheme.labelSmall?.copyWith(
+                                color: context.semantic.onSuccessContainer,
                               ),
                             ),
                           ),
@@ -588,11 +570,14 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,10 +588,9 @@ class _SectionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
+                style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: color,
-                  fontSize: 14,
                 ),
               ),
             ],
@@ -627,6 +611,8 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -636,14 +622,14 @@ class _DetailRow extends StatelessWidget {
             width: 70,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
+              style: textTheme.bodySmall,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -694,6 +680,8 @@ class _PaymentHistorySectionState extends State<_PaymentHistorySection> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Obx(() {
       if (_payments.isEmpty) {
         return AppEmptyState(
@@ -710,7 +698,7 @@ class _PaymentHistorySectionState extends State<_PaymentHistorySection> {
               padding: const EdgeInsets.all(AppSpacing.sm),
               child: Row(
                 children: [
-                  Icon(Icons.history, color: Colors.grey[600], size: 18),
+                  Icon(Icons.history, color: colors.onSurfaceVariant, size: 18),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     'سجل الدفعات (${_payments.length})',
@@ -747,6 +735,8 @@ class _PaymentRow extends GetView<PaymentController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return AppCard(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
       child: Row(
@@ -755,13 +745,17 @@ class _PaymentRow extends GetView<PaymentController> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: (payment.returnId != null ? Colors.red : Colors.green)
-                  .withOpacity(0.12),
+              color: (payment.returnId != null
+                      ? context.semantic.error
+                      : context.semantic.success)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.small),
             ),
             child: Icon(
               payment.returnId != null ? Icons.reply : Icons.payments_outlined,
-              color: payment.returnId != null ? Colors.red : Colors.green,
+              color: payment.returnId != null
+                  ? context.semantic.error
+                  : context.semantic.success,
               size: 18,
             ),
           ),
@@ -774,27 +768,29 @@ class _PaymentRow extends GetView<PaymentController> {
                   MoneyUtils.formatMoney(payment.amount),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: payment.returnId != null ? Colors.red : Colors.green,
+                    color: payment.returnId != null
+                        ? context.semantic.error
+                        : context.semantic.success,
                   ),
                 ),
                 if (payment.notes != null)
                   Text(
                     payment.notes!,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey[500],
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
                 if (payment.returnId != null)
                   AppStatusBadge(
                     label: 'دفعة راجعة',
-                    color: Colors.red,
+                    color: context.semantic.error,
                   ),
                 if (payment.createdAt != null)
                   Text(
                     payment.createdAt!,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey[400],
+                      color: colors.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -802,7 +798,7 @@ class _PaymentRow extends GetView<PaymentController> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
+            icon: Icon(Icons.delete_outline, color: colors.error, size: 20),
             onPressed: () => _confirmDelete(context),
           ),
         ],
@@ -811,6 +807,7 @@ class _PaymentRow extends GetView<PaymentController> {
   }
 
   void _confirmDelete(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     Get.dialog(
       AlertDialog(
         title: const Text('حذف الدفعة'),
@@ -825,7 +822,7 @@ class _PaymentRow extends GetView<PaymentController> {
               await controller.deletePayment(payment.id!, invoiceId);
               onDeleted();
             },
-            child: const Text('حذف', style: TextStyle(color: Colors.red)),
+            child: Text('حذف', style: TextStyle(color: colors.error)),
           ),
         ],
       ),
@@ -875,21 +872,23 @@ class _ReturnsSectionState extends State<_ReturnsSection> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Obx(() {
       if (_returns.isEmpty) {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Row(
             children: [
-              Icon(Icons.undo_rounded, color: Colors.grey[400]),
+              Icon(Icons.undo_rounded, color: colors.onSurfaceVariant),
               const SizedBox(width: 8),
               Text(
                 'لا توجد مرتجعات',
-                style: TextStyle(color: Colors.grey[500]),
+                style: TextStyle(color: colors.onSurfaceVariant),
               ),
             ],
           ),
@@ -899,7 +898,7 @@ class _ReturnsSectionState extends State<_ReturnsSection> {
       return Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: colors.outlineVariant),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -935,12 +934,15 @@ class _ReturnRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return InkWell(
       onTap: () => Get.toNamed('/return-details', arguments: ret.id),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+          border: Border(bottom: BorderSide(color: colors.outlineVariant)),
         ),
         child: Row(
           children: [
@@ -948,7 +950,7 @@ class _ReturnRow extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
+                color: Colors.purple.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
@@ -964,15 +966,14 @@ class _ReturnRow extends StatelessWidget {
                 children: [
                   Text(
                     ret.returnNumber,
-                    style: const TextStyle(
+                    style: textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
                     ),
                   ),
                   if (ret.createdAt != null)
                     Text(
                       ret.createdAt!,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                      style: textTheme.labelSmall,
                     ),
                 ],
               ),
@@ -988,7 +989,7 @@ class _ReturnRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.chevron_left, color: Colors.grey[400], size: 18),
+                Icon(Icons.chevron_left, color: colors.onSurfaceVariant, size: 18),
               ],
             ),
           ],
@@ -1023,7 +1024,7 @@ class _ReturnButton extends StatelessWidget {
           style: const TextStyle(color: Colors.purple),
         ),
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.purple.withOpacity(0.4)),
+          side: BorderSide(color: Colors.purple.withValues(alpha: 0.4)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -1053,7 +1054,6 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
     super.initState();
     _load();
 
-    // الاستماع للمخزون (مرتجعات جديدة) والفواتير (تعديل دفعات أو حالات)
     _inventoryWorker = AppEventBus.instance.listenToInventory(() {
       if (mounted) _load();
     });
@@ -1081,6 +1081,8 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final isSale = widget.invoice.type == InvoiceType.sale;
 
     return Obx(() {
@@ -1102,9 +1104,8 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                   _SummaryRow(
                     label: 'إجمالي الفاتورة الأصلي',
                     value: MoneyUtils.formatMoney(grossTotal),
-                    valueStyle: const TextStyle(
+                    valueStyle: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 15,
                     ),
                   ),
                   if (discount > 0) ...[
@@ -1113,7 +1114,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                       label: 'الحسم',
                       value: '- ${MoneyUtils.formatMoney(discount)}',
                       valueStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                        color: colors.error,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -1125,10 +1126,10 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                       label: 'إجمالي المرتجعات',
                       value: '- ${MoneyUtils.formatMoney(returnsTotal)}',
                       labelStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.secondary,
+                        color: colors.secondary,
                       ),
                       valueStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.secondary,
+                        color: colors.secondary,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -1143,7 +1144,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                     label: 'صافي الفاتورة',
                     value: MoneyUtils.formatMoney(netTotal),
                     valueStyle: TextStyle(
-                      color: isSale ? AppColors.success : AppColors.warning,
+                      color: isSale ? context.semantic.success : context.semantic.warning,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -1152,8 +1153,8 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                   _SummaryRow(
                     label: 'المدفوع',
                     value: MoneyUtils.formatMoney(paid),
-                    valueStyle: const TextStyle(
-                      color: AppColors.success,
+                    valueStyle: TextStyle(
+                      color: context.semantic.success,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -1169,7 +1170,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(12),
                 ),
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                border: Border(top: BorderSide(color: colors.outlineVariant)),
               ),
               child: Column(
                 children: [
@@ -1203,7 +1204,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
                           : 1.0,
                       minHeight: 6,
                       color: _getProgressBarColor(context, balance),
-                      backgroundColor: Colors.grey.shade300,
+                      backgroundColor: colors.outlineVariant,
                     ),
                   ),
                 ],
@@ -1224,7 +1225,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
   Color _getBalanceTextColor(BuildContext context, int balance) {
     if (balance > 0) return Theme.of(context).colorScheme.error;
     if (balance < 0) return Theme.of(context).colorScheme.primary;
-    return AppColors.success;
+    return context.semantic.success;
   }
 
   Color _getBalanceBackgroundColor(BuildContext context, int balance) {
@@ -1233,7 +1234,7 @@ class _InvoiceTotalSectionState extends State<_InvoiceTotalSection> {
   }
 
   Color _getProgressBarColor(BuildContext context, int balance) {
-    if (balance > 0) return AppColors.warning;
+    if (balance > 0) return context.semantic.warning;
     return _getBalanceTextColor(context, balance);
   }
 }
@@ -1255,6 +1256,8 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1264,15 +1267,13 @@ class _SummaryRow extends StatelessWidget {
               Icon(
                 icon,
                 size: 16,
-                color: labelStyle?.color ?? Colors.grey[700],
+                color: labelStyle?.color ?? textTheme.bodySmall?.color,
               ),
               const SizedBox(width: 6),
             ],
             Text(
               label,
-              style:
-                  labelStyle ??
-                  TextStyle(color: Colors.grey[700], fontSize: 14),
+              style: labelStyle ?? textTheme.bodySmall,
             ),
           ],
         ),
@@ -1290,6 +1291,7 @@ class _CompanyIdentityBlock extends StatelessWidget {
     if (!Get.isRegistered<CompanyProfileController>()) {
       return const SizedBox.shrink();
     }
+    final colors = Theme.of(context).colorScheme;
     return Obx(() {
       final lines = Get.find<CompanyProfileController>().headerLines;
       if (lines.isEmpty) return const SizedBox.shrink();
@@ -1310,13 +1312,13 @@ class _CompanyIdentityBlock extends StatelessWidget {
                           fontSize: 16,
                         )
                       : TextStyle(
-                          color: Colors.grey[700],
+                          color: colors.onSurfaceVariant,
                           fontSize: 13,
                         ),
                 ),
               ),
             const SizedBox(height: 10),
-            Divider(height: 1, color: Colors.grey[300]),
+            Divider(height: 1, color: colors.outlineVariant),
           ],
         ),
       );

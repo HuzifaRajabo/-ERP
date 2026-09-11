@@ -5,7 +5,6 @@ import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../models/warehouse_model.dart';
 import '../shared/app_ui.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
 
 class WarehouseFormScreen extends StatefulWidget {
@@ -83,6 +82,7 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'تعديل مستودع' : 'إضافة مستودع'),
@@ -128,7 +128,7 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
                 title: const Text('مستودع افتراضي'),
                 subtitle: const Text('يُستخدم تلقائياً في الفواتير الجديدة'),
                 contentPadding: EdgeInsets.zero,
-                activeTrackColor: AppColors.primary,
+                activeTrackColor: colors.primary,
               ),
               const SizedBox(height: AppSpacing.xl),
               FilledButton.icon(
@@ -150,6 +150,7 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
   }
 
   Widget _typeSelector() {
+    final colors = Theme.of(context).colorScheme;
     final types = WarehouseType.values.where((type) {
       if (type == WarehouseType.van && !featureEnabled(AppFeature.vehicles)) {
         return _type == WarehouseType.van;
@@ -165,16 +166,12 @@ class _WarehouseFormScreenState extends State<WarehouseFormScreen> {
           label: Text(t.label),
           selected: selected,
           onSelected: (_) => setState(() => _type = t),
-          selectedColor: AppColors.primary,
+          selectedColor: colors.primary,
           side: BorderSide(
-            color: selected
-                ? AppColors.primary
-                : Theme.of(context).colorScheme.outline,
+            color: selected ? colors.primary : colors.outline,
           ),
           labelStyle: TextStyle(
-            color: selected
-                ? Colors.white
-                : Theme.of(context).colorScheme.onSurface,
+            color: selected ? colors.onPrimary : colors.onSurface,
             fontWeight: FontWeight.w600,
           ),
         );

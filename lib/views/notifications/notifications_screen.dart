@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/notification_controller.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../../core/utils/app_dates.dart';
 import '../../models/notification_model.dart';
 import '../shared/shared_components.dart';
@@ -29,7 +29,7 @@ class NotificationBellButton extends StatelessWidget {
         onPressed: () => Get.toNamed('/notifications'),
         icon: Badge(
           isLabelVisible: count > 0,
-          backgroundColor: AppColors.error,
+          backgroundColor: context.semantic.error,
           label: Text(count > 99 ? '99+' : '$count'),
           child: const Icon(Icons.notifications_outlined),
         ),
@@ -228,17 +228,19 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     final type = notification.typed;
     final color = switch (type) {
       NotificationType.expiryExpired ||
       NotificationType.outOfStock ||
       NotificationType.debtOverdue =>
-        AppColors.error,
+        semantic.error,
       NotificationType.lowStock ||
       NotificationType.packagingOverdue ||
       NotificationType.debtDue =>
-        AppColors.warning,
-      _ => AppColors.warning,
+        semantic.warning,
+      _ => semantic.warning,
     };
     final icon = switch (type) {
       NotificationType.expiryExpired => Icons.event_busy_outlined,
@@ -279,8 +281,8 @@ class _NotificationCard extends StatelessWidget {
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -324,14 +326,14 @@ class _NotificationCard extends StatelessWidget {
               AppStatusBadge(
                 label: notification.status.label,
                 color: notification.isActive
-                    ? AppColors.info
-                    : AppColors.textMuted,
+                    ? semantic.info
+                    : colors.onSurfaceVariant,
               ),
               if (unread) ...[
                 const SizedBox(width: AppSpacing.sm),
-                const AppStatusBadge(
+                AppStatusBadge(
                   label: 'غير مقروء',
-                  color: AppColors.primary,
+                  color: colors.primary,
                 ),
               ],
             ],

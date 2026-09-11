@@ -4,8 +4,8 @@ import '../../controllers/party_controller.dart';
 import '../../controllers/feature_controller.dart';
 import '../../models/business_config.dart';
 import '../../models/party_model.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
+import '../../core/theme/app_semantic_colors.dart';
 import '../packaging/packaging_screens.dart';
 import '../shared/shared_components.dart';
 
@@ -16,6 +16,8 @@ class PartyDetailsScreen extends GetView<PartyController> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final semantic = context.semantic;
     return Scaffold(
       appBar: AppBar(
         title: Text(party.name),
@@ -29,7 +31,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
               Icons.delete_outline,
               color: Theme.of(context).colorScheme.error,
             ),
-            onPressed: () => _confirmDelete(),
+            onPressed: () => _confirmDelete(context),
           ),
         ],
       ),
@@ -46,11 +48,13 @@ class PartyDetailsScreen extends GetView<PartyController> {
                   radius: 32,
                   backgroundColor: _typeColor(
                     party.type,
+                    colors,
+                    semantic,
                   ).withValues(alpha: 0.15),
                   child: Icon(
                     _typeIcon(party.type),
                     size: 32,
-                    color: _typeColor(party.type),
+                    color: _typeColor(party.type, colors, semantic),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -74,7 +78,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
               icon: Icons.phone_outlined,
               label: 'الهاتف',
               value: party.phone!,
-              color: AppColors.success,
+              color: semantic.success,
             ),
 
           if (party.address != null) ...[
@@ -83,7 +87,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
               icon: Icons.location_on_outlined,
               label: 'العنوان',
               value: party.address!,
-              color: AppColors.info,
+              color: semantic.info,
             ),
           ],
 
@@ -121,7 +125,7 @@ class PartyDetailsScreen extends GetView<PartyController> {
     );
   }
 
-  void _confirmDelete() {
+  void _confirmDelete(BuildContext context) {
     Get.dialog(
       AlertDialog(
         title: const Text('حذف الطرف'),
@@ -134,24 +138,25 @@ class PartyDetailsScreen extends GetView<PartyController> {
               await controller.deleteParty(party.id!);
               if (!controller.hasError) Get.back();
             },
-            child: Text('حذف', style: TextStyle(color: AppColors.error)),
+            child: Text('حذف', style: TextStyle(color: context.semantic.error)),
           ),
         ],
       ),
     );
   }
 
-  Color _typeColor(PartyType type) => switch (type) {
-    PartyType.customer => AppColors.primary,
-    PartyType.supplier => AppColors.warning,
-    PartyType.both => AppColors.secondary,
-  };
+  Color _typeColor(PartyType type, ColorScheme colors, AppSemanticColors semantic) =>
+      switch (type) {
+        PartyType.customer => colors.primary,
+        PartyType.supplier => semantic.warning,
+        PartyType.both => colors.secondary,
+      };
 
   IconData _typeIcon(PartyType type) => switch (type) {
-    PartyType.customer => Icons.person_outline,
-    PartyType.supplier => Icons.local_shipping_outlined,
-    PartyType.both => Icons.people_outline,
-  };
+        PartyType.customer => Icons.person_outline,
+        PartyType.supplier => Icons.local_shipping_outlined,
+        PartyType.both => Icons.people_outline,
+      };
 }
 
 class _InfoRow extends StatelessWidget {
@@ -169,6 +174,8 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Row(
@@ -180,7 +187,7 @@ class _InfoRow extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
               ),
               const SizedBox(height: 2),
               Text(
@@ -202,10 +209,11 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final (label, color) = switch (type) {
-      PartyType.customer => ('عميل', AppColors.primary),
-      PartyType.supplier => ('مورد', AppColors.warning),
-      PartyType.both => ('عميل ومورد', AppColors.secondary),
+      PartyType.customer => ('عميل', colors.primary),
+      PartyType.supplier => ('مورد', context.semantic.warning),
+      PartyType.both => ('عميل ومورد', Theme.of(context).colorScheme.secondary),
     };
 
     return AppStatusBadge(label: label, color: color);

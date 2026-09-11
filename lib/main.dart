@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'bindings/app_binding.dart';
 import 'controllers/notification_controller.dart';
+import 'controllers/theme_controller.dart';
 import 'core/database/database_helper.dart';
 import 'core/theme/app_theme.dart';
+import 'repositories/app_settings_repository.dart';
 import 'views/main_screen.dart';
 import 'views/product/category_list_screen.dart';
 import 'views/product/product_details_screen.dart';
@@ -33,6 +35,13 @@ void main() async {
 
   // تهيئة قاعدة البيانات
   await DatabaseHelper.instance.database;
+
+  // استعادة وضع المظهر قبل تشغيل التطبيق (تجنّب وميض White→Dark)
+  final settingsRepository = AppSettingsRepository();
+  Get.put<AppSettingsRepository>(settingsRepository, permanent: true);
+  final themeController = ThemeController(settingsRepository);
+  await themeController.load();
+  Get.put<ThemeController>(themeController, permanent: true);
 
   runApp(const MyApp());
 }
@@ -66,84 +75,97 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'ERP',
-      theme: AppTheme.light(),
-      initialBinding: AppBinding(), // ← يُشغَّل مرة واحدة عند البدء
-      initialRoute: '/',
-      builder: (context, child) =>
-          Directionality(textDirection: TextDirection.rtl, child: child!),
-      getPages: [
-        GetPage(
-          name: '/',
-          page: () => MainScreen(),
-          // ← لا binding هنا
-        ),
-        GetPage(name: '/product-form', page: () => const ProductFormScreen()),
-        GetPage(
-          name: '/product-categories',
-          page: () => const ProductCategoryListScreen(),
-        ),
-        GetPage(
-          name: '/product-details',
-          page: () => const ProductDetailsScreen(),
-        ),
-        GetPage(name: '/party-form', page: () => const PartyFormScreen()),
-        GetPage(name: '/party-details', page: () => const PartyDetailsScreen()),
-        GetPage(name: '/invoice-form', page: () => const InvoiceFormScreen()),
-        GetPage(
-          name: '/invoice-details',
-          page: () => const InvoiceDetailsScreen(),
-        ),
-        GetPage(
-          name: '/party-invoices',
-          page: () => const PartyInvoicesScreen(),
-        ),
-        GetPage(name: '/debts', page: () => const DebtsScreen()),
-        GetPage(name: '/expense-list', page: () => const ExpenseListScreen()),
-        GetPage(name: '/expense-form', page: () => const ExpenseFormScreen()),
-        GetPage(name: '/reports', page: () => const ReportScreen()),
-        GetPage(name: '/return-form', page: () => const ReturnFormScreen()),
-        GetPage(
-          name: '/return-details',
-          page: () => const ReturnDetailsScreen(),
-        ),
-        GetPage(name: '/warehouse-form', page: () => const WarehouseFormScreen()),
-        GetPage(name: '/stock-transfer', page: () => const TransferScreen()),
-        GetPage(
-          name: '/stock-loss',
-          page: () => const InventoryScreen(initialTab: 2),
-        ),
-        GetPage(
-          name: '/waste-form',
-          page: () => const StockLossFormScreen(),
-        ),
-        GetPage(
-          name: '/expired-return-form',
-          page: () => const StockLossFormScreen(isExpiredReturn: true),
-        ),
-        GetPage(
-          name: '/packaging',
-          page: () => const PackagingHubScreen(),
-        ),
-        GetPage(
-          name: '/packaging-settle',
-          page: () => const PackagingSettlementScreen(),
-        ),
-        GetPage(
-          name: '/notifications',
-          page: () => const NotificationsScreen(),
-        ),
-        GetPage(
-          name: '/settings',
-          page: () => const SettingsScreen(),
-        ),
-        GetPage(
-          name: '/company-profile',
-          page: () => const CompanyProfileScreen(),
-        ),
-      ],
+    return Obx(
+      () => GetMaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'ERP',
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: Get.find<ThemeController>().themeMode,
+        initialBinding: AppBinding(), // ← يُشغَّل مرة واحدة عند البدء
+        initialRoute: '/',
+        builder: (context, child) =>
+            Directionality(textDirection: TextDirection.rtl, child: child!),
+        getPages: [
+          GetPage(
+            name: '/',
+            page: () => MainScreen(),
+            // ← لا binding هنا
+          ),
+          GetPage(name: '/product-form', page: () => const ProductFormScreen()),
+          GetPage(
+            name: '/product-categories',
+            page: () => const ProductCategoryListScreen(),
+          ),
+          GetPage(
+            name: '/product-details',
+            page: () => const ProductDetailsScreen(),
+          ),
+          GetPage(name: '/party-form', page: () => const PartyFormScreen()),
+          GetPage(
+            name: '/party-details',
+            page: () => const PartyDetailsScreen(),
+          ),
+          GetPage(name: '/invoice-form', page: () => const InvoiceFormScreen()),
+          GetPage(
+            name: '/invoice-details',
+            page: () => const InvoiceDetailsScreen(),
+          ),
+          GetPage(
+            name: '/party-invoices',
+            page: () => const PartyInvoicesScreen(),
+          ),
+          GetPage(name: '/debts', page: () => const DebtsScreen()),
+          GetPage(
+            name: '/expense-list',
+            page: () => const ExpenseListScreen(),
+          ),
+          GetPage(name: '/expense-form', page: () => const ExpenseFormScreen()),
+          GetPage(name: '/reports', page: () => const ReportScreen()),
+          GetPage(name: '/return-form', page: () => const ReturnFormScreen()),
+          GetPage(
+            name: '/return-details',
+            page: () => const ReturnDetailsScreen(),
+          ),
+          GetPage(
+            name: '/warehouse-form',
+            page: () => const WarehouseFormScreen(),
+          ),
+          GetPage(name: '/stock-transfer', page: () => const TransferScreen()),
+          GetPage(
+            name: '/stock-loss',
+            page: () => const InventoryScreen(initialTab: 2),
+          ),
+          GetPage(
+            name: '/waste-form',
+            page: () => const StockLossFormScreen(),
+          ),
+          GetPage(
+            name: '/expired-return-form',
+            page: () => const StockLossFormScreen(isExpiredReturn: true),
+          ),
+          GetPage(
+            name: '/packaging',
+            page: () => const PackagingHubScreen(),
+          ),
+          GetPage(
+            name: '/packaging-settle',
+            page: () => const PackagingSettlementScreen(),
+          ),
+          GetPage(
+            name: '/notifications',
+            page: () => const NotificationsScreen(),
+          ),
+          GetPage(
+            name: '/settings',
+            page: () => const SettingsScreen(),
+          ),
+          GetPage(
+            name: '/company-profile',
+            page: () => const CompanyProfileScreen(),
+          ),
+        ],
+      ),
     );
   }
 }
