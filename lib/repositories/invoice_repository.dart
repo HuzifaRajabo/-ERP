@@ -427,9 +427,16 @@ class InvoiceRepository {
   }
 
   Future<String> _generateNextInvoiceNumber(DatabaseExecutor txn) async {
-    final result = await txn.rawQuery('SELECT COUNT(*) as count FROM invoices');
-    final count = (result.first['count'] as int) + 1;
-    return 'INV-${count.toString().padLeft(4, '0')}';
+    // جلب أكبر id موجود في الجدول
+    final result = await txn.rawQuery('SELECT MAX(id) as max_id FROM invoices');
+    
+    // في حال كان الجدول فارغاً (لا يوجد id بعد)، نبدأ من 0
+    final lastId = (result.first['max_id'] as int?) ?? 0;
+    
+    // إضافة 1 للـ id الأخير
+    final nextCount = lastId + 1;
+    
+    return 'INV-${nextCount.toString().padLeft(6, '0')}';
   }
 
   Future<InvoiceWithItems?> getInvoiceWithItems(int invoiceId) async {
